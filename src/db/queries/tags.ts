@@ -1,7 +1,7 @@
 import { desc, eq, like, or, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
-import { tags, entryVersionTags } from "../schema";
+import { tags } from "../schema";
 
 export function getOrCreateTag(displayName: string) {
   const name = displayName.trim().toLowerCase();
