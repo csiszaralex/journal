@@ -1,0 +1,23 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Generate commit messages strictly following the Conventional Commits specification."
+    },
+    {
+      "text": "The commit message structure must be: <type>: <description>."
+    },
+    {
+      "text": "Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert."
+    },
+    {
+      "text": "The description (subject) must be 100 characters or less, written in imperative mood (e.g., 'add' not 'added', 'fix' not 'fixed'). Do NOT end with a period."
+    },
+    {
+      "text": "If the change is complex, add a body separated by a blank line explaining 'why' the change was made."
+    },
+    {
+      "text": "Examples:\n- 'feat: add auth guard to user controller'\n- 'fix: correct typo in dashboard layout'\n- 'chore: update turbo pipeline configuration'"
+    }
+  ]
+}
+
