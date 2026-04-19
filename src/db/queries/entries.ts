@@ -377,3 +377,23 @@ export function rollbackToVersion(
     .where(eq(entries.id, entryId))
     .run();
 }
+
+export type CalendarDot = { entry_date: string; mood_score: number | null };
+
+export function getCalendarData(from: string, to: string): CalendarDot[] {
+  return db
+    .select({
+      entry_date: entryVersions.entry_date,
+      mood_score: entryVersions.mood_score,
+    })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        gte(entryVersions.entry_date, from),
+        lte(entryVersions.entry_date, to)
+      )
+    )
+    .all();
+}
