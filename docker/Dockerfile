@@ -21,6 +21,8 @@ RUN mkdir -p data
 RUN pnpm build
 # Build worker
 RUN pnpm exec tsc -p tsconfig.worker.json
+# package.json has "type":"module" so Node treats .js as ESM — override for CJS output
+RUN echo '{"type":"commonjs"}' > dist/package.json
 
 # Stage 3 — runtime
 FROM node:24-alpine AS runner
@@ -34,6 +36,9 @@ COPY --from=builder /app/public ./public
 
 # Worker dist
 COPY --from=builder /app/dist ./dist
+
+# Drizzle migrations (migrate() runs at startup from client.ts)
+COPY --from=builder /app/drizzle ./drizzle
 
 # Native sqlite3 bindings (flat layout from hoisted install)
 COPY --from=deps /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
