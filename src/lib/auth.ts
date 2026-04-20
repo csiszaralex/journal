@@ -9,6 +9,7 @@ import {
   authVerificationTokens,
   authAuthenticators,
 } from "@/db/schema";
+import { logAudit } from "@/db/queries/audit";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -29,6 +30,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const allowedEmail = process.env.ALLOWED_EMAIL;
       if (!allowedEmail) return false;
       return user.email === allowedEmail;
+    },
+  },
+  events: {
+    createUser({ user }) {
+      logAudit("auth.register", { user_id: user.id, email: user.email });
+    },
+    signIn({ user, isNewUser }) {
+      if (!isNewUser) {
+        logAudit("auth.login", { user_id: user.id, email: user.email });
+      }
+    },
+    signOut() {
+      logAudit("auth.logout");
     },
   },
   cookies: {
