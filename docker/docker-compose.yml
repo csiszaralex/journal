@@ -2,17 +2,9 @@ services:
   web:
     image: ${IMAGE:-ghcr.io/csiszaralex/journal:latest}
     restart: unless-stopped
+    env_file: ../.env
     volumes:
-      - ../data:/data
-    environment:
-      DATABASE_URL: file:/data/journal.db
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: ${AUTH_URL}
-      ALLOWED_EMAIL: ${ALLOWED_EMAIL}
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
-      VAPID_SUBJECT: ${VAPID_SUBJECT}
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      - journal_data:/data
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.journal.rule=Host(`naplo.csalex.dev`)"
@@ -32,17 +24,9 @@ services:
     image: ${IMAGE:-ghcr.io/csiszaralex/journal:latest}
     restart: unless-stopped
     command: node dist/worker/index.js
+    env_file: ../.env
     volumes:
-      - ../data:/data
-    environment:
-      DATABASE_URL: file:/data/journal.db
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: ${AUTH_URL}
-      ALLOWED_EMAIL: ${ALLOWED_EMAIL}
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
-      VAPID_SUBJECT: ${VAPID_SUBJECT}
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      - journal_data:/data
     networks:
       - proxy_network
 
@@ -50,12 +34,14 @@ services:
     image: litestream/litestream:latest
     restart: unless-stopped
     command: replicate -config /etc/litestream.yml
+    env_file: ../.env
     volumes:
-      - ../data:/data
+      - journal_data:/data
       - ./litestream.yml:/etc/litestream.yml:ro
-    environment:
-      LITESTREAM_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      LITESTREAM_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+
+volumes:
+  journal_data:
+    name: journal_data
 
 networks:
   proxy_network:

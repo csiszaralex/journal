@@ -101,23 +101,23 @@ jobs:
 
       - name: Write .env from GitHub secrets & variables
         run: |
-          cat > .env << 'EOF'
-          DATABASE_URL=file:/data/journal.db
-          AUTH_SECRET=${{ secrets.AUTH_SECRET }}
-          AUTH_URL=${{ vars.AUTH_URL }}
-          ALLOWED_EMAIL=${{ secrets.ALLOWED_EMAIL }}
-          VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
-          VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}
-          NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
-          R2_ACCESS_KEY_ID=${{ vars.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }}
-          EOF
+          {
+            echo "DATABASE_URL=file:/data/journal.db"
+            echo "AUTH_SECRET=${{ secrets.AUTH_SECRET }}"
+            echo "AUTH_URL=${{ vars.AUTH_URL }}"
+            echo "ALLOWED_EMAIL=${{ secrets.ALLOWED_EMAIL }}"
+            echo "VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}"
+            echo "VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}"
+            echo "VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}"
+            echo "NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}"
+            echo "R2_ACCESS_KEY_ID=${{ vars.R2_ACCESS_KEY_ID }}"
+            echo "R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }}"
+          } > .env
 
       - name: Deploy
         working-directory: docker
         run: |
-          docker compose --env-file ../.env pull web worker
-          docker compose --env-file ../.env up -d --remove-orphans
+          docker compose pull web worker
+          docker compose up -d --remove-orphans
           docker image prune -f
 
