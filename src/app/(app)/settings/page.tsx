@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { ExportButtons } from "@/components/journal/ExportButtons";
 
 export default function SettingsPage() {

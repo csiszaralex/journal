@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { SearchView } from "@/components/journal/SearchView";
 
 type SearchParams = Promise<{

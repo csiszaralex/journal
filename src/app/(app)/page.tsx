@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { format } from "date-fns";
 import { listEntries } from "@/db/queries/entries";
 import { EntryForm } from "@/components/journal/EntryForm";

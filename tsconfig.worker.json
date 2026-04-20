@@ -16,6 +16,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/worker/**/*.ts", "src/db/**/*.ts", "src/lib/push.ts", "src/env.ts"],
+  "include": ["src/worker/**/*.ts", "src/db/**/*.ts", "src/lib/push.ts"],
   "exclude": ["node_modules", ".next"]
 }
