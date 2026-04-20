@@ -702,6 +702,91 @@ Then:
 - **Dark/light mode toggle** — app currently hardcoded dark; add a user-controlled theme switch using `next-themes` with preference persisted to localStorage. Toggle button in `/settings`.
 - Entry templates
 
+### Phase 14 — Offline-first (Background Sync)
+
+**Goal**: when the user writes an entry offline, the UI behaves as if it succeeded, and the entry is sent to the server automatically once connectivity is restored.
+
+#### Client-side (service worker + app)
+
+1. Add a small **IndexedDB store** (`pending-actions`) using the native `indexedDB` API (no extra lib). Schema: `{ id: cuid2, url: string, body: string, timestamp: number }`.
+2. In `src/app/sw.ts`, intercept `POST /api/sync` requests:
+   - If the fetch fails due to network error, save the request body to `pending-actions` IDB store and return a synthetic `{ ok: true, offline: true }` JSON response so the UI doesn't show an error.
+   - Register a Background Sync event (`self.registration.sync.register('flush-pending')`) if the Browser Sync API is available.
+   - On the `sync` event (`flush-pending`): read all rows from `pending-actions`, replay them in order as `POST /api/sync`, remove each row on `2xx`, keep on network failure (the browser will retry).
+3. For browsers without Background Sync (Safari, Firefox): add a `online` event listener in the app shell (`src/app/(app)/layout.tsx` or a `'use client'` component) that fires a custom SW message (`postMessage({ type: 'flush-pending' })`) when the browser regains connectivity. The SW listens for this message and performs the same flush loop.
+
+#### Server-side sync endpoint
+
+4. Create `src/app/api/sync/route.ts` — `POST` handler:
+   - Accepts `{ action: 'createEntry' | 'updateEntry' | 'softDeleteEntry', payload: unknown }`.
+   - Validates payload with the same Zod schemas used by the existing Server Actions.
+   - Calls the appropriate DB query function.
+   - Returns `{ ok: true, id }` on success or `{ ok: false, error }` on validation failure (do NOT retry validation failures — the client must drop those rows).
+   - Auth: same session-cookie check as the rest of the app.
+
+#### UI integration
+
+5. In `EntryForm.tsx`, replace the direct Server Action call with a helper `submitEntry(formData)` that:
+   - Tries `fetch('/api/sync', { method: 'POST', body: JSON.stringify(payload) })`.
+   - If `response.ok && response.json().offline === true`, show a subtle "Saved offline — will sync when connected" toast (use `sonner`).
+   - If `response.ok` and no `offline` flag, show the normal success state.
+6. Add an **offline indicator** component: a small persistent banner (not a toast) that appears when `navigator.onLine === false` and disappears when back online.
+
+#### Notes
+
+- Only `createEntry` / `updateEntry` / `softDeleteEntry` need offline queuing. Read paths (list, calendar, search) remain network-dependent for now.
+- Do not queue the same entry twice: use the cuid2 generated on the client as the idempotency key; the server endpoint accepts an optional `clientId` field and deduplicates via a unique constraint on a `client_id` column added to `entry_versions` (nullable, unique when non-null).
+- Serwist's `defaultCache` handles GET caching (app shell, static assets) — we only extend it with the POST intercept logic above.
+- Background Sync is a progressive enhancement — the app must work fully without it (the `online` event fallback covers the gap).
+
+7. **Report to user**.
+
+### Phase 15 — Code quality audit
+
+Go through the entire codebase file by file and produce a written report, then fix every issue found before marking the phase done.
+
+#### What to check
+
+**DRY (Don't Repeat Yourself)**
+- Identical or near-identical logic duplicated across files (e.g. the same date formatting, the same auth session check, the same Zod refinement rewritten in two places). Extract to a shared util or hook.
+- Duplicated type definitions — if the same shape appears in more than one file, derive one from the other or move to `src/types/`.
+- Duplicated query fragments — if two query functions repeat the same join pattern, extract a base query builder.
+
+**Separation of Concerns**
+- UI components that contain direct DB calls or raw SQL — move logic to `src/db/queries/` or a Server Action.
+- Server Actions that contain UI logic or string formatting that belongs in the component.
+- `src/lib/` files that import from `src/app/` (wrong direction).
+- The worker (`src/worker/`) importing directly from `src/app/` — it must only use `src/db/`, `src/lib/`, and `src/env.ts`.
+
+**TypeScript strictness — no `any`**
+- Search for every occurrence of `: any`, `as any`, `// @ts-ignore`, `// @ts-expect-error` (the last two are allowed only if they carry a comment explaining an unavoidable upstream type gap).
+- Replace `any` with proper types: unknown + type guard, a concrete interface, or a Zod-inferred type.
+- Check that all Server Action return types are explicitly annotated (not inferred as `any` due to dynamic formData handling).
+
+**Dead code**
+- Unused imports (`pnpm lint` will catch most, but also check for exported functions that are never imported anywhere).
+- Commented-out code blocks — remove them.
+- Files created during scaffolding that ended up empty or unused.
+
+**Naming consistency**
+- DB column names: `snake_case`. TS identifiers: `camelCase`. Components: `PascalCase`. Verify nothing is mixed.
+- Server Actions named `*Action` consistently.
+- Query functions follow the `verb + noun` pattern (`getEntry`, `listEntries`, `createEntry`).
+
+**Validation coverage**
+- Every Server Action starts with a Zod parse. No unchecked `formData.get(...)` anywhere.
+- Every API route (`src/app/api/`) validates its request body with Zod before touching the DB.
+
+#### Process
+
+1. Run `pnpm lint` and `pnpm typecheck` — fix all errors and warnings first.
+2. Search for `any` occurrences: `grep -r ": any\|as any\|@ts-ignore\|@ts-expect-error" src/`.
+3. Read each file in `src/` top-to-bottom and apply the checks above.
+4. Produce a Markdown report listing every issue found and the fix applied (or "no issues" per category).
+5. Show the report to the user and confirm before committing the cleanup.
+6. Use superpower skills for bettes checks.
+7. **Report to user**.
+
 ---
 
 ## 6. Development Conventions
