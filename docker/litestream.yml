@@ -1,0 +1,8 @@
+dbs:
+  - path: /data/journal.db
+    replicas:
+      - type: s3
+        endpoint: https://1e929e25a132d35104343b4e0f139552.r2.cloudflarestorage.com
+        bucket: journal-backup
+        path: journal
+        region: auto

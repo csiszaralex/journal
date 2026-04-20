@@ -1,0 +1,66 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ../data:/data
+    environment:
+      DATABASE_URL: file:/data/journal.db
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.journal.rule=Host(`naplo.csalex.dev`)"
+      - "traefik.http.routers.journal.entrypoints=websecure"
+      - "traefik.http.routers.journal.tls.certresolver=myresolver"
+      - "traefik.http.services.journal.loadbalancer.server.port=3000"
+      - "traefik.docker.network=proxy_network"
+    networks:
+      - proxy_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: node dist/worker/index.js
+    volumes:
+      - ../data:/data
+    environment:
+      DATABASE_URL: file:/data/journal.db
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+    networks:
+      - proxy_network
+
+  litestream:
+    image: litestream/litestream:latest
+    restart: unless-stopped
+    command: replicate -config /etc/litestream.yml
+    volumes:
+      - ../data:/data
+      - ./litestream.yml:/etc/litestream.yml:ro
+    environment:
+      LITESTREAM_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      LITESTREAM_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+
+networks:
+  proxy_network:
+    external: true
