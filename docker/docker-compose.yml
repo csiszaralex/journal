@@ -1,8 +1,6 @@
 services:
   web:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: ${IMAGE:-ghcr.io/csiszaralex/journal:latest}
     restart: unless-stopped
     volumes:
       - ../data:/data
@@ -31,9 +29,7 @@ services:
       retries: 3
 
   worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: ${IMAGE:-ghcr.io/csiszaralex/journal:latest}
     restart: unless-stopped
     command: node dist/worker/index.js
     volumes:
