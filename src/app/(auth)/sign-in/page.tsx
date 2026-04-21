@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/webauthn";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ function authErrorMessage(code: string): string {
   return AUTH_ERROR_MESSAGES[code] ?? "Sign in failed. Your passkey may not be registered on this device.";
 }
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
 
@@ -103,5 +103,13 @@ export default function SignInPage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInContent />
+    </Suspense>
   );
 }
