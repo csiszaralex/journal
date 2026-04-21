@@ -24,14 +24,19 @@ RUN pnpm exec esbuild src/worker/index.ts \
   --bundle --platform=node --target=node24 \
   --format=cjs --outfile=dist/worker/index.js \
   --external:better-sqlite3
+# root package.json has "type":"module"; override for the CJS bundle
+RUN echo '{"type":"commonjs"}' > dist/package.json
 
 # Stage 3 — runtime
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Bind to all interfaces so the health check can reach 127.0.0.1
+ENV HOSTNAME=0.0.0.0
 
 # Pre-create /data with correct ownership so Docker initialises the named
 # volume with uid 1000 (node) on first mount — litestream runs as the same uid
+RUN apk add --no-cache curl
 RUN mkdir -p /data && chown node:node /data
 
 # Next.js standalone bundle
