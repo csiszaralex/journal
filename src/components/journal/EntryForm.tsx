@@ -7,14 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import type { EntryWithVersion } from '@/db/queries/entries';
+import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
-import { getFormProps, getTextareaProps, useForm } from '@conform-to/react';
+import { getFormProps, useForm } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { useActionState, useEffect, useReducer } from 'react';
 import { TagCombobox } from './TagCombobox';
+import { TemplateSelector } from './TemplateSelector';
 
 const SCORE_COLORS: Record<number, string> = {
   1: 'bg-red-500 text-white border-red-500',
@@ -26,6 +28,7 @@ const SCORE_COLORS: Record<number, string> = {
 
 type FormState = {
   entryDate: string;
+  textValue: string;
   moodScore: number | undefined;
   energyScore: number | undefined;
   calendarOpen: boolean;
@@ -34,15 +37,19 @@ type FormState = {
 
 type FormAction =
   | { type: 'SET_DATE'; date: string }
+  | { type: 'SET_TEXT'; text: string }
   | { type: 'SET_MOOD'; score: number | undefined }
   | { type: 'SET_ENERGY'; score: number | undefined }
   | { type: 'TOGGLE_CALENDAR'; open: boolean }
-  | { type: 'RESET'; todayStr: string };
+  | { type: 'RESET'; todayStr: string }
+  | { type: 'APPLY_TEMPLATE'; template: EntryTemplate };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
     case 'SET_DATE':
       return { ...state, entryDate: action.date, calendarOpen: false };
+    case 'SET_TEXT':
+      return { ...state, textValue: action.text };
     case 'SET_MOOD':
       return { ...state, moodScore: action.score };
     case 'SET_ENERGY':
@@ -52,9 +59,24 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'RESET':
       return {
         entryDate: action.todayStr,
+        textValue: '',
         moodScore: undefined,
         energyScore: undefined,
         calendarOpen: false,
+        tagKey: state.tagKey + 1,
+      };
+    case 'APPLY_TEMPLATE':
+      return {
+        ...state,
+        textValue: state.textValue === '' && action.template.text
+          ? action.template.text
+          : state.textValue,
+        moodScore: state.moodScore === undefined && action.template.default_mood != null
+          ? action.template.default_mood
+          : state.moodScore,
+        energyScore: state.energyScore === undefined && action.template.default_energy != null
+          ? action.template.default_energy
+          : state.energyScore,
         tagKey: state.tagKey + 1,
       };
   }
@@ -63,14 +85,17 @@ function formReducer(state: FormState, action: FormAction): FormState {
 interface EntryFormProps {
   entry?: EntryWithVersion;
   onSuccess?: () => void;
+  templates?: EntryTemplate[];
+  defaultDate?: string;
 }
 
-export function EntryForm({ entry, onSuccess }: EntryFormProps) {
+export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: EntryFormProps) {
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   const [state, dispatch] = useReducer(formReducer, {
-    entryDate: entry?.version.entry_date ?? todayStr,
+    entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
+    textValue: entry?.version.text ?? '',
     moodScore: entry?.version.mood_score ?? undefined,
     energyScore: entry?.version.energy_score ?? undefined,
     calendarOpen: false,
@@ -84,7 +109,6 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
 
   const [form, fields] = useForm({
     lastResult,
-    defaultValue: { text: entry?.version.text ?? '' },
     onValidate({ formData }) {
       return parseWithZod(formData, { schema: entryInputSchema });
     },
@@ -93,7 +117,7 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
   });
 
   useEffect(() => {
-    if (lastResult?.status === 'success') {
+    if (lastResult !== null && (lastResult as { initialValue?: unknown }).initialValue === null) {
       if (!isEdit) dispatch({ type: 'RESET', todayStr });
       onSuccess?.();
     }
@@ -108,11 +132,19 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
       <input type='hidden' name='mood_score' value={state.moodScore ?? ''} />
       <input type='hidden' name='energy_score' value={state.energyScore ?? ''} />
 
-      {/* Header: label + date picker */}
+      {/* Header: label + template picker + date picker */}
       <div className='flex items-center justify-between gap-2'>
-        <span className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-          {isEdit ? 'Edit entry' : 'New entry'}
-        </span>
+        <div className='flex items-center gap-1'>
+          <span className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+            {isEdit ? 'Edit entry' : 'New entry'}
+          </span>
+          {!isEdit && (
+            <TemplateSelector
+              templates={templates}
+              onSelect={(t) => dispatch({ type: 'APPLY_TEMPLATE', template: t })}
+            />
+          )}
+        </div>
         <Popover
           open={state.calendarOpen}
           onOpenChange={(open) => dispatch({ type: 'TOGGLE_CALENDAR', open })}
@@ -136,11 +168,14 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
         </Popover>
       </div>
 
-      {/* Textarea */}
+      {/* Textarea — controlled so template text fills correctly */}
       <div>
         <Textarea
-          {...getTextareaProps(fields.text)}
+          id={fields.text.id}
+          name={fields.text.name}
           key={fields.text.key}
+          value={state.textValue}
+          onChange={(e) => dispatch({ type: 'SET_TEXT', text: e.target.value })}
           placeholder='Write freely…'
           className='min-h-35 resize-none border-muted/60 bg-muted/20 text-base leading-relaxed placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:bg-muted/40'
         />
@@ -158,10 +193,7 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
               key={s}
               type='button'
               onClick={() =>
-                dispatch({
-                  type: 'SET_MOOD',
-                  score: state.moodScore === s ? undefined : s,
-                })
+                dispatch({ type: 'SET_MOOD', score: state.moodScore === s ? undefined : s })
               }
               className={cn(
                 'size-7 rounded-full border text-xs font-medium transition-all',
@@ -185,10 +217,7 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
               key={s}
               type='button'
               onClick={() =>
-                dispatch({
-                  type: 'SET_ENERGY',
-                  score: state.energyScore === s ? undefined : s,
-                })
+                dispatch({ type: 'SET_ENERGY', score: state.energyScore === s ? undefined : s })
               }
               className={cn(
                 'size-7 rounded-full border text-xs font-medium transition-all',
@@ -227,4 +256,3 @@ export function EntryForm({ entry, onSuccess }: EntryFormProps) {
     </form>
   );
 }
-
