@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/webauthn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,17 +9,34 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  AccessDenied: "Access denied. This account is not allowed.",
+  Configuration: "Server configuration error. Please try again later.",
+  Verification: "The sign-in link has expired.",
+};
+
+function authErrorMessage(code: string): string {
+  return AUTH_ERROR_MESSAGES[code] ?? "Sign in failed. Your passkey may not be registered on this device.";
+}
+
 export default function SignInPage() {
+  const searchParams = useSearchParams();
+  const urlError = searchParams.get("error");
+
   const [email, setEmail] = useState("");
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const displayError = error ?? (urlError ? authErrorMessage(urlError) : null);
 
   async function handleAuthenticate() {
     setError(null);
     try {
       await signIn("passkey", { action: "authenticate", callbackUrl: "/" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Authentication failed");
+      if (e instanceof Error && e.message !== "NEXT_REDIRECT") {
+        setError("Sign in failed. Your passkey may not be registered on this device.");
+      }
     }
   }
 
@@ -33,7 +51,9 @@ export default function SignInPage() {
     try {
       await signIn("passkey", { action: "register", email: trimmed, callbackUrl: "/" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Registration failed");
+      if (e instanceof Error && e.message !== "NEXT_REDIRECT") {
+        setError("Registration failed. Please try again.");
+      }
     } finally {
       setRegistering(false);
     }
@@ -77,8 +97,8 @@ export default function SignInPage() {
             </Button>
           </div>
 
-          {error && (
-            <p className="text-xs text-destructive text-center">{error}</p>
+          {displayError && (
+            <p className="text-xs text-destructive text-center">{displayError}</p>
           )}
         </CardContent>
       </Card>
