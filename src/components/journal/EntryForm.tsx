@@ -14,7 +14,7 @@ import { getFormProps, useForm } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
-import { useActionState, useEffect, useReducer } from 'react';
+import { useActionState, useEffect, useReducer, useRef } from 'react';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
 
@@ -42,7 +42,13 @@ type FormAction =
   | { type: 'SET_ENERGY'; score: number | undefined }
   | { type: 'TOGGLE_CALENDAR'; open: boolean }
   | { type: 'RESET'; todayStr: string }
-  | { type: 'APPLY_TEMPLATE'; template: EntryTemplate };
+  | { type: 'APPLY_TEMPLATE'; template: EntryTemplate }
+  | {
+      type: 'RESTORE_DRAFT';
+      text: string;
+      moodScore: number | undefined;
+      energyScore: number | undefined;
+    };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
@@ -68,16 +74,24 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'APPLY_TEMPLATE':
       return {
         ...state,
-        textValue: state.textValue === '' && action.template.text
-          ? action.template.text
-          : state.textValue,
-        moodScore: state.moodScore === undefined && action.template.default_mood != null
-          ? action.template.default_mood
-          : state.moodScore,
-        energyScore: state.energyScore === undefined && action.template.default_energy != null
-          ? action.template.default_energy
-          : state.energyScore,
+        textValue:
+          state.textValue === '' && action.template.text ? action.template.text : state.textValue,
+        moodScore:
+          state.moodScore === undefined && action.template.default_mood != null
+            ? action.template.default_mood
+            : state.moodScore,
+        energyScore:
+          state.energyScore === undefined && action.template.default_energy != null
+            ? action.template.default_energy
+            : state.energyScore,
         tagKey: state.tagKey + 1,
+      };
+    case 'RESTORE_DRAFT':
+      return {
+        ...state,
+        textValue: action.text,
+        moodScore: action.moodScore,
+        energyScore: action.energyScore,
       };
   }
 }
@@ -89,9 +103,12 @@ interface EntryFormProps {
   defaultDate?: string;
 }
 
+const DRAFT_KEY = 'journal_entry_draft';
+
 export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: EntryFormProps) {
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
@@ -118,10 +135,60 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
 
   useEffect(() => {
     if (lastResult !== null && (lastResult as { initialValue?: unknown }).initialValue === null) {
-      if (!isEdit) dispatch({ type: 'RESET', todayStr });
+      if (!isEdit) {
+        dispatch({ type: 'RESET', todayStr });
+        localStorage.removeItem(DRAFT_KEY);
+      }
       onSuccess?.();
     }
   }, [lastResult, isEdit, todayStr, onSuccess]);
+
+  // Restore draft on mount (new entries only)
+  useEffect(() => {
+    if (isEdit) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as {
+        text?: string;
+        mood?: number | null;
+        energy?: number | null;
+        savedAt?: number;
+      };
+      if (!d.text && d.mood == null && d.energy == null) return;
+      if (d.savedAt && Date.now() - d.savedAt > 24 * 60 * 60 * 1000) return;
+      dispatch({
+        type: 'RESTORE_DRAFT',
+        text: d.text ?? '',
+        moodScore: d.mood ?? undefined,
+        energyScore: d.energy ?? undefined,
+      });
+    } catch {
+      /* ignore malformed draft */
+    }
+  }, [isEdit]);
+
+  // Auto-save draft to localStorage (new entries only, debounced 2s)
+  useEffect(() => {
+    if (isEdit) return;
+    if (!state.textValue && state.moodScore === undefined && state.energyScore === undefined)
+      return;
+    if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+    draftSaveRef.current = setTimeout(() => {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          text: state.textValue,
+          mood: state.moodScore ?? null,
+          energy: state.energyScore ?? null,
+          savedAt: Date.now(),
+        }),
+      );
+    }, 2000);
+    return () => {
+      if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+    };
+  }, [state.textValue, state.moodScore, state.energyScore, isEdit]);
 
   const calendarDate = new Date(state.entryDate + 'T00:00:00');
 
@@ -256,3 +323,4 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     </form>
   );
 }
+

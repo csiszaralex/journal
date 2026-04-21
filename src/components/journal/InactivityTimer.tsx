@@ -1,30 +1,96 @@
 'use client';
 
-import { signOutAction } from '@/actions/auth';
-import { useCallback, useEffect, useRef } from 'react';
+import { signOutInactiveAction } from '@/actions/auth';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const TIMEOUT_MS = 30 * 60 * 1000;
+const WARNING_BEFORE_MS = 60 * 1000;
+const COUNTDOWN_SECONDS = WARNING_BEFORE_MS / 1000;
 
-const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'] as const;
+const ACTIVITY_EVENTS = [
+  'mousemove',
+  'mousedown',
+  'keydown',
+  'touchstart',
+  'scroll',
+  'click',
+] as const;
 
 export function InactivityTimer() {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const resetTimer = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      signOutAction();
+  const [warningVisible, setWarningVisible] = useState(false);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+
+  const clearAllTimers = useCallback(() => {
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+  }, []);
+
+  // Start timers without touching React state — safe to call from an effect body
+  const startTimers = useCallback(() => {
+    warningTimerRef.current = setTimeout(() => {
+      setWarningVisible(true);
+      setCountdown(COUNTDOWN_SECONDS);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    }, TIMEOUT_MS - WARNING_BEFORE_MS);
+
+    logoutTimerRef.current = setTimeout(() => {
+      signOutInactiveAction();
     }, TIMEOUT_MS);
   }, []);
 
+  // Called by activity events — resets state then restarts timers
+  const resetTimer = useCallback(() => {
+    clearAllTimers();
+    setWarningVisible(false);
+    setCountdown(COUNTDOWN_SECONDS);
+    startTimers();
+  }, [clearAllTimers, startTimers]);
+
   useEffect(() => {
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
-    resetTimer();
+    startTimers(); // no setState on mount — state is already at defaults
     return () => {
       ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, resetTimer));
-      if (timerRef.current) clearTimeout(timerRef.current);
+      clearAllTimers();
     };
-  }, [resetTimer]);
+  }, [resetTimer, clearAllTimers, startTimers]);
 
-  return null;
+  if (!warningVisible) return null;
+
+  return (
+    <div className='fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-border bg-card p-4 shadow-2xl animate-in slide-in-from-bottom-2 duration-300'>
+      <div className='space-y-3'>
+        <div className='space-y-1'>
+          <p className='text-sm font-semibold'>Still there?</p>
+          <p className='text-xs text-muted-foreground'>
+            You&apos;ll be signed out in{' '}
+            <span className='font-medium tabular-nums text-foreground'>{countdown}s</span> due to
+            inactivity.
+          </p>
+        </div>
+        <div className='flex gap-2'>
+          <button
+            onClick={resetTimer}
+            className='flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90'
+          >
+            Stay logged in
+          </button>
+          <button
+            onClick={() => signOutInactiveAction()}
+            className='rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
+

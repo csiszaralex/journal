@@ -26,12 +26,16 @@ interface Props {
 export function SignInContent({ registrationEnabled }: Props) {
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
+  const reason = searchParams.get("reason");
 
   const [email, setEmail] = useState("");
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const displayError = error ?? (urlError ? authErrorMessage(urlError) : null);
+  const inactivityMessage = reason === "inactivity"
+    ? "You were signed out after 30 minutes of inactivity."
+    : null;
 
   async function handleAuthenticate() {
     setError(null);
@@ -104,6 +108,9 @@ export function SignInContent({ registrationEnabled }: Props) {
             </>
           )}
 
+          {inactivityMessage && (
+            <p className="text-xs text-muted-foreground text-center">{inactivityMessage}</p>
+          )}
           {displayError && (
             <p className="text-xs text-destructive text-center">{displayError}</p>
           )}
