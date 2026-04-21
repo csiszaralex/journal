@@ -15,6 +15,13 @@
       "when": 1776548670316,
       "tag": "0001_fts5_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776762555400,
+      "tag": "0002_previous_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
