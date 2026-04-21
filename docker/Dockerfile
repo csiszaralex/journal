@@ -19,15 +19,20 @@ COPY . .
 RUN mkdir -p data
 # Build Next.js (standalone output)
 RUN pnpm build
-# Build worker
-RUN pnpm exec tsc -p tsconfig.worker.json
-# package.json has "type":"module" so Node treats .js as ESM — override for CJS output
-RUN echo '{"type":"commonjs"}' > dist/package.json
+# Build worker — bundle all deps into one CJS file, only externalize native module
+RUN pnpm exec esbuild src/worker/index.ts \
+  --bundle --platform=node --target=node24 \
+  --format=cjs --outfile=dist/worker/index.js \
+  --external:better-sqlite3
 
 # Stage 3 — runtime
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Pre-create /data with correct ownership so Docker initialises the named
+# volume with uid 1000 (node) on first mount — litestream runs as the same uid
+RUN mkdir -p /data && chown node:node /data
 
 # Next.js standalone bundle
 COPY --from=builder /app/.next/standalone ./
@@ -45,5 +50,6 @@ COPY --from=deps /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=deps /app/node_modules/bindings ./node_modules/bindings
 COPY --from=deps /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
+USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
