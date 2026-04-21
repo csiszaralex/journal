@@ -3,10 +3,13 @@ export const dynamic = "force-dynamic";
 import { ExportButtons } from "@/components/journal/ExportButtons";
 import { TemplatesManager } from "@/components/journal/TemplatesManager";
 import { ThemeToggle } from "@/components/journal/ThemeToggle";
+import { RegistrationToggle } from "@/components/journal/RegistrationToggle";
 import { listTemplates } from "@/db/queries/templates";
+import { getRegistrationEnabled } from "@/db/queries/settings";
 
 export default function SettingsPage() {
   const templates = listTemplates();
+  const registrationEnabled = getRegistrationEnabled();
 
   return (
     <div className="mx-auto max-w-2xl space-y-10 px-4 py-8">
@@ -46,6 +49,14 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">
           Press <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">?</kbd> anywhere to open the shortcuts reference. Single-letter shortcuts: <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">h</kbd> Today · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">c</kbd> Calendar · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">s</kbd> Search · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">t</kbd> Stats. Shortcuts are disabled when typing in a field.
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Registration</h2>
+        <p className="text-sm text-muted-foreground">
+          Control whether new passkey registrations are accepted. Disable this once you&apos;ve set up your account.
+        </p>
+        <RegistrationToggle enabled={registrationEnabled} />
       </section>
 
       <section className="space-y-3">

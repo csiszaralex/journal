@@ -10,6 +10,8 @@ import {
   authAuthenticators,
 } from "@/db/schema";
 import { logAudit } from "@/db/queries/audit";
+import { getRegistrationEnabled } from "@/db/queries/settings";
+import { sql } from "drizzle-orm";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -29,8 +31,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     signIn({ user }) {
       const allowedEmail = process.env.ALLOWED_EMAIL;
-      if (!allowedEmail) return false;
-      return user.email === allowedEmail;
+      if (!allowedEmail || user.email !== allowedEmail) return false;
+
+      // Check whether this is a new registration (no existing authenticators for this email)
+      const hasAuthenticator = db.get(sql`
+        SELECT 1 FROM authenticator a
+        INNER JOIN "user" u ON u.id = a.userId
+        WHERE u.email = ${user.email}
+        LIMIT 1
+      `);
+      if (!hasAuthenticator && !getRegistrationEnabled()) return false;
+
+      return true;
     },
   },
   events: {
