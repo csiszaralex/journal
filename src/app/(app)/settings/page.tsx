@@ -8,6 +8,14 @@ export default function SettingsPage() {
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-medium">Appearance</h2>
+        <p className="text-sm text-muted-foreground">
+          Toggle between dark and light mode. Your preference is saved in the browser.
+        </p>
+        <ThemeToggle />
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-medium">Install app</h2>
         <p className="text-sm text-muted-foreground">
           Journal can be installed as a PWA for offline access and push notifications.
