@@ -378,6 +378,213 @@ export function rollbackToVersion(
     .run();
 }
 
+export type DailyStat = {
+  entry_date: string;
+  avg_mood: number | null;
+  avg_energy: number | null;
+  entry_count: number;
+};
+
+export function getDailyStats(from: string, to: string): DailyStat[] {
+  return db
+    .all(
+      sql`
+        SELECT
+          ev.entry_date,
+          AVG(ev.mood_score)    AS avg_mood,
+          AVG(ev.energy_score)  AS avg_energy,
+          COUNT(*)              AS entry_count
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+          AND ev.entry_date >= ${from}
+          AND ev.entry_date <= ${to}
+        GROUP BY ev.entry_date
+        ORDER BY ev.entry_date ASC
+      `
+    )
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        entry_date: r.entry_date as string,
+        avg_mood: r.avg_mood !== null ? Number(r.avg_mood) : null,
+        avg_energy: r.avg_energy !== null ? Number(r.avg_energy) : null,
+        entry_count: r.entry_count as number,
+      };
+    });
+}
+
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function getCurrentStreak(): number {
+  const rows = db
+    .all(
+      sql`
+        SELECT DISTINCT ev.entry_date
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+        ORDER BY ev.entry_date DESC
+      `
+    )
+    .map((r) => (r as { entry_date: string }).entry_date);
+
+  if (rows.length === 0) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // No entry today = no active streak
+  if (rows[0] !== localDateStr(today)) return 0;
+
+  let streak = 0;
+  const cursor = new Date(today);
+
+  for (const date of rows) {
+    if (date === localDateStr(cursor)) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
+export type StreakInfo = { streak: number; wroteToday: boolean };
+
+export function getStreakInfo(): StreakInfo {
+  const rows = db
+    .all(
+      sql`
+        SELECT DISTINCT ev.entry_date
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+        ORDER BY ev.entry_date DESC
+      `
+    )
+    .map((r) => (r as { entry_date: string }).entry_date);
+
+  if (rows.length === 0) return { streak: 0, wroteToday: false };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = localDateStr(today);
+
+  const wroteToday = rows[0] === todayStr;
+
+  // Count consecutive days starting from today (if wrote) or yesterday (grace period)
+  const cursor = new Date(today);
+  if (!wroteToday) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (rows[0] !== localDateStr(cursor)) return { streak: 0, wroteToday: false };
+  }
+
+  let streak = 0;
+  for (const date of rows) {
+    if (date === localDateStr(cursor)) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return { streak, wroteToday };
+}
+
+export function getLongestStreak(): number {
+  const rows = db
+    .all(
+      sql`
+        SELECT DISTINCT ev.entry_date
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+        ORDER BY ev.entry_date ASC
+      `
+    )
+    .map((r) => (r as { entry_date: string }).entry_date);
+
+  if (rows.length === 0) return 0;
+
+  let longest = 1;
+  let current = 1;
+
+  for (let i = 1; i < rows.length; i++) {
+    const prev = new Date(rows[i - 1] + 'T00:00:00');
+    const curr = new Date(rows[i] + 'T00:00:00');
+    const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+    if (diffDays === 1) {
+      current++;
+      if (current > longest) longest = current;
+    } else {
+      current = 1;
+    }
+  }
+
+  return longest;
+}
+
+export type OverallStats = {
+  total_entries: number;
+  avg_mood_30d: number | null;
+  avg_energy_30d: number | null;
+  streak: number;
+  longest_streak: number;
+};
+
+export function getOverallStats(): OverallStats {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const from30 = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const totals = db
+    .get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`) as
+    | { cnt: number }
+    | undefined;
+
+  const avgs = db
+    .get(
+      sql`
+        SELECT
+          AVG(ev.mood_score)   AS avg_mood,
+          AVG(ev.energy_score) AS avg_energy
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL AND ev.entry_date >= ${from30}
+      `
+    ) as { avg_mood: number | null; avg_energy: number | null } | undefined;
+
+  return {
+    total_entries: totals?.cnt ?? 0,
+    avg_mood_30d: avgs?.avg_mood !== null && avgs?.avg_mood !== undefined ? Math.round(avgs.avg_mood * 10) / 10 : null,
+    avg_energy_30d: avgs?.avg_energy !== null && avgs?.avg_energy !== undefined ? Math.round(avgs.avg_energy * 10) / 10 : null,
+    streak: getCurrentStreak(),
+    longest_streak: getLongestStreak(),
+  };
+}
+
+export function getFirstEntryDate(): string | null {
+  const row = db
+    .get(
+      sql`
+        SELECT MIN(ev.entry_date) AS first_date
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+      `
+    ) as { first_date: string | null } | undefined;
+  return row?.first_date ?? null;
+}
+
 export type CalendarDot = { entry_date: string; mood_score: number | null };
 
 export function getCalendarData(from: string, to: string): CalendarDot[] {

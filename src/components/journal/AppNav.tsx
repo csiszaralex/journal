@@ -3,7 +3,7 @@
 import { signOutAction } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { BellIcon, CalendarIcon, HomeIcon, LogOutIcon, SearchIcon, SettingsIcon } from 'lucide-react';
+import { BarChart2Icon, BellIcon, CalendarIcon, HomeIcon, LogOutIcon, SearchIcon, SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/', icon: HomeIcon, label: 'Today' },
   { href: '/calendar', icon: CalendarIcon, label: 'Calendar' },
   { href: '/search', icon: SearchIcon, label: 'Search' },
+  { href: '/stats', icon: BarChart2Icon, label: 'Stats' },
   { href: '/devices', icon: BellIcon, label: 'Devices' },
   { href: '/settings', icon: SettingsIcon, label: 'Settings' },
 ];

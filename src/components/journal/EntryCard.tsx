@@ -30,7 +30,9 @@ interface EntryCardProps {
 
 export function EntryCard({ entry, today }: EntryCardProps) {
   const v = entry.version;
-  const isBackdated = v.entry_date < today;
+  // Backdated = entry_date is before the day the entry was originally created
+  const createdDateStr = format(new Date(entry.created_at), 'yyyy-MM-dd');
+  const isBackdated = v.entry_date < createdDateStr;
   const isScheduled = v.entry_date > today;
   const preview = v.text.slice(0, 300);
   const isTruncated = v.text.length > 300;
