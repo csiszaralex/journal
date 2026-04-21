@@ -27,6 +27,11 @@ export async function createEntryAction(_: unknown, formData: FormData) {
   if (submission.status !== 'success') return submission.reply();
 
   const { text, mood_score, energy_score, entry_date, tags } = submission.value;
+
+  const parsedTags = (() => { try { return JSON.parse(tags || '[]'); } catch { return []; } })();
+  const isEmpty = !text && mood_score == null && energy_score == null && parsedTags.length === 0;
+  if (isEmpty) return submission.reply({ resetForm: true });
+
   const created = createEntry({
     entry_date,
     text,
