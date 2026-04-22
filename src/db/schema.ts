@@ -37,6 +37,7 @@ export const entryVersions = sqliteTable(
     mood_score: integer("mood_score"),
     energy_score: integer("energy_score"),
     edited_at: integer("edited_at").notNull(),
+    client_id: text("client_id").unique(),
   },
   (t) => [
     unique("entry_version_unique").on(t.entry_id, t.version_number),

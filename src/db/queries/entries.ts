@@ -32,6 +32,7 @@ export type CreateEntryInput = {
   mood_score?: number | null;
   energy_score?: number | null;
   tag_ids?: string[];
+  client_id?: string;
 };
 
 export type UpdateEntryInput = {
@@ -63,6 +64,16 @@ function getEntryTags(versionId: string) {
 }
 
 export function createEntry(input: CreateEntryInput): EntryWithVersion {
+  // Deduplicate: if a version with this client_id already exists, return it.
+  if (input.client_id) {
+    const existing = db
+      .select({ entry_id: entryVersions.entry_id })
+      .from(entryVersions)
+      .where(eq(entryVersions.client_id, input.client_id))
+      .get();
+    if (existing) return getEntry(existing.entry_id)!;
+  }
+
   const entryId = createId();
   const versionId = createId();
   const now = Date.now();
@@ -83,6 +94,7 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
         mood_score: input.mood_score ?? null,
         energy_score: input.energy_score ?? null,
         edited_at: now,
+        client_id: input.client_id ?? null,
       })
       .run();
 
