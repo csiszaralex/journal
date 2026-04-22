@@ -434,6 +434,7 @@ function localDateStr(d: Date): string {
 }
 
 export function getCurrentStreak(): number {
+  const todayForQuery = localDateStr(new Date());
   const rows = db
     .all(
       sql`
@@ -441,6 +442,7 @@ export function getCurrentStreak(): number {
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
+          AND ev.entry_date <= ${todayForQuery}
         ORDER BY ev.entry_date DESC
       `
     )
@@ -472,6 +474,7 @@ export function getCurrentStreak(): number {
 export type StreakInfo = { streak: number; wroteToday: boolean };
 
 export function getStreakInfo(): StreakInfo {
+  const todayForQuery = localDateStr(new Date());
   const rows = db
     .all(
       sql`
@@ -479,6 +482,7 @@ export function getStreakInfo(): StreakInfo {
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
+          AND ev.entry_date <= ${todayForQuery}
         ORDER BY ev.entry_date DESC
       `
     )
