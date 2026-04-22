@@ -1,6 +1,5 @@
 'use client';
 
-import { createEntryAction, updateEntryAction } from '@/actions/entries';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
@@ -10,11 +9,12 @@ import type { EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
-import { getFormProps, useForm } from '@conform-to/react';
-import { parseWithZod } from '@conform-to/zod/v4';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
-import { useActionState, useEffect, useReducer, useRef } from 'react';
+import { useReducer, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
 
@@ -33,6 +33,7 @@ type FormState = {
   energyScore: number | undefined;
   calendarOpen: boolean;
   tagKey: number;
+  tags: string[];
 };
 
 type FormAction =
@@ -41,6 +42,7 @@ type FormAction =
   | { type: 'SET_MOOD'; score: number | undefined }
   | { type: 'SET_ENERGY'; score: number | undefined }
   | { type: 'TOGGLE_CALENDAR'; open: boolean }
+  | { type: 'SET_TAGS'; tags: string[] }
   | { type: 'RESET'; todayStr: string }
   | { type: 'APPLY_TEMPLATE'; template: EntryTemplate }
   | {
@@ -62,6 +64,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, energyScore: action.score };
     case 'TOGGLE_CALENDAR':
       return { ...state, calendarOpen: action.open };
+    case 'SET_TAGS':
+      return { ...state, tags: action.tags };
     case 'RESET':
       return {
         entryDate: action.todayStr,
@@ -70,6 +74,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
         energyScore: undefined,
         calendarOpen: false,
         tagKey: state.tagKey + 1,
+        tags: [],
       };
     case 'APPLY_TEMPLATE':
       return {
@@ -109,6 +114,9 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+  const [isPending, setIsPending] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
@@ -117,31 +125,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     energyScore: entry?.version.energy_score ?? undefined,
     calendarOpen: false,
     tagKey: 0,
+    tags: entry?.version.tags.map((t) => t.display_name) ?? [],
   });
-
-  const [lastResult, formAction, isPending] = useActionState(
-    isEdit ? updateEntryAction : createEntryAction,
-    null,
-  );
-
-  const [form, fields] = useForm({
-    lastResult,
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: entryInputSchema });
-    },
-    shouldValidate: 'onBlur',
-    shouldRevalidate: 'onInput',
-  });
-
-  useEffect(() => {
-    if (lastResult !== null && (lastResult as { initialValue?: unknown }).initialValue === null) {
-      if (!isEdit) {
-        dispatch({ type: 'RESET', todayStr });
-        localStorage.removeItem(DRAFT_KEY);
-      }
-      onSuccess?.();
-    }
-  }, [lastResult, isEdit, todayStr, onSuccess]);
 
   // Restore draft on mount (new entries only)
   useEffect(() => {
@@ -190,15 +175,86 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     };
   }, [state.textValue, state.moodScore, state.energyScore, isEdit]);
 
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErrors([]);
+
+    const payload = {
+      entry_date: state.entryDate,
+      text: state.textValue,
+      mood_score: state.moodScore,
+      energy_score: state.energyScore,
+      tags: JSON.stringify(state.tags),
+    };
+
+    // Client-side validation
+    const validation = entryInputSchema.safeParse(payload);
+    if (!validation.success) {
+      setErrors(validation.error.issues.map((i) => i.message));
+      return;
+    }
+
+    const isEmpty =
+      !payload.text &&
+      payload.mood_score == null &&
+      payload.energy_score == null &&
+      state.tags.length === 0;
+    if (isEmpty && !isEdit) {
+      dispatch({ type: 'RESET', todayStr });
+      return;
+    }
+
+    const clientId = isEdit ? undefined : createId();
+    const body = isEdit
+      ? JSON.stringify({
+          action: 'updateEntry',
+          payload: { ...payload, entry_id: entry!.id },
+          clientId,
+        })
+      : JSON.stringify({ action: 'createEntry', payload, clientId });
+
+    setIsPending(true);
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+
+      const data = (await res.json().catch(() => ({ ok: false }))) as {
+        ok: boolean;
+        offline?: boolean;
+        error?: string;
+      };
+
+      if (data.ok && data.offline) {
+        toast('Saved offline — will sync when connected', { duration: 4000 });
+        if (!isEdit) {
+          dispatch({ type: 'RESET', todayStr });
+          localStorage.removeItem(DRAFT_KEY);
+        }
+        onSuccess?.();
+      } else if (data.ok) {
+        router.refresh();
+        if (!isEdit) {
+          dispatch({ type: 'RESET', todayStr });
+          localStorage.removeItem(DRAFT_KEY);
+        }
+        onSuccess?.();
+      } else {
+        setErrors([data.error ?? 'Something went wrong. Please try again.']);
+      }
+    } catch {
+      setErrors(['Network error. Please try again.']);
+    } finally {
+      setIsPending(false);
+    }
+  }
+
   const calendarDate = new Date(state.entryDate + 'T00:00:00');
 
   return (
-    <form {...getFormProps(form)} action={formAction} className='flex flex-col gap-4'>
-      {isEdit && <input type='hidden' name='entry_id' value={entry.id} />}
-      <input type='hidden' name='entry_date' value={state.entryDate} />
-      <input type='hidden' name='mood_score' value={state.moodScore ?? ''} />
-      <input type='hidden' name='energy_score' value={state.energyScore ?? ''} />
-
+    <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
       {/* Header: label + template picker + date picker */}
       <div className='flex items-center justify-between gap-2'>
         <div className='flex items-center gap-1'>
@@ -235,20 +291,15 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         </Popover>
       </div>
 
-      {/* Textarea — controlled so template text fills correctly */}
+      {/* Textarea */}
       <div>
         <Textarea
-          id={fields.text.id}
-          name={fields.text.name}
-          key={fields.text.key}
+          name='text'
           value={state.textValue}
           onChange={(e) => dispatch({ type: 'SET_TEXT', text: e.target.value })}
           placeholder='Write freely…'
           className='min-h-35 resize-none border-muted/60 bg-muted/20 text-base leading-relaxed placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:bg-muted/40'
         />
-        {fields.text.errors && (
-          <p className='mt-1 text-xs text-destructive'>{fields.text.errors[0]}</p>
-        )}
       </div>
 
       {/* Mood */}
@@ -305,14 +356,15 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         <TagCombobox
           key={state.tagKey}
           name='tags'
-          defaultValue={entry?.version.tags.map((t) => t.display_name) ?? []}
+          defaultValue={state.tags}
+          onValueChange={(tags) => dispatch({ type: 'SET_TAGS', tags })}
         />
       </div>
 
       {/* Actions row */}
       <div className='flex items-center justify-between gap-2'>
-        {form.errors && form.errors.length > 0 ? (
-          <p className='text-xs text-destructive'>{form.errors[0]}</p>
+        {errors.length > 0 ? (
+          <p className='text-xs text-destructive'>{errors[0]}</p>
         ) : (
           <span />
         )}
@@ -323,4 +375,3 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     </form>
   );
 }
-

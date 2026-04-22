@@ -23,9 +23,10 @@ type TagSuggestion = { id: string; name: string; display_name: string };
 interface TagComboboxProps {
   name: string;
   defaultValue?: string[];
+  onValueChange?: (tags: string[]) => void;
 }
 
-export function TagCombobox({ name, defaultValue = [] }: TagComboboxProps) {
+export function TagCombobox({ name, defaultValue = [], onValueChange }: TagComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>(defaultValue);
@@ -48,21 +49,20 @@ export function TagCombobox({ name, defaultValue = [] }: TagComboboxProps) {
   }, [search]);
 
   const toggleTag = useCallback((displayName: string) => {
-    setSelected((prev) =>
-      prev.includes(displayName)
-        ? prev.filter((t) => t !== displayName)
-        : [...prev, displayName]
-    );
-  }, []);
+    const next = selected.includes(displayName)
+      ? selected.filter((t) => t !== displayName)
+      : [...selected, displayName];
+    setSelected(next);
+    onValueChange?.(next);
+  }, [selected, onValueChange]);
 
-  const removeTag = useCallback(
-    (e: React.MouseEvent, displayName: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setSelected((prev) => prev.filter((t) => t !== displayName));
-    },
-    []
-  );
+  const removeTag = useCallback((e: React.MouseEvent, displayName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = selected.filter((t) => t !== displayName);
+    setSelected(next);
+    onValueChange?.(next);
+  }, [selected, onValueChange]);
 
   const trimmed = search.trim();
   const hasExactMatch = suggestions.some(
