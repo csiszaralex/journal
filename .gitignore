@@ -46,3 +46,4 @@ data/*.db-wal
 .env.local
 .env.*.local
 *.local.*
+public/sw.js
