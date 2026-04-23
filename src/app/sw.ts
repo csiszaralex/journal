@@ -95,10 +95,48 @@ async function flushPending(): Promise<void> {
   }
 }
 
+// ── POST /api/sync intercept ──────────────────────────────────────────────
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method === "POST" && new URL(req.url).pathname.startsWith("/api/sync")) {
+    event.stopImmediatePropagation();
+    event.respondWith(
+      (async () => {
+        try {
+          const res = await fetch(req.clone());
+          return res;
+        } catch {
+          // Network error — queue the request
+          const body = await req.text();
+          const parsed = JSON.parse(body) as { clientId?: string };
+          const id = parsed.clientId ?? crypto.randomUUID();
+
+          await saveAction({ id, url: req.url, body, timestamp: Date.now() });
+
+          // Register Background Sync if available
+          if ("sync" in self.registration) {
+            try {
+              await (self.registration as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register("flush-pending");
+            } catch {
+              // Fallback
+            }
+          }
+
+          return new Response(
+            JSON.stringify({ ok: true, offline: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      })()
+    );
+  }
+});
+
 // ── Serwist setup ─────────────────────────────────────────────────────────
 
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: (self.__SW_MANIFEST || []).concat([{ url: "/offline", revision: crypto.randomUUID() }]),
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -115,42 +153,7 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// ── POST /api/sync intercept ──────────────────────────────────────────────
 
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  if (req.method !== "POST" || !new URL(req.url).pathname.startsWith("/api/sync")) return;
-
-  event.respondWith(
-    (async () => {
-      try {
-        const res = await fetch(req.clone());
-        return res;
-      } catch {
-        // Network error — queue the request
-        const body = await req.text();
-        const parsed = JSON.parse(body) as { clientId?: string };
-        const id = parsed.clientId ?? crypto.randomUUID();
-
-        await saveAction({ id, url: req.url, body, timestamp: Date.now() });
-
-        // Register Background Sync if available
-        if ("sync" in self.registration) {
-          try {
-            await (self.registration as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register("flush-pending");
-          } catch {
-            // Background Sync not available — fallback handled via 'online' event in app
-          }
-        }
-
-        return new Response(
-          JSON.stringify({ ok: true, offline: true }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    })()
-  );
-});
 
 // ── Background Sync handler ───────────────────────────────────────────────
 
