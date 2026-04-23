@@ -103,6 +103,14 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: defaultCache,
+  fallbacks: {
+    entries: [
+      {
+        matcher: ({ request }) => request.destination === "document",
+        url: "/offline",
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();
