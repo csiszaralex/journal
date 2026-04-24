@@ -4,21 +4,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { upsertSubscription } from "@/db/queries/subscriptions";
 import { logAudit } from "@/db/queries/audit";
+import { pushSubscribeSchema } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const { endpoint, keys, timezone } = body as {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-    timezone?: string;
-  };
-
-  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+  const parsed = pushSubscribeSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
   }
+  const { endpoint, keys, timezone } = parsed.data;
 
   const userAgent = req.headers.get("user-agent") ?? undefined;
   const deviceLabel = deriveLabel(userAgent);

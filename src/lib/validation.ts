@@ -14,3 +14,16 @@ export const entryInputSchema = z.object({
 });
 
 export type EntryInput = z.infer<typeof entryInputSchema>;
+
+export const pushSubscribeSchema = z.object({
+  endpoint: z.url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  timezone: z.string().optional(),
+});
+
+export const pushUnsubscribeSchema = z.object({
+  endpoint: z.string().min(1),
+});
