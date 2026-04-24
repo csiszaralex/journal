@@ -22,7 +22,7 @@ export default async function TodayPage({
   const { streak, wroteToday } = getStreakInfo();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <>
       {/* Date header */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -70,6 +70,6 @@ export default async function TodayPage({
           No entries yet today. Write something above.
         </p>
       )}
-    </div>
+    </>
   );
 }

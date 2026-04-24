@@ -17,7 +17,7 @@ export default async function EntryDetailPage({
   if (!entry || entry.deleted_at) notFound();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -42,6 +42,6 @@ export default async function EntryDetailPage({
       <div className="rounded-xl border bg-card p-4">
         <EntryForm entry={entry} />
       </div>
-    </div>
+    </>
   );
 }

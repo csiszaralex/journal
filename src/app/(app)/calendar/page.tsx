@@ -69,7 +69,7 @@ export default async function CalendarPage({
     : [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">
+    <>
       {/* Month navigation */}
       <div className="flex items-center justify-between">
         <Link
@@ -210,6 +210,6 @@ export default async function CalendarPage({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

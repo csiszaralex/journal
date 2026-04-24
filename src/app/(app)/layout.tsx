@@ -13,7 +13,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <QueryProvider>
       <AppNav />
-      <div className='flex-1'>{children}</div>
+      <div className='flex-1'>
+        <div className='mx-auto max-w-2xl space-y-6 px-4 py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4'>
+          {children}
+        </div>
+      </div>
       <KeyboardShortcuts />
       <InactivityTimer />
       <OfflineIndicator />

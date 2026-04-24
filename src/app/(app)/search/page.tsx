@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import { SearchView } from "@/components/journal/SearchView";
+import { SearchView } from '@/components/journal/SearchView';
 
 type SearchParams = Promise<{
   q?: string;
@@ -10,23 +10,20 @@ type SearchParams = Promise<{
   mood_max?: string;
 }>;
 
-export default async function SearchPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default async function SearchPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
-      <h1 className="text-xl font-semibold tracking-tight">Search</h1>
+    <>
+      <h1 className='text-xl font-semibold tracking-tight'>Search</h1>
       <SearchView
-        initialQ={params.q ?? ""}
-        initialFrom={params.from ?? ""}
-        initialTo={params.to ?? ""}
-        initialMoodMin={params.mood_min ?? ""}
-        initialMoodMax={params.mood_max ?? ""}
+        initialQ={params.q ?? ''}
+        initialFrom={params.from ?? ''}
+        initialTo={params.to ?? ''}
+        initialMoodMin={params.mood_min ?? ''}
+        initialMoodMax={params.mood_max ?? ''}
       />
-    </div>
+    </>
   );
 }
+

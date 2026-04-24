@@ -126,9 +126,6 @@ export function AppNav() {
           </SheetContent>
         </Sheet>
       </nav>
-
-      {/* Bottom nav spacer so content isn't hidden behind it on mobile */}
-      <div className='h-16 sm:hidden' />
     </>
   );
 }

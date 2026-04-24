@@ -32,7 +32,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className='mx-auto max-w-2xl space-y-8 px-4 py-8'>
+    <>
       <h1 className='text-xl font-semibold tracking-tight'>Stats</h1>
 
       {/* Overview cards */}
@@ -61,15 +61,11 @@ export default function StatsPage() {
         </div>
         <div className='rounded-lg border border-border bg-muted/20 p-4 space-y-1'>
           <p className='text-xs text-muted-foreground'>Avg mood (30d)</p>
-          <p className='text-2xl font-semibold tabular-nums'>
-            {stats.avg_mood_30d ?? '—'}
-          </p>
+          <p className='text-2xl font-semibold tabular-nums'>{stats.avg_mood_30d ?? '—'}</p>
         </div>
         <div className='rounded-lg border border-border bg-muted/20 p-4 space-y-1'>
           <p className='text-xs text-muted-foreground'>Avg energy (30d)</p>
-          <p className='text-2xl font-semibold tabular-nums'>
-            {stats.avg_energy_30d ?? '—'}
-          </p>
+          <p className='text-2xl font-semibold tabular-nums'>{stats.avg_energy_30d ?? '—'}</p>
         </div>
       </div>
 
@@ -77,11 +73,7 @@ export default function StatsPage() {
       <section className='space-y-1'>
         <h2 className='text-sm font-medium'>Consistency</h2>
         <p className='text-sm text-muted-foreground'>{consistencyLabel}</p>
-        {firstDate && (
-          <p className='text-xs text-muted-foreground'>
-            First entry: {firstDate}
-          </p>
-        )}
+        {firstDate && <p className='text-xs text-muted-foreground'>First entry: {firstDate}</p>}
       </section>
 
       {/* Charts — last 90 days */}
@@ -98,6 +90,7 @@ export default function StatsPage() {
           No data yet — start adding entries with mood and energy scores.
         </p>
       )}
-    </div>
+    </>
   );
 }
+

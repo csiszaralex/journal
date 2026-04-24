@@ -21,7 +21,7 @@ export default async function EntryHistoryPage({
   const versions = getVersionHistory(id);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <>
       <div className="flex items-center gap-3">
         <Link
           href={`/entry/${id}`}
@@ -115,6 +115,6 @@ export default async function EntryHistoryPage({
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
