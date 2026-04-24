@@ -18,22 +18,6 @@ import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
 
-async function queueOfflineAction(body: string): Promise<void> {
-  const parsed = JSON.parse(body) as { clientId?: string };
-  const id = parsed.clientId ?? crypto.randomUUID();
-  const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open('journal-sw', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('pending-actions', { keyPath: 'id' });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction('pending-actions', 'readwrite');
-    tx.objectStore('pending-actions').put({ id, url: '/api/sync', body, timestamp: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
 
 const SCORE_COLORS: Record<number, string> = {
   1: 'bg-red-500 text-white border-red-500',
@@ -263,7 +247,6 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       }
     } catch {
       if (!navigator.onLine) {
-        await queueOfflineAction(body);
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
           dispatch({ type: 'RESET', todayStr });
