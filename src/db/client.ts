@@ -3,9 +3,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { join } from "path";
 import * as schema from "./schema";
+import { env } from "@/env";
 
-const DB_PATH =
-  process.env.DATABASE_URL?.replace("file:", "") ?? "./data/journal.db";
+const DB_PATH = env.DATABASE_URL.replace("file:", "");
 
 const sqlite = new Database(DB_PATH);
 

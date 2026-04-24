@@ -2,15 +2,16 @@ import webpush from "web-push";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { disableSubscription } from "@/db/queries/subscriptions";
+import { env } from "@/env";
 
 let vapidConfigured = false;
 
 function ensureVapid() {
   if (vapidConfigured) return;
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT!,
-    process.env.VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
+    env.VAPID_SUBJECT,
+    env.VAPID_PUBLIC_KEY,
+    env.VAPID_PRIVATE_KEY
   );
   vapidConfigured = true;
 }
