@@ -17,6 +17,9 @@ const bgSyncPlugin = new BackgroundSyncPlugin("journal-queue", {
 
 const serwist = new Serwist({
   precacheEntries: [...(self.__SW_MANIFEST ?? []), '/~offline'],
+  precacheOptions: {
+    navigateFallback: '/~offline',
+  },
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -29,16 +32,6 @@ const serwist = new Serwist({
     },
     ...defaultCache,
   ],
-  fallbacks: {
-    entries: [
-      {
-        url: "/~offline",
-        matcher({ request }) {
-          return request.destination === "document";
-        },
-      },
-    ],
-  },
 });
 
 serwist.addEventListeners();
