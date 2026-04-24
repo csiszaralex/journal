@@ -4,12 +4,16 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { WifiOffIcon } from 'lucide-react';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 
+import { z } from 'zod';
+
 async function flushClientQueue() {
   const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
   if (!raw) return;
   let pending: string[];
   try {
-    pending = JSON.parse(raw) as string[];
+    const parsed = z.string().array().safeParse(JSON.parse(raw));
+    if (!parsed.success) return;
+    pending = parsed.data;
   } catch {
     return;
   }

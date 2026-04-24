@@ -21,8 +21,10 @@ const shortcuts = [
 ];
 
 function isInInput(e: KeyboardEvent) {
-  const tag = (e.target as HTMLElement).tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
 }
 
 export function KeyboardShortcuts() {

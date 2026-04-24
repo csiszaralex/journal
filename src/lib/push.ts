@@ -27,21 +27,26 @@ export async function sendPush(
       JSON.stringify(payload)
     );
   } catch (err: unknown) {
-    const status = (err as { statusCode?: number }).statusCode;
-    if (status === 410 || status === 404) {
-      disableSubscription(subscription.id);
-    } else {
-      throw err;
+    if (err && typeof err === 'object' && 'statusCode' in err) {
+      const status = err.statusCode;
+      if (status === 410 || status === 404) {
+        disableSubscription(subscription.id);
+        return;
+      }
     }
+    throw err;
   }
 }
+
+import { z } from 'zod';
 
 let _prompts: string[] | null = null;
 
 function loadPrompts(): string[] {
   if (!_prompts) {
     const path = join(process.cwd(), "data", "prompts.json");
-    _prompts = JSON.parse(readFileSync(path, "utf-8")) as string[];
+    const parsed = z.string().array().safeParse(JSON.parse(readFileSync(path, "utf-8")));
+    _prompts = parsed.success ? parsed.data : [];
   }
   return _prompts;
 }

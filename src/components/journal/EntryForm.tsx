@@ -9,6 +9,7 @@ import type { EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
+import { z } from 'zod';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { useReducer, useEffect, useRef, useState } from 'react';
@@ -143,14 +144,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
-      const d = JSON.parse(raw) as {
-        text?: string;
-        mood?: number | null;
-        energy?: number | null;
-        date?: string;
-        tags?: string[];
-        savedAt?: number;
-      };
+      const draftSchema = z.object({
+        text: z.string().optional(),
+        mood: z.number().nullable().optional(),
+        energy: z.number().nullable().optional(),
+        date: z.string().optional(),
+        tags: z.string().array().optional(),
+        savedAt: z.number().optional(),
+      });
+      const parsed = draftSchema.safeParse(JSON.parse(raw));
+      if (!parsed.success) return;
+      const d = parsed.data;
       if (!d.text && d.mood == null && d.energy == null && !d.date && !d.tags?.length) return;
       if (d.savedAt && Date.now() - d.savedAt > 24 * 60 * 60 * 1000) return;
       dispatch({
@@ -269,9 +273,9 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         // SW may not be controlling this page yet (first load / hard refresh),
         // so save to a client-side queue as a guaranteed safety net.
         try {
-          const pending = JSON.parse(
-            localStorage.getItem(OFFLINE_QUEUE_KEY) ?? '[]',
-          ) as string[];
+          const pendingSchema = z.string().array();
+          const parsedQueue = pendingSchema.safeParse(JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) ?? '[]'));
+          const pending = parsedQueue.success ? parsedQueue.data : [];
           pending.push(body);
           localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(pending));
         } catch {

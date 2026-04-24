@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../client';
 import { entries, entryVersions, entryVersionTags, tags } from '../schema';
 
@@ -282,9 +283,23 @@ export function restoreEntry(id: string): void {
 }
 
 export function searchEntries(query: string, limit = 20) {
-  const rows = db
-    .all(
-      sql`
+  const searchRowSchema = z.object({
+    id: z.string(),
+    created_at: z.number(),
+    deleted_at: z.number().nullable(),
+    current_version_id: z.string(),
+    v_id: z.string(),
+    v_entry_id: z.string(),
+    v_version_number: z.number(),
+    v_entry_date: z.string(),
+    v_text: z.string(),
+    v_mood_score: z.number().nullable(),
+    v_energy_score: z.number().nullable(),
+    v_edited_at: z.number(),
+  });
+
+  const rawRows = db.all(
+    sql`
         SELECT
           e.id,
           e.created_at,
@@ -307,24 +322,25 @@ export function searchEntries(query: string, limit = 20) {
         ORDER BY entries_fts.rank
         LIMIT ${limit}
       `,
-    )
-    .map((row) => row as Record<string, unknown>);
+  );
+
+  const rows = z.array(searchRowSchema).parse(rawRows);
 
   return rows.map((row) => ({
-    id: row.id as string,
-    created_at: row.created_at as number,
-    deleted_at: row.deleted_at as number | null,
-    current_version_id: row.current_version_id as string,
+    id: row.id,
+    created_at: row.created_at,
+    deleted_at: row.deleted_at,
+    current_version_id: row.current_version_id,
     version: {
-      id: row.v_id as string,
-      entry_id: row.v_entry_id as string,
-      version_number: row.v_version_number as number,
-      entry_date: row.v_entry_date as string,
-      text: row.v_text as string,
-      mood_score: row.v_mood_score as number | null,
-      energy_score: row.v_energy_score as number | null,
-      edited_at: row.v_edited_at as number,
-      tags: getEntryTags(row.v_id as string),
+      id: row.v_id,
+      entry_id: row.v_entry_id,
+      version_number: row.v_version_number,
+      entry_date: row.v_entry_date,
+      text: row.v_text,
+      mood_score: row.v_mood_score,
+      energy_score: row.v_energy_score,
+      edited_at: row.v_edited_at,
+      tags: getEntryTags(row.v_id),
     },
   }));
 }
@@ -365,9 +381,15 @@ export type DailyStat = {
 };
 
 export function getDailyStats(from: string, to: string): DailyStat[] {
-  return db
-    .all(
-      sql`
+  const dailyStatSchema = z.object({
+    entry_date: z.string(),
+    avg_mood: z.number().nullable(),
+    avg_energy: z.number().nullable(),
+    entry_count: z.number(),
+  });
+
+  const rawRows = db.all(
+    sql`
         SELECT
           ev.entry_date,
           AVG(ev.mood_score)    AS avg_mood,
@@ -381,16 +403,16 @@ export function getDailyStats(from: string, to: string): DailyStat[] {
         GROUP BY ev.entry_date
         ORDER BY ev.entry_date ASC
       `,
-    )
-    .map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        entry_date: r.entry_date as string,
-        avg_mood: r.avg_mood !== null ? Number(r.avg_mood) : null,
-        avg_energy: r.avg_energy !== null ? Number(r.avg_energy) : null,
-        entry_count: r.entry_count as number,
-      };
-    });
+  );
+
+  const rows = z.array(dailyStatSchema).parse(rawRows);
+
+  return rows.map((r) => ({
+    entry_date: r.entry_date,
+    avg_mood: r.avg_mood !== null ? Math.round(r.avg_mood * 10) / 10 : null,
+    avg_energy: r.avg_energy !== null ? Math.round(r.avg_energy * 10) / 10 : null,
+    entry_count: r.entry_count,
+  }));
 }
 
 function localDateStr(d: Date): string {
@@ -408,9 +430,10 @@ export type StreakInfo = { streak: number; wroteToday: boolean };
 
 export function getStreakInfo(): StreakInfo {
   const todayForQuery = localDateStr(new Date());
-  const rows = db
-    .all(
-      sql`
+
+  const dateRowSchema = z.object({ entry_date: z.string() });
+  const rawRows = db.all(
+    sql`
         SELECT DISTINCT ev.entry_date
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
@@ -418,8 +441,12 @@ export function getStreakInfo(): StreakInfo {
           AND ev.entry_date <= ${todayForQuery}
         ORDER BY ev.entry_date DESC
       `,
-    )
-    .map((r) => (r as { entry_date: string }).entry_date);
+  );
+
+  const rows = z
+    .array(dateRowSchema)
+    .parse(rawRows)
+    .map((r) => r.entry_date);
 
   if (rows.length === 0) return { streak: 0, wroteToday: false };
 
@@ -450,17 +477,21 @@ export function getStreakInfo(): StreakInfo {
 }
 
 export function getLongestStreak(): number {
-  const rows = db
-    .all(
-      sql`
+  const dateRowSchema = z.object({ entry_date: z.string() });
+  const rawRows = db.all(
+    sql`
         SELECT DISTINCT ev.entry_date
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
         ORDER BY ev.entry_date ASC
       `,
-    )
-    .map((r) => (r as { entry_date: string }).entry_date);
+  );
+
+  const rows = z
+    .array(dateRowSchema)
+    .parse(rawRows)
+    .map((r) => r.entry_date);
 
   if (rows.length === 0) return 0;
 
@@ -495,11 +526,15 @@ export function getOverallStats(): OverallStats {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const from30 = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const totals = db.get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`) as
-    | { cnt: number }
-    | undefined;
+  const totalSchema = z.object({ cnt: z.number() });
+  const totalsRaw = db.get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`);
+  const totals = totalSchema.optional().parse(totalsRaw ?? undefined);
 
-  const avgs = db.get(
+  const avgsSchema = z.object({
+    avg_mood: z.number().nullable(),
+    avg_energy: z.number().nullable(),
+  });
+  const avgsRaw = db.get(
     sql`
         SELECT
           AVG(ev.mood_score)   AS avg_mood,
@@ -508,7 +543,8 @@ export function getOverallStats(): OverallStats {
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL AND ev.entry_date >= ${from30}
       `,
-  ) as { avg_mood: number | null; avg_energy: number | null } | undefined;
+  );
+  const avgs = avgsSchema.optional().parse(avgsRaw ?? undefined);
 
   return {
     total_entries: totals?.cnt ?? 0,
@@ -526,14 +562,16 @@ export function getOverallStats(): OverallStats {
 }
 
 export function getFirstEntryDate(): string | null {
-  const row = db.get(
+  const firstDateSchema = z.object({ first_date: z.string().nullable() });
+  const rawRow = db.get(
     sql`
         SELECT MIN(ev.entry_date) AS first_date
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
       `,
-  ) as { first_date: string | null } | undefined;
+  );
+  const row = firstDateSchema.optional().parse(rawRow ?? undefined);
   return row?.first_date ?? null;
 }
 

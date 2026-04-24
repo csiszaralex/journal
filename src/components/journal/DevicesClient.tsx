@@ -86,7 +86,7 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
         window.location.reload();
       }
     } catch (err) {
-      alert((err as Error).message ?? "Failed to enable notifications.");
+      alert(err instanceof Error ? err.message : "Failed to enable notifications.");
     } finally {
       setSubscribing(false);
     }
