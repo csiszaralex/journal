@@ -28,14 +28,15 @@ const SCORE_COLORS: Record<number, string> = {
   5: 'bg-emerald-500 text-white border-emerald-500',
 };
 
+// tagKey lives in the reducer so it bumps atomically with form state changes
+// (RESET, APPLY_TEMPLATE, RESTORE_DRAFT) — avoids a separate setState call in effects.
 type FormState = {
   entryDate: string;
   textValue: string;
   moodScore: number | undefined;
   energyScore: number | undefined;
-  calendarOpen: boolean;
-  tagKey: number;
   tags: string[];
+  tagKey: number;
 };
 
 type FormAction =
@@ -43,7 +44,6 @@ type FormAction =
   | { type: 'SET_TEXT'; text: string }
   | { type: 'SET_MOOD'; score: number | undefined }
   | { type: 'SET_ENERGY'; score: number | undefined }
-  | { type: 'TOGGLE_CALENDAR'; open: boolean }
   | { type: 'SET_TAGS'; tags: string[] }
   | { type: 'RESET'; todayStr: string }
   | { type: 'APPLY_TEMPLATE'; template: EntryTemplate }
@@ -52,20 +52,20 @@ type FormAction =
       text: string;
       moodScore: number | undefined;
       energyScore: number | undefined;
+      date: string | undefined;
+      tags: string[] | undefined;
     };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
     case 'SET_DATE':
-      return { ...state, entryDate: action.date, calendarOpen: false };
+      return { ...state, entryDate: action.date };
     case 'SET_TEXT':
       return { ...state, textValue: action.text };
     case 'SET_MOOD':
       return { ...state, moodScore: action.score };
     case 'SET_ENERGY':
       return { ...state, energyScore: action.score };
-    case 'TOGGLE_CALENDAR':
-      return { ...state, calendarOpen: action.open };
     case 'SET_TAGS':
       return { ...state, tags: action.tags };
     case 'RESET':
@@ -74,9 +74,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
         textValue: '',
         moodScore: undefined,
         energyScore: undefined,
-        calendarOpen: false,
-        tagKey: state.tagKey + 1,
         tags: [],
+        tagKey: state.tagKey + 1,
       };
     case 'APPLY_TEMPLATE':
       return {
@@ -99,6 +98,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
         textValue: action.text,
         moodScore: action.moodScore,
         energyScore: action.energyScore,
+        entryDate: action.date ?? state.entryDate,
+        tags: action.tags ?? state.tags,
+        tagKey: action.tags?.length ? state.tagKey + 1 : state.tagKey,
       };
   }
 }
@@ -119,18 +121,23 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
     textValue: entry?.version.text ?? '',
     moodScore: entry?.version.mood_score ?? undefined,
     energyScore: entry?.version.energy_score ?? undefined,
-    calendarOpen: false,
-    tagKey: 0,
     tags: entry?.version.tags.map((t) => t.display_name) ?? [],
+    tagKey: 0,
   });
 
-  // Restore draft on mount (new entries only)
+  function resetForm() {
+    dispatch({ type: 'RESET', todayStr });
+  }
+
+  // Restore draft on mount (new entries only).
+  // Single dispatch keeps the state update atomic — no separate setState needed.
   useEffect(() => {
     if (isEdit) return;
     try {
@@ -140,15 +147,19 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         text?: string;
         mood?: number | null;
         energy?: number | null;
+        date?: string;
+        tags?: string[];
         savedAt?: number;
       };
-      if (!d.text && d.mood == null && d.energy == null) return;
+      if (!d.text && d.mood == null && d.energy == null && !d.date && !d.tags?.length) return;
       if (d.savedAt && Date.now() - d.savedAt > 24 * 60 * 60 * 1000) return;
       dispatch({
         type: 'RESTORE_DRAFT',
         text: d.text ?? '',
         moodScore: d.mood ?? undefined,
         energyScore: d.energy ?? undefined,
+        date: d.date,
+        tags: d.tags?.length ? d.tags : undefined,
       });
     } catch {
       /* ignore malformed draft */
@@ -158,8 +169,13 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   // Auto-save draft to localStorage (new entries only, debounced 2s)
   useEffect(() => {
     if (isEdit) return;
-    if (!state.textValue && state.moodScore === undefined && state.energyScore === undefined)
-      return;
+    const hasContent =
+      state.textValue ||
+      state.moodScore !== undefined ||
+      state.energyScore !== undefined ||
+      state.entryDate !== todayStr ||
+      state.tags.length > 0;
+    if (!hasContent) return;
     if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     draftSaveRef.current = setTimeout(() => {
       localStorage.setItem(
@@ -168,6 +184,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           text: state.textValue,
           mood: state.moodScore ?? null,
           energy: state.energyScore ?? null,
+          date: state.entryDate,
+          tags: state.tags,
           savedAt: Date.now(),
         }),
       );
@@ -175,7 +193,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, isEdit]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, isEdit, todayStr]);
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -202,7 +220,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       payload.energy_score == null &&
       state.tags.length === 0;
     if (isEmpty && !isEdit) {
-      dispatch({ type: 'RESET', todayStr });
+      resetForm();
       return;
     }
 
@@ -232,14 +250,14 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       if (data.ok && data.offline) {
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          dispatch({ type: 'RESET', todayStr });
+          resetForm();
           localStorage.removeItem(DRAFT_KEY);
         }
         onSuccess?.();
       } else if (data.ok) {
         router.refresh();
         if (!isEdit) {
-          dispatch({ type: 'RESET', todayStr });
+          resetForm();
           localStorage.removeItem(DRAFT_KEY);
         }
         onSuccess?.();
@@ -261,7 +279,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         }
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          dispatch({ type: 'RESET', todayStr });
+          resetForm();
           localStorage.removeItem(DRAFT_KEY);
         }
         onSuccess?.();
@@ -290,10 +308,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
             />
           )}
         </div>
-        <Popover
-          open={state.calendarOpen}
-          onOpenChange={(open) => dispatch({ type: 'TOGGLE_CALENDAR', open })}
-        >
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger
             type='button'
             className='inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
@@ -306,7 +321,10 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
               mode='single'
               selected={calendarDate}
               onSelect={(day) => {
-                if (day) dispatch({ type: 'SET_DATE', date: format(day, 'yyyy-MM-dd') });
+                if (day) {
+                  dispatch({ type: 'SET_DATE', date: format(day, 'yyyy-MM-dd') });
+                  setCalendarOpen(false);
+                }
               }}
             />
           </PopoverContent>
