@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
-import { BackgroundSyncPlugin, NetworkOnly, Serwist } from 'serwist';
+import { BackgroundSyncQueue, NetworkOnly, Serwist } from 'serwist';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -11,22 +11,30 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
-const bgSyncPlugin = new BackgroundSyncPlugin('journal-queue', {
-  maxRetentionTime: 24 * 60, // Retry for max of 24 Hours
+// Use BackgroundSyncQueue directly so we can call replayRequests() from the
+// message handler — BackgroundSyncPlugin wraps this class but doesn't expose
+// the instance, and two instances with the same name would throw.
+const syncQueue = new BackgroundSyncQueue('journal-queue', {
+  maxRetentionTime: 24 * 60,
 });
 
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: self.__SW_MANIFEST ?? [],
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
     {
       matcher: ({ request, url }) =>
-        request.method === 'POST' &&
-        (url.pathname.startsWith('/api/sync') || request.headers.has('next-action')),
+        request.method === 'POST' && url.pathname.startsWith('/api/sync'),
       handler: new NetworkOnly({
-        plugins: [bgSyncPlugin],
+        plugins: [
+          {
+            fetchDidFail: async ({ request }) => {
+              await syncQueue.pushRequest({ request });
+            },
+          },
+        ],
       }),
     },
     ...defaultCache,
@@ -44,6 +52,12 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'flush-pending') {
+    event.waitUntil(syncQueue.replayRequests());
+  }
+});
 
 // ── Push notifications ────────────────────────────────────────────────────
 

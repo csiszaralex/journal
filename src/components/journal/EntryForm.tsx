@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
+import { OFFLINE_QUEUE_KEY } from './OfflineIndicator';
 
 
 const SCORE_COLORS: Record<number, string> = {
@@ -247,6 +248,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       }
     } catch {
       if (!navigator.onLine) {
+        // SW may not be controlling this page yet (first load / hard refresh),
+        // so save to a client-side queue as a guaranteed safety net.
+        try {
+          const pending = JSON.parse(
+            localStorage.getItem(OFFLINE_QUEUE_KEY) ?? '[]',
+          ) as string[];
+          pending.push(body);
+          localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(pending));
+        } catch {
+          /* ignore storage errors */
+        }
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
           dispatch({ type: 'RESET', todayStr });
