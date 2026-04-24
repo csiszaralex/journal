@@ -17,8 +17,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # DB client opens at module eval time — directory must exist for the build to succeed
 RUN mkdir -p data
-# Build Next.js (standalone output)
-RUN pnpm build
+# Build Next.js (standalone output) — skip env validation; secrets are runtime-only
+RUN SKIP_ENV_VALIDATION=1 pnpm build
 # Build worker — bundle all deps into one CJS file, only externalize native module
 RUN pnpm exec esbuild src/worker/index.ts \
   --bundle --platform=node --target=node24 \
