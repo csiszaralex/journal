@@ -2,8 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { WifiOffIcon } from 'lucide-react';
-
-export const OFFLINE_QUEUE_KEY = 'offline_pending_entries';
+import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 
 async function flushClientQueue() {
   const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);

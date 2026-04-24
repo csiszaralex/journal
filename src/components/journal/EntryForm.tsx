@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
-import { OFFLINE_QUEUE_KEY } from './OfflineIndicator';
+import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 
 
 const SCORE_COLORS: Record<number, string> = {
