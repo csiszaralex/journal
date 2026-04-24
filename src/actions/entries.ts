@@ -7,20 +7,11 @@ import {
   softDeleteEntry,
   updateEntry,
 } from '@/db/queries/entries';
-import { getOrCreateTag } from '@/db/queries/tags';
 import { logAudit } from '@/db/queries/audit';
 import { entryInputSchema } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { revalidatePath } from 'next/cache';
-
-function resolveTagIds(tagsJson: string): string[] {
-  try {
-    const names: string[] = JSON.parse(tagsJson || '[]');
-    return names.map((n) => getOrCreateTag(n).id);
-  } catch {
-    return [];
-  }
-}
+import { resolveTagIds } from '@/lib/entry-utils';
 
 export async function createEntryAction(_: unknown, formData: FormData) {
   const submission = parseWithZod(formData, { schema: entryInputSchema });

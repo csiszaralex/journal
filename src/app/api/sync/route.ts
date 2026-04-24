@@ -3,9 +3,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createEntry, updateEntry, softDeleteEntry } from "@/db/queries/entries";
-import { getOrCreateTag } from "@/db/queries/tags";
 import { logAudit } from "@/db/queries/audit";
 import { entryInputSchema } from "@/lib/validation";
+import { resolveTagIds } from "@/lib/entry-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -26,15 +26,6 @@ const syncRequestSchema = z.discriminatedUnion("action", [
     clientId: z.string().optional(),
   }),
 ]);
-
-function resolveTagIds(tagsJson: string): string[] {
-  try {
-    const names: string[] = JSON.parse(tagsJson || "[]");
-    return names.map((n) => getOrCreateTag(n).id);
-  } catch {
-    return [];
-  }
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
