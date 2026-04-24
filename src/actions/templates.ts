@@ -1,14 +1,12 @@
 'use server';
 
 import { createTemplate, deleteTemplate, updateTemplate } from '@/db/queries/templates';
+import { templateSchema } from '@/lib/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-const templateSchema = z.object({
-  name: z.string().min(1).max(60),
-  text: z.string().max(10000),
-  default_mood: z.coerce.number().int().min(1).max(5).optional().nullable(),
-  default_energy: z.coerce.number().int().min(1).max(5).optional().nullable(),
+const updateTemplateSchema = templateSchema.extend({
+  id: z.string().min(1, 'Missing template id'),
 });
 
 export async function createTemplateAction(_: unknown, formData: FormData) {
@@ -20,7 +18,10 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { status: 'error' as const, message: parsed.error.issues[0]?.message ?? 'Invalid input' };
+    return {
+      status: 'error' as const,
+      message: parsed.error.issues[0]?.message ?? 'Invalid input',
+    };
   }
 
   createTemplate(parsed.data);
@@ -29,12 +30,8 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
 }
 
 export async function updateTemplateAction(_: unknown, formData: FormData) {
-  const id = formData.get('id');
-  if (!id || typeof id !== 'string') {
-    return { status: 'error' as const, message: 'Missing template id' };
-  }
-
-  const parsed = templateSchema.safeParse({
+  const parsed = updateTemplateSchema.safeParse({
+    id: formData.get('id'),
     name: formData.get('name'),
     text: formData.get('text'),
     default_mood: formData.get('default_mood') || null,
@@ -42,10 +39,14 @@ export async function updateTemplateAction(_: unknown, formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { status: 'error' as const, message: parsed.error.issues[0]?.message ?? 'Invalid input' };
+    return {
+      status: 'error' as const,
+      message: parsed.error.issues[0]?.message ?? 'Invalid input',
+    };
   }
 
-  updateTemplate(id, parsed.data);
+  const { id, ...data } = parsed.data;
+  updateTemplate(id, data);
   revalidatePath('/settings');
   return { status: 'success' as const };
 }
@@ -54,3 +55,4 @@ export async function deleteTemplateAction(id: string) {
   deleteTemplate(id);
   revalidatePath('/settings');
 }
+

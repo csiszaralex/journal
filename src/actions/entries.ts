@@ -1,5 +1,6 @@
 'use server';
 
+import { logAudit } from '@/db/queries/audit';
 import {
   createEntry,
   restoreEntry,
@@ -7,11 +8,11 @@ import {
   softDeleteEntry,
   updateEntry,
 } from '@/db/queries/entries';
-import { logAudit } from '@/db/queries/audit';
+import { resolveTagIds } from '@/lib/entry-utils';
 import { entryInputSchema } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { revalidatePath } from 'next/cache';
-import { resolveTagIds } from '@/lib/entry-utils';
+import { z } from 'zod';
 
 export async function createEntryAction(_: unknown, formData: FormData) {
   const submission = parseWithZod(formData, { schema: entryInputSchema });
@@ -19,7 +20,13 @@ export async function createEntryAction(_: unknown, formData: FormData) {
 
   const { text, mood_score, energy_score, entry_date, tags } = submission.value;
 
-  const parsedTags = (() => { try { return JSON.parse(tags || '[]'); } catch { return []; } })();
+  const parsedTags = (() => {
+    try {
+      return JSON.parse(tags || '[]');
+    } catch {
+      return [];
+    }
+  })();
   const isEmpty = !text && mood_score == null && energy_score == null && parsedTags.length === 0;
   if (isEmpty) return submission.reply({ resetForm: true });
 
@@ -37,25 +44,22 @@ export async function createEntryAction(_: unknown, formData: FormData) {
 }
 
 export async function updateEntryAction(_: unknown, formData: FormData) {
-  const entryId = formData.get('entry_id');
-  const submission = parseWithZod(formData, { schema: entryInputSchema });
+  const updateSchema = entryInputSchema.extend({ entry_id: z.string().min(1, 'Entry not found') });
+  const submission = parseWithZod(formData, { schema: updateSchema });
   if (submission.status !== 'success') return submission.reply();
-  if (!entryId || typeof entryId !== 'string') {
-    return submission.reply({ formErrors: ['Entry not found'] });
-  }
 
-  const { text, mood_score, energy_score, entry_date, tags } = submission.value;
-  const updated = updateEntry(entryId, {
+  const { entry_id, text, mood_score, energy_score, entry_date, tags } = submission.value;
+  const updated = updateEntry(entry_id, {
     entry_date,
     text,
     mood_score,
     energy_score,
     tag_ids: resolveTagIds(tags),
   });
-  logAudit('entry.update', { entry_id: entryId, version: updated?.version.version_number });
+  logAudit('entry.update', { entry_id: entry_id, version: updated?.version.version_number });
 
   revalidatePath('/');
-  revalidatePath(`/entry/${entryId}`);
+  revalidatePath(`/entry/${entry_id}`);
   return submission.reply();
 }
 

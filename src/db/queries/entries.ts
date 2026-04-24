@@ -1,12 +1,7 @@
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
-import { createId } from "@paralleldrive/cuid2";
-import { db } from "../client";
-import {
-  entries,
-  entryVersions,
-  entryVersionTags,
-  tags,
-} from "../schema";
+import { createId } from '@paralleldrive/cuid2';
+import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { db } from '../client';
+import { entries, entryVersions, entryVersionTags, tags } from '../schema';
 
 export type EntryWithVersion = {
   id: string;
@@ -90,7 +85,7 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
         entry_id: entryId,
         version_number: 1,
         entry_date: input.entry_date,
-        text: input.text ?? "",
+        text: input.text ?? '',
         mood_score: input.mood_score ?? null,
         energy_score: input.energy_score ?? null,
         edited_at: now,
@@ -116,10 +111,7 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
   return getEntry(entryId)!;
 }
 
-export function updateEntry(
-  id: string,
-  input: UpdateEntryInput
-): EntryWithVersion | null {
+export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersion | null {
   const current = getEntry(id);
   if (!current) return null;
 
@@ -136,16 +128,12 @@ export function updateEntry(
         entry_date: input.entry_date ?? cv.entry_date,
         text: input.text ?? cv.text,
         mood_score: input.mood_score !== undefined ? input.mood_score : cv.mood_score,
-        energy_score:
-          input.energy_score !== undefined ? input.energy_score : cv.energy_score,
+        energy_score: input.energy_score !== undefined ? input.energy_score : cv.energy_score,
         edited_at: now,
       })
       .run();
 
-    tx.update(entries)
-      .set({ current_version_id: versionId })
-      .where(eq(entries.id, id))
-      .run();
+    tx.update(entries).set({ current_version_id: versionId }).where(eq(entries.id, id)).run();
 
     if (input.tag_ids !== undefined && input.tag_ids.length > 0) {
       tx.insert(entryVersionTags)
@@ -174,10 +162,7 @@ export function getEntry(id: string): EntryWithVersion | null {
       v_edited_at: entryVersions.edited_at,
     })
     .from(entries)
-    .innerJoin(
-      entryVersions,
-      eq(entries.current_version_id, entryVersions.id)
-    )
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
     .where(eq(entries.id, id))
     .get();
 
@@ -248,10 +233,7 @@ export function listEntries(filters: ListEntriesFilters = {}) {
       v_edited_at: entryVersions.edited_at,
     })
     .from(entries)
-    .innerJoin(
-      entryVersions,
-      eq(entries.current_version_id, entryVersions.id)
-    )
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
     .$dynamic();
 
   if (tag_ids?.length) {
@@ -292,17 +274,11 @@ export function listEntries(filters: ListEntriesFilters = {}) {
 }
 
 export function softDeleteEntry(id: string): void {
-  db.update(entries)
-    .set({ deleted_at: Date.now() })
-    .where(eq(entries.id, id))
-    .run();
+  db.update(entries).set({ deleted_at: Date.now() }).where(eq(entries.id, id)).run();
 }
 
 export function restoreEntry(id: string): void {
-  db.update(entries)
-    .set({ deleted_at: null })
-    .where(eq(entries.id, id))
-    .run();
+  db.update(entries).set({ deleted_at: null }).where(eq(entries.id, id)).run();
 }
 
 export function searchEntries(query: string, limit = 20) {
@@ -330,7 +306,7 @@ export function searchEntries(query: string, limit = 20) {
           AND e.deleted_at IS NULL
         ORDER BY entries_fts.rank
         LIMIT ${limit}
-      `
+      `,
     )
     .map((row) => row as Record<string, unknown>);
 
@@ -367,27 +343,18 @@ export function getVersionHistory(entryId: string) {
   }));
 }
 
-export function rollbackToVersion(
-  entryId: string,
-  versionNumber: number
-): void {
+export function rollbackToVersion(entryId: string, versionNumber: number): void {
   const version = db
     .select({ id: entryVersions.id })
     .from(entryVersions)
     .where(
-      and(
-        eq(entryVersions.entry_id, entryId),
-        eq(entryVersions.version_number, versionNumber)
-      )
+      and(eq(entryVersions.entry_id, entryId), eq(entryVersions.version_number, versionNumber)),
     )
     .get();
 
   if (!version) throw new Error(`Version ${versionNumber} not found`);
 
-  db.update(entries)
-    .set({ current_version_id: version.id })
-    .where(eq(entries.id, entryId))
-    .run();
+  db.update(entries).set({ current_version_id: version.id }).where(eq(entries.id, entryId)).run();
 }
 
 export type DailyStat = {
@@ -413,7 +380,7 @@ export function getDailyStats(from: string, to: string): DailyStat[] {
           AND ev.entry_date <= ${to}
         GROUP BY ev.entry_date
         ORDER BY ev.entry_date ASC
-      `
+      `,
     )
     .map((row) => {
       const r = row as Record<string, unknown>;
@@ -434,41 +401,7 @@ function localDateStr(d: Date): string {
 }
 
 export function getCurrentStreak(): number {
-  const todayForQuery = localDateStr(new Date());
-  const rows = db
-    .all(
-      sql`
-        SELECT DISTINCT ev.entry_date
-        FROM entries e
-        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
-        WHERE e.deleted_at IS NULL
-          AND ev.entry_date <= ${todayForQuery}
-        ORDER BY ev.entry_date DESC
-      `
-    )
-    .map((r) => (r as { entry_date: string }).entry_date);
-
-  if (rows.length === 0) return 0;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // No entry today = no active streak
-  if (rows[0] !== localDateStr(today)) return 0;
-
-  let streak = 0;
-  const cursor = new Date(today);
-
-  for (const date of rows) {
-    if (date === localDateStr(cursor)) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
+  return getStreakInfo().streak;
 }
 
 export type StreakInfo = { streak: number; wroteToday: boolean };
@@ -484,7 +417,7 @@ export function getStreakInfo(): StreakInfo {
         WHERE e.deleted_at IS NULL
           AND ev.entry_date <= ${todayForQuery}
         ORDER BY ev.entry_date DESC
-      `
+      `,
     )
     .map((r) => (r as { entry_date: string }).entry_date);
 
@@ -525,7 +458,7 @@ export function getLongestStreak(): number {
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
         ORDER BY ev.entry_date ASC
-      `
+      `,
     )
     .map((r) => (r as { entry_date: string }).entry_date);
 
@@ -562,42 +495,45 @@ export function getOverallStats(): OverallStats {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const from30 = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const totals = db
-    .get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`) as
+  const totals = db.get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`) as
     | { cnt: number }
     | undefined;
 
-  const avgs = db
-    .get(
-      sql`
+  const avgs = db.get(
+    sql`
         SELECT
           AVG(ev.mood_score)   AS avg_mood,
           AVG(ev.energy_score) AS avg_energy
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL AND ev.entry_date >= ${from30}
-      `
-    ) as { avg_mood: number | null; avg_energy: number | null } | undefined;
+      `,
+  ) as { avg_mood: number | null; avg_energy: number | null } | undefined;
 
   return {
     total_entries: totals?.cnt ?? 0,
-    avg_mood_30d: avgs?.avg_mood !== null && avgs?.avg_mood !== undefined ? Math.round(avgs.avg_mood * 10) / 10 : null,
-    avg_energy_30d: avgs?.avg_energy !== null && avgs?.avg_energy !== undefined ? Math.round(avgs.avg_energy * 10) / 10 : null,
+    avg_mood_30d:
+      avgs?.avg_mood !== null && avgs?.avg_mood !== undefined
+        ? Math.round(avgs.avg_mood * 10) / 10
+        : null,
+    avg_energy_30d:
+      avgs?.avg_energy !== null && avgs?.avg_energy !== undefined
+        ? Math.round(avgs.avg_energy * 10) / 10
+        : null,
     streak: getCurrentStreak(),
     longest_streak: getLongestStreak(),
   };
 }
 
 export function getFirstEntryDate(): string | null {
-  const row = db
-    .get(
-      sql`
+  const row = db.get(
+    sql`
         SELECT MIN(ev.entry_date) AS first_date
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
-      `
-    ) as { first_date: string | null } | undefined;
+      `,
+  ) as { first_date: string | null } | undefined;
   return row?.first_date ?? null;
 }
 
@@ -615,8 +551,9 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
       and(
         isNull(entries.deleted_at),
         gte(entryVersions.entry_date, from),
-        lte(entryVersions.entry_date, to)
-      )
+        lte(entryVersions.entry_date, to),
+      ),
     )
     .all();
 }
+
