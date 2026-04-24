@@ -5,7 +5,7 @@ import { join } from "path";
 import * as schema from "./schema";
 import { env } from "@/env";
 
-const DB_PATH = env.DATABASE_URL.replace("file:", "");
+const DB_PATH = (env.DATABASE_URL ?? "file:./data/journal.db").replace("file:", "");
 
 const sqlite = new Database(DB_PATH);
 
