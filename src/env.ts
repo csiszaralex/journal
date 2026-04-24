@@ -11,9 +11,7 @@ export const env = createEnv({
     VAPID_SUBJECT: z.string().min(1),
     ALLOWED_EMAIL: z.email(),
   },
-  client: {
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1),
-  },
+  client: {},
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
@@ -22,7 +20,6 @@ export const env = createEnv({
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
     ALLOWED_EMAIL: process.env.ALLOWED_EMAIL,
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });

@@ -38,7 +38,7 @@ const TIMEZONES = [
   "UTC",
 ];
 
-export function DevicesClient({ subscriptions: initial }: { subscriptions: Subscription[] }) {
+export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subscriptions: Subscription[]; vapidPublicKey: string }) {
   const [subscriptions, setSubscriptions] = useState(initial);
   const [subscribing, setSubscribing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -69,7 +69,7 @@ export function DevicesClient({ subscriptions: initial }: { subscriptions: Subsc
 
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        applicationServerKey: vapidPublicKey,
       });
 
       const json = sub.toJSON();

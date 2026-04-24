@@ -113,7 +113,6 @@ jobs:
             echo "VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}"
             echo "VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}"
             echo "VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}"
-            echo "NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}"
             echo "R2_ACCESS_KEY_ID=${{ vars.R2_ACCESS_KEY_ID }}"
             echo "R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }}"
           } > .env
