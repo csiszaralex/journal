@@ -63,22 +63,28 @@ export async function updateEntryAction(_: unknown, formData: FormData) {
   return submission.reply();
 }
 
+const idSchema = z.string().min(1);
+
 export async function softDeleteEntryAction(id: string) {
-  softDeleteEntry(id);
-  logAudit('entry.delete', { entry_id: id });
+  const validId = idSchema.parse(id);
+  softDeleteEntry(validId);
+  logAudit('entry.delete', { entry_id: validId });
   revalidatePath('/');
 }
 
 export async function restoreEntryAction(id: string) {
-  restoreEntry(id);
-  logAudit('entry.restore', { entry_id: id });
+  const validId = idSchema.parse(id);
+  restoreEntry(validId);
+  logAudit('entry.restore', { entry_id: validId });
   revalidatePath('/');
 }
 
 export async function rollbackVersionAction(entryId: string, versionNumber: number) {
-  rollbackToVersion(entryId, versionNumber);
-  logAudit('entry.rollback', { entry_id: entryId, version: versionNumber });
-  revalidatePath(`/entry/${entryId}`);
-  revalidatePath(`/entry/${entryId}/history`);
+  const validId = idSchema.parse(entryId);
+  const validVersion = z.number().int().min(1).parse(versionNumber);
+  rollbackToVersion(validId, validVersion);
+  logAudit('entry.rollback', { entry_id: validId, version: validVersion });
+  revalidatePath(`/entry/${validId}`);
+  revalidatePath(`/entry/${validId}/history`);
 }
 

@@ -10,9 +10,9 @@ import {
   recordNotificationSent,
 } from "../db/queries/subscriptions";
 import { sendPush, pickDailyPrompt } from "../lib/push";
+import { env } from "../env";
 
-const DB_PATH =
-  process.env.DATABASE_URL?.replace("file:", "") ?? "./data/journal.db";
+const DB_PATH = env.DATABASE_URL.replace("file:", "");
 
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");

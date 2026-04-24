@@ -52,7 +52,7 @@ export async function updateTemplateAction(_: unknown, formData: FormData) {
 }
 
 export async function deleteTemplateAction(id: string) {
-  deleteTemplate(id);
+  deleteTemplate(z.string().min(1).parse(id));
   revalidatePath('/settings');
 }
 

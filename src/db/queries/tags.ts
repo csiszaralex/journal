@@ -1,4 +1,5 @@
 import { desc, eq, like, or, sql } from "drizzle-orm";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { tags } from "../schema";
@@ -64,7 +65,7 @@ export function recomputeUsageCounts() {
         GROUP BY t.id
       `
     )
-    .map((row) => row as { id: string; cnt: number });
+    .map((row) => z.object({ id: z.string(), cnt: z.number() }).parse(row));
 
   db.transaction((tx) => {
     for (const { id, cnt } of counts) {

@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { z } from "zod";
 import { disableSubscription } from "@/db/queries/subscriptions";
 import { env } from "@/env";
 
@@ -38,8 +39,6 @@ export async function sendPush(
   }
 }
 
-import { z } from 'zod';
-
 let _prompts: string[] | null = null;
 
 function loadPrompts(): string[] {
@@ -53,7 +52,7 @@ function loadPrompts(): string[] {
 
 export function pickDailyPrompt(date: string): string {
   const prompts = loadPrompts();
-  // Deterministic: hash the date string into an index
+  if (prompts.length === 0) return 'Time to write in your journal.';
   let hash = 0;
   for (let i = 0; i < date.length; i++) {
     hash = (hash * 31 + date.charCodeAt(i)) >>> 0;
