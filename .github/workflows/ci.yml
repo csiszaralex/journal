@@ -41,6 +41,8 @@ jobs:
         run: pnpm build
         env:
           SKIP_ENV_VALIDATION: 1
+          AUTH_URL: http://localhost:3000
+          AUTH_SECRET: ci-build-placeholder
 
   docker:
     name: Build & push image
