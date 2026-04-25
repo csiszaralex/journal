@@ -5,6 +5,16 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from '@/components/ui/dialog';
 import type { EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
@@ -123,6 +133,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const [isPending, setIsPending] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
@@ -135,6 +146,12 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
 
   function resetForm() {
     dispatch({ type: 'RESET', todayStr });
+  }
+
+  function handleClear() {
+    dispatch({ type: 'RESET', todayStr });
+    localStorage.removeItem(DRAFT_KEY);
+    setConfirmClearOpen(false);
   }
 
   // Restore draft on mount (new entries only).
@@ -412,9 +429,34 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         ) : (
           <span />
         )}
-        <Button type='submit' disabled={isPending} size='sm'>
-          {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add entry'}
-        </Button>
+        <div className='flex items-center gap-2'>
+          {!isEdit && (
+            <Dialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+              <DialogTrigger render={<Button type='button' variant='ghost' size='sm' />}>
+                Clear
+              </DialogTrigger>
+              <DialogContent showCloseButton={false}>
+                <DialogHeader>
+                  <DialogTitle>Clear this entry?</DialogTitle>
+                  <DialogDescription>
+                    This will reset all fields and remove the saved draft.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose render={<Button variant='outline' size='sm' />}>
+                    Cancel
+                  </DialogClose>
+                  <Button size='sm' variant='destructive' onClick={handleClear}>
+                    Clear
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+          <Button type='submit' disabled={isPending} size='sm'>
+            {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add entry'}
+          </Button>
+        </div>
       </div>
     </form>
   );
