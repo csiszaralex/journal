@@ -30,7 +30,7 @@ export async function updateSubscriptionAction(id: string, patch: z.infer<typeof
   const validPatch = patchSchema.parse(patch);
   updateSubscription(validId, validPatch);
   logAudit('push.update', { subscription_id: validId });
-  revalidatePath('/devices');
+  revalidatePath('/settings/devices');
 }
 
 export async function deleteSubscriptionAction(id: string) {
@@ -38,7 +38,7 @@ export async function deleteSubscriptionAction(id: string) {
   const sub = getSubscription(validId);
   if (sub) removeSubscription(sub.endpoint);
   logAudit('push.delete', { subscription_id: validId });
-  revalidatePath('/devices');
+  revalidatePath('/settings/devices');
 }
 
 export async function sendTestNotificationAction(id: string) {
@@ -57,6 +57,6 @@ export async function toggleSubscriptionAction(id: string, enabled: boolean) {
   const validEnabled = z.boolean().parse(enabled);
   updateSubscription(validId, { enabled: validEnabled ? 1 : 0 });
   logAudit('push.toggle', { subscription_id: validId, enabled: validEnabled });
-  revalidatePath('/devices');
+  revalidatePath('/settings/devices');
 }
 

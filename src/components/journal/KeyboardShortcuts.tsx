@@ -47,7 +47,7 @@ export function KeyboardShortcuts() {
   useHotkey('C', (e) => { if (!isInInput(e)) router.push('/calendar'); });
   useHotkey('S', (e) => { if (!isInInput(e)) router.push('/search'); });
   useHotkey('T', (e) => { if (!isInInput(e)) router.push('/stats'); });
-  useHotkey('D', (e) => { if (!isInInput(e)) router.push('/devices'); });
+  useHotkey('D', (e) => { if (!isInInput(e)) router.push('/settings/devices'); });
   useHotkey('P', (e) => { if (!isInInput(e)) router.push('/settings'); });
 
   return (
