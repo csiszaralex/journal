@@ -36,6 +36,13 @@
       "when": 1776799717367,
       "tag": "0004_early_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1778428273589,
+      "tag": "0005_thin_gideon",
+      "breakpoints": true
     }
   ]
 }

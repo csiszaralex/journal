@@ -162,6 +162,9 @@ export const authSessions = sqliteTable("session", {
     .notNull()
     .references(() => authUsers.id, { onDelete: "cascade" }),
   expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+  name: text("name"),
+  userAgent: text("userAgent"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }),
 });
 
 export const authVerificationTokens = sqliteTable(
@@ -189,6 +192,8 @@ export const authAuthenticators = sqliteTable(
       mode: "boolean",
     }).notNull(),
     transports: text("transports"),
+    name: text("name"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" }),
   },
   (t) => [primaryKey({ columns: [t.userId, t.credentialID] })]
 );
