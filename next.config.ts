@@ -10,6 +10,7 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  typedRoutes: true,
 };
 
 export default withSerwist(nextConfig);
