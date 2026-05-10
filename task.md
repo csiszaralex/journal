@@ -782,10 +782,11 @@ Go through the entire codebase file by file and produce a written report, then f
 1. Run `pnpm lint` and `pnpm typecheck` — fix all errors and warnings first.
 2. Search for `any` occurrences: `grep -r ": any\|as any\|@ts-ignore\|@ts-expect-error" src/`.
 3. Read each file in `src/` top-to-bottom and apply the checks above.
-4. Produce a Markdown report listing every issue found and the fix applied (or "no issues" per category).
-5. Show the report to the user and confirm before committing the cleanup.
-6. Use superpower skills for bettes checks.
-7. **Report to user**.
+4. Use superpower skills for bettes checks.
+5. Outsource the exported types to separate files and check the consistency between files.
+6. Produce a Markdown report listing every issue found and the fix applied (or "no issues" per category).
+7. Show the report to the user and confirm before committing the cleanup.
+8. **Report to user**.
 
 ---
 
