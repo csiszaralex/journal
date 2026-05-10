@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { ExportButtons } from "@/components/journal/ExportButtons";
 import { TemplatesManager } from "@/components/journal/TemplatesManager";
 import { ThemeToggle } from "@/components/journal/ThemeToggle";
@@ -57,6 +58,19 @@ export default function SettingsPage() {
           Control whether new passkey registrations are accepted. Disable this once you&apos;ve set up your account.
         </p>
         <RegistrationToggle enabled={registrationEnabled} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Sessions &amp; passkeys</h2>
+        <p className="text-sm text-muted-foreground">
+          View, rename, or revoke registered passkeys and active sign-in sessions.
+        </p>
+        <Link
+          href="/settings/sessions"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        >
+          Manage sessions →
+        </Link>
       </section>
 
       <section className="space-y-3">
