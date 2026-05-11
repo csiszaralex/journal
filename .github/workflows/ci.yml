@@ -124,6 +124,6 @@ jobs:
         working-directory: docker
         run: |
           docker compose pull web worker
-          docker compose up -d --remove-orphans
+          docker compose up -d --remove-orphans --force-recreate
           docker image prune -f
 
