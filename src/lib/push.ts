@@ -1,9 +1,7 @@
 import webpush from "web-push";
-import { readFileSync } from "fs";
-import { join } from "path";
-import { z } from "zod";
 import { disableSubscription } from "@/db/queries/subscriptions";
 import { env } from "@/env";
+import promptsData from "../../data/prompts.json";
 
 let vapidConfigured = false;
 
@@ -17,42 +15,45 @@ function ensureVapid() {
   vapidConfigured = true;
 }
 
+export type SendPushResult =
+  | { status: "sent" }
+  | { status: "gone"; statusCode: number }
+  | { status: "error"; statusCode?: number; message: string };
+
 export async function sendPush(
   subscription: { id: string; endpoint: string; p256dh: string; auth: string },
   payload: { title: string; body: string }
-): Promise<void> {
+): Promise<SendPushResult> {
   ensureVapid();
   try {
     await webpush.sendNotification(
       { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
       JSON.stringify(payload)
     );
+    return { status: "sent" };
   } catch (err: unknown) {
-    if (err && typeof err === 'object' && 'statusCode' in err) {
-      const status = err.statusCode;
-      if (status === 410 || status === 404) {
-        disableSubscription(subscription.id);
-        return;
-      }
+    const statusCode =
+      err && typeof err === "object" && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
+        : undefined;
+    if (statusCode === 410 || statusCode === 404) {
+      disableSubscription(subscription.id);
+      return { status: "gone", statusCode };
     }
-    throw err;
+    const message =
+      err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown push error";
+    return { status: "error", statusCode, message };
   }
 }
 
-let _prompts: string[] | null = null;
+const prompts: string[] = Array.isArray(promptsData) ? (promptsData as string[]) : [];
 
-function loadPrompts(): string[] {
-  if (!_prompts) {
-    const path = join(process.cwd(), "data", "prompts.json");
-    const parsed = z.string().array().safeParse(JSON.parse(readFileSync(path, "utf-8")));
-    _prompts = parsed.success ? parsed.data : [];
-  }
-  return _prompts;
+export function getPromptCount(): number {
+  return prompts.length;
 }
 
 export function pickDailyPrompt(date: string): string {
-  const prompts = loadPrompts();
-  if (prompts.length === 0) return 'Time to write in your journal.';
+  if (prompts.length === 0) return "Time to write in your journal.";
   let hash = 0;
   for (let i = 0; i < date.length; i++) {
     hash = (hash * 31 + date.charCodeAt(i)) >>> 0;

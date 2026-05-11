@@ -1,26 +1,23 @@
 import cron from "node-cron";
 import { format, toZonedTime } from "date-fns-tz";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
 import { and, eq, isNull } from "drizzle-orm";
+import { db } from "../db/client";
 import * as schema from "../db/schema";
 import {
   listSubscriptions,
   hasNotificationBeenSent,
   recordNotificationSent,
 } from "../db/queries/subscriptions";
-import { sendPush, pickDailyPrompt } from "../lib/push";
+import { sendPush, pickDailyPrompt, getPromptCount } from "../lib/push";
 import { env } from "../env";
 
-const DB_PATH = env.DATABASE_URL.replace("file:", "");
-
-const sqlite = new Database(DB_PATH);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
-
-// Override the shared db export so the worker has its own connection
-const db = drizzle(sqlite, { schema });
-
+function maskSubject(subject: string): string {
+  // mailto:foo@bar.com → mailto:f**@bar.com
+  const match = subject.match(/^(mailto:)([^@]+)(@.+)$/i);
+  if (!match) return subject.slice(0, 12) + "…";
+  const [, prefix, local, domain] = match;
+  return `${prefix}${local[0] ?? ""}**${domain}`;
+}
 
 function hasEntryToday(dateStr: string): boolean {
   const row = db
@@ -41,38 +38,74 @@ function hasEntryToday(dateStr: string): boolean {
   return row.length > 0;
 }
 
+let running = false;
+
 async function tick() {
-  const subscriptions = listSubscriptions();
-  const nowUtc = new Date();
+  if (running) return;
+  running = true;
+  try {
+    const subscriptions = listSubscriptions();
+    const nowUtc = new Date();
+    let matched = 0;
 
-  for (const sub of subscriptions) {
-    if (!sub.enabled) continue;
+    for (const sub of subscriptions) {
+      if (!sub.enabled) continue;
 
-    const zonedNow = toZonedTime(nowUtc, sub.timezone);
-    const currentHour = zonedNow.getHours();
-    const currentMinute = zonedNow.getMinutes();
+      const zonedNow = toZonedTime(nowUtc, sub.timezone);
+      const currentHour = zonedNow.getHours();
+      const currentMinute = zonedNow.getMinutes();
 
-    if (currentHour !== sub.notify_hour || currentMinute !== sub.notify_minute) {
-      continue;
+      if (currentHour !== sub.notify_hour || currentMinute !== sub.notify_minute) {
+        continue;
+      }
+
+      matched++;
+      const todayStr = format(zonedNow, "yyyy-MM-dd", { timeZone: sub.timezone });
+
+      if (hasNotificationBeenSent(sub.id, todayStr)) {
+        console.log(JSON.stringify({ evt: "tick.skip", reason: "already-sent", sub: sub.id, label: sub.device_label, date: todayStr }));
+        continue;
+      }
+      if (hasEntryToday(todayStr)) {
+        console.log(JSON.stringify({ evt: "tick.skip", reason: "entry-exists", sub: sub.id, label: sub.device_label, date: todayStr }));
+        continue;
+      }
+
+      const body = pickDailyPrompt(todayStr);
+      try {
+        const result = await sendPush(sub, { title: "Journal", body });
+        if (result.status === "sent") {
+          recordNotificationSent(sub.id, todayStr);
+          console.log(JSON.stringify({ evt: "tick.sent", sub: sub.id, label: sub.device_label, date: todayStr }));
+        } else if (result.status === "gone") {
+          console.warn(JSON.stringify({ evt: "tick.gone", sub: sub.id, label: sub.device_label, statusCode: result.statusCode }));
+        } else {
+          console.error(JSON.stringify({ evt: "tick.error", sub: sub.id, label: sub.device_label, statusCode: result.statusCode, message: result.message }));
+        }
+      } catch (err) {
+        console.error(JSON.stringify({ evt: "tick.exception", sub: sub.id, message: err instanceof Error ? err.message : String(err) }));
+      }
     }
 
-    const todayStr = format(zonedNow, "yyyy-MM-dd", { timeZone: sub.timezone });
-
-    if (hasNotificationBeenSent(sub.id, todayStr)) continue;
-    if (hasEntryToday(todayStr)) continue;
-
-    const prompt = pickDailyPrompt(todayStr);
-    try {
-      await sendPush(sub, { title: "Journal", body: prompt });
-      recordNotificationSent(sub.id, todayStr);
-    } catch {
-      // sendPush already disables on 410; other errors are transient
+    if (matched === 0 && nowUtc.getSeconds() < 5) {
+      // Lightweight heartbeat — one log per minute, but only when the minute rolls over.
+      console.log(JSON.stringify({ evt: "tick.idle", enabled: subscriptions.filter(s => s.enabled).length }));
     }
+  } finally {
+    running = false;
   }
 }
 
-console.log("Worker started — notification scheduler running.");
+const DB_PATH = env.DATABASE_URL.replace("file:", "");
+console.log(JSON.stringify({
+  evt: "worker.boot",
+  dbPath: DB_PATH,
+  vapidSubject: maskSubject(env.VAPID_SUBJECT),
+  vapidPublicKeyPrefix: env.VAPID_PUBLIC_KEY.slice(0, 8),
+  prompts: getPromptCount(),
+  subscriptions: listSubscriptions().length,
+}));
 
 cron.schedule("* * * * *", () => {
-  tick().catch(console.error);
+  tick().catch((err) => console.error(JSON.stringify({ evt: "tick.fatal", message: err instanceof Error ? err.message : String(err) })));
 });

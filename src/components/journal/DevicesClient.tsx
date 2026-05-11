@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BellIcon, BellOffIcon, LoaderIcon, SmartphoneIcon, TrashIcon, SendIcon } from "lucide-react";
+import { BellIcon, BellOffIcon, LoaderIcon, SmartphoneIcon, TrashIcon, SendIcon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,9 @@ import {
   updateSubscriptionAction,
   deleteSubscriptionAction,
   sendTestNotificationAction,
+  sendScheduledPreviewAction,
   toggleSubscriptionAction,
+  type SendActionResult,
 } from "@/actions/subscriptions";
 
 type Subscription = {
@@ -42,6 +45,23 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
   const [subscriptions, setSubscriptions] = useState(initial);
   const [subscribing, setSubscribing] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  function reportResult(label: string, result: SendActionResult) {
+    if (result.ok) {
+      toast.success(`${label} sent ✓`);
+      return;
+    }
+    if (result.reason === "gone") {
+      toast.error("Subscription expired — re-enable notifications on this device.");
+      return;
+    }
+    if (result.reason === "not-found") {
+      toast.error("Subscription not found.");
+      return;
+    }
+    const status = result.statusCode ? ` (HTTP ${result.statusCode})` : "";
+    toast.error(`${label} failed${status}: ${result.message ?? "Unknown error"}`);
+  }
 
   async function handleSubscribe() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -144,7 +164,18 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
                   setSubscriptions((prev) => prev.filter((s) => s.id !== sub.id));
                 })
               }
-              onTest={() => startTransition(() => sendTestNotificationAction(sub.id))}
+              onTest={() =>
+                startTransition(async () => {
+                  const result = await sendTestNotificationAction(sub.id);
+                  reportResult("Test", result);
+                })
+              }
+              onPreview={() =>
+                startTransition(async () => {
+                  const result = await sendScheduledPreviewAction(sub.id);
+                  reportResult("Sample prompt", result);
+                })
+              }
               onToggle={(enabled) =>
                 startTransition(async () => {
                   await toggleSubscriptionAction(sub.id, enabled);
@@ -167,6 +198,7 @@ function SubscriptionCard({
   onUpdate,
   onDelete,
   onTest,
+  onPreview,
   onToggle,
 }: {
   sub: Subscription;
@@ -174,6 +206,7 @@ function SubscriptionCard({
   onUpdate: (patch: Partial<Subscription>) => void;
   onDelete: () => void;
   onTest: () => void;
+  onPreview: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
   const [label, setLabel] = useState(sub.device_label);
@@ -203,6 +236,16 @@ function SubscriptionCard({
             title="Send test notification"
           >
             <SendIcon className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onPreview}
+            disabled={isPending}
+            title="Send today's scheduled prompt now (preview)"
+          >
+            <SparklesIcon className="size-3.5" />
           </Button>
           <Button
             variant="ghost"
