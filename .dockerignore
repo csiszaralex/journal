@@ -2,7 +2,10 @@ node_modules
 .next
 .git
 dist
-data
+data/*.db
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 docker
 *.md
 .env
