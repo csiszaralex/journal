@@ -4,6 +4,7 @@ import {
   integer,
   primaryKey,
   unique,
+  uniqueIndex,
   index,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
@@ -74,6 +75,26 @@ export const entryVersionTags = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.version_id, t.tag_id] }),
     index("entry_version_tags_tag_id_idx").on(t.tag_id),
+  ]
+);
+
+export const entryQaPairs = sqliteTable(
+  "entry_qa_pairs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    entry_version_id: text("entry_version_id")
+      .notNull()
+      .references(() => entryVersions.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    created_at: integer("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("uniq_qa_version_position").on(
+      t.entry_version_id,
+      t.position
+    ),
   ]
 );
 

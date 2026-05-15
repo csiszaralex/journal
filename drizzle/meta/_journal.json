@@ -43,6 +43,13 @@
       "when": 1778428273589,
       "tag": "0005_thin_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778882621727,
+      "tag": "0006_talented_centennial",
+      "breakpoints": true
     }
   ]
 }
