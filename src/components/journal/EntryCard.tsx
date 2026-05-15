@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { PencilIcon, Trash2Icon, HistoryIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,13 @@ interface EntryCardProps {
 
 export function EntryCard({ entry, today }: EntryCardProps) {
   const v = entry.version;
-  // Backdated = entry_date is before the day the entry was originally created
-  const createdDateStr = format(new Date(entry.created_at), 'yyyy-MM-dd');
+  // Backdated = entry_date is before the day the entry was originally created.
+  // Entries written before 6am count toward the previous day — at that hour
+  // you're likely still up from the night before, not starting a new day.
+  const createdAt = new Date(entry.created_at);
+  const effectiveCreatedAt =
+    createdAt.getHours() < 6 ? subDays(createdAt, 1) : createdAt;
+  const createdDateStr = format(effectiveCreatedAt, 'yyyy-MM-dd');
   const isBackdated = v.entry_date < createdDateStr;
   const isScheduled = v.entry_date > today;
   const preview = v.text.slice(0, 300);
