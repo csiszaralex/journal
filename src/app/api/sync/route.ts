@@ -9,15 +9,29 @@ import { resolveTagIds } from "@/lib/entry-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+const qaPairsSchema = z
+  .array(
+    z.object({
+      position: z.number().int().min(0).max(20),
+      question: z.string().min(1).max(500),
+      answer: z.string().min(1).max(2000),
+    }),
+  )
+  .max(10)
+  .optional();
+
 const syncRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("createEntry"),
-    payload: entryInputSchema,
+    payload: entryInputSchema.extend({ qa_pairs: qaPairsSchema }),
     clientId: z.string().optional(),
   }),
   z.object({
     action: z.literal("updateEntry"),
-    payload: entryInputSchema.extend({ entry_id: z.string() }),
+    payload: entryInputSchema.extend({
+      entry_id: z.string(),
+      qa_pairs: qaPairsSchema,
+    }),
     clientId: z.string().optional(),
   }),
   z.object({
@@ -51,7 +65,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === "createEntry") {
-      const { text, mood_score, energy_score, entry_date, tags } = payload;
+      const { text, mood_score, energy_score, entry_date, tags, qa_pairs } = payload;
       const created = createEntry({
         entry_date,
         text,
@@ -59,6 +73,7 @@ export async function POST(req: NextRequest) {
         energy_score,
         tag_ids: resolveTagIds(tags),
         client_id: clientId,
+        qa_pairs,
       });
       logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
       revalidatePath("/");
@@ -66,13 +81,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "updateEntry") {
-      const { entry_id, text, mood_score, energy_score, entry_date, tags } = payload;
+      const { entry_id, text, mood_score, energy_score, entry_date, tags, qa_pairs } = payload;
       const updated = updateEntry(entry_id, {
         entry_date,
         text,
         mood_score,
         energy_score,
         tag_ids: resolveTagIds(tags),
+        qa_pairs,
       });
       if (!updated) {
         return NextResponse.json({ ok: false, error: "Entry not found", noRetry: true }, { status: 404 });

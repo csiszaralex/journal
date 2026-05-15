@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
 import { TemplateSelector } from './TemplateSelector';
+import { EntryQuestions, type QaPair } from './EntryQuestions';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 
 
@@ -48,6 +49,9 @@ type FormState = {
   energyScore: number | undefined;
   tags: string[];
   tagKey: number;
+  qaPairs: QaPair[];
+  qaLoading: boolean;
+  qaError: string | null;
 };
 
 type FormAction =
@@ -65,7 +69,13 @@ type FormAction =
       energyScore: number | undefined;
       date: string | undefined;
       tags: string[] | undefined;
-    };
+      qaPairs: QaPair[] | undefined;
+    }
+  | { type: 'QA_REQUEST_START' }
+  | { type: 'QA_REQUEST_SUCCESS'; questions: string[] }
+  | { type: 'QA_REQUEST_ERROR'; error: string }
+  | { type: 'QA_ANSWER_CHANGE'; index: number; value: string }
+  | { type: 'QA_CLEAR' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
@@ -87,6 +97,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
         energyScore: undefined,
         tags: [],
         tagKey: state.tagKey + 1,
+        qaPairs: [],
+        qaLoading: false,
+        qaError: null,
       };
     case 'APPLY_TEMPLATE':
       return {
@@ -112,7 +125,28 @@ function formReducer(state: FormState, action: FormAction): FormState {
         entryDate: action.date ?? state.entryDate,
         tags: action.tags ?? state.tags,
         tagKey: action.tags?.length ? state.tagKey + 1 : state.tagKey,
+        qaPairs: action.qaPairs ?? state.qaPairs,
       };
+    case 'QA_REQUEST_START':
+      return { ...state, qaLoading: true, qaError: null };
+    case 'QA_REQUEST_SUCCESS':
+      return {
+        ...state,
+        qaLoading: false,
+        qaError: null,
+        qaPairs: action.questions.map((q) => ({ question: q, answer: '' })),
+      };
+    case 'QA_REQUEST_ERROR':
+      return { ...state, qaLoading: false, qaError: action.error };
+    case 'QA_ANSWER_CHANGE':
+      return {
+        ...state,
+        qaPairs: state.qaPairs.map((p, i) =>
+          i === action.index ? { ...p, answer: action.value } : p,
+        ),
+      };
+    case 'QA_CLEAR':
+      return { ...state, qaPairs: [], qaError: null, qaLoading: false };
   }
 }
 
@@ -142,6 +176,9 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     energyScore: entry?.version.energy_score ?? undefined,
     tags: entry?.version.tags.map((t) => t.display_name) ?? [],
     tagKey: 0,
+    qaPairs: [],
+    qaLoading: false,
+    qaError: null,
   });
 
   function resetForm() {
@@ -167,12 +204,24 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         energy: z.number().nullable().optional(),
         date: z.string().optional(),
         tags: z.string().array().optional(),
+        qaPairs: z
+          .object({ question: z.string(), answer: z.string() })
+          .array()
+          .optional(),
         savedAt: z.number().optional(),
       });
       const parsed = draftSchema.safeParse(JSON.parse(raw));
       if (!parsed.success) return;
       const d = parsed.data;
-      if (!d.text && d.mood == null && d.energy == null && !d.date && !d.tags?.length) return;
+      if (
+        !d.text &&
+        d.mood == null &&
+        d.energy == null &&
+        !d.date &&
+        !d.tags?.length &&
+        !d.qaPairs?.length
+      )
+        return;
       if (d.savedAt && Date.now() - d.savedAt > 24 * 60 * 60 * 1000) return;
       dispatch({
         type: 'RESTORE_DRAFT',
@@ -181,6 +230,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         energyScore: d.energy ?? undefined,
         date: d.date,
         tags: d.tags?.length ? d.tags : undefined,
+        qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
       });
     } catch {
       /* ignore malformed draft */
@@ -195,7 +245,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       state.moodScore !== undefined ||
       state.energyScore !== undefined ||
       state.entryDate !== todayStr ||
-      state.tags.length > 0;
+      state.tags.length > 0 ||
+      state.qaPairs.length > 0;
     if (!hasContent) return;
     if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     draftSaveRef.current = setTimeout(() => {
@@ -207,6 +258,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           energy: state.energyScore ?? null,
           date: state.entryDate,
           tags: state.tags,
+          qaPairs: state.qaPairs,
           savedAt: Date.now(),
         }),
       );
@@ -214,7 +266,45 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, isEdit, todayStr]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.qaPairs, isEdit, todayStr]);
+
+  async function handleFetchQuestions() {
+    dispatch({ type: 'QA_REQUEST_START' });
+    try {
+      const trimmed = state.textValue.trim();
+      const res = await fetch('/api/ai/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ todayText: trimmed || undefined }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { questions?: string[]; error?: string }
+        | null;
+      if (!res.ok || !data) {
+        dispatch({
+          type: 'QA_REQUEST_ERROR',
+          error: data?.error ?? 'Hálózati hiba történt',
+        });
+        return;
+      }
+      if (!data.questions || !Array.isArray(data.questions)) {
+        dispatch({ type: 'QA_REQUEST_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        return;
+      }
+      dispatch({ type: 'QA_REQUEST_SUCCESS', questions: data.questions });
+    } catch {
+      dispatch({ type: 'QA_REQUEST_ERROR', error: 'Hálózati hiba történt' });
+    }
+  }
+
+  function handleRegenerateQuestions() {
+    const hasAnswers = state.qaPairs.some((p) => p.answer.trim().length > 0);
+    if (hasAnswers) {
+      const ok = window.confirm('A meglévő válaszaid elvesznek. Biztos?');
+      if (!ok) return;
+    }
+    handleFetchQuestions();
+  }
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -227,6 +317,10 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       energy_score: state.energyScore,
       tags: JSON.stringify(state.tags),
     };
+
+    const filledQaPairs = state.qaPairs
+      .map((p, i) => ({ position: i, question: p.question, answer: p.answer.trim() }))
+      .filter((p) => p.answer.length > 0);
 
     // Client-side validation
     const validation = entryInputSchema.safeParse(payload);
@@ -246,13 +340,15 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     }
 
     const clientId = isEdit ? undefined : createId();
+    const payloadWithQa =
+      filledQaPairs.length > 0 ? { ...payload, qa_pairs: filledQaPairs } : payload;
     const body = isEdit
       ? JSON.stringify({
           action: 'updateEntry',
-          payload: { ...payload, entry_id: entry!.id },
+          payload: { ...payloadWithQa, entry_id: entry!.id },
           clientId,
         })
-      : JSON.stringify({ action: 'createEntry', payload, clientId });
+      : JSON.stringify({ action: 'createEntry', payload: payloadWithQa, clientId });
 
     setIsPending(true);
     try {
@@ -273,6 +369,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         if (!isEdit) {
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
+        } else {
+          dispatch({ type: 'QA_CLEAR' });
         }
         onSuccess?.();
       } else if (data.ok) {
@@ -280,6 +378,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         if (!isEdit) {
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
+        } else {
+          dispatch({ type: 'QA_CLEAR' });
         }
         onSuccess?.();
       } else {
@@ -302,6 +402,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         if (!isEdit) {
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
+        } else {
+          dispatch({ type: 'QA_CLEAR' });
         }
         onSuccess?.();
       } else {
@@ -362,6 +464,18 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           className='min-h-35 resize-none border-muted/60 bg-muted/20 text-base leading-relaxed placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:bg-muted/40'
         />
       </div>
+
+      {/* AI questions */}
+      <EntryQuestions
+        pairs={state.qaPairs}
+        loading={state.qaLoading}
+        error={state.qaError}
+        onFetch={handleFetchQuestions}
+        onRegenerate={handleRegenerateQuestions}
+        onAnswerChange={(index, value) =>
+          dispatch({ type: 'QA_ANSWER_CHANGE', index, value })
+        }
+      />
 
       {/* Mood */}
       <div className='flex items-center gap-3'>

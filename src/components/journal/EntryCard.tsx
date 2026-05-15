@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, subDays } from "date-fns";
-import { PencilIcon, Trash2Icon, HistoryIcon } from "lucide-react";
+import { PencilIcon, Trash2Icon, HistoryIcon, ChevronRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { softDeleteEntryAction } from "@/actions/entries";
@@ -121,6 +121,33 @@ export function EntryCard({ entry, today }: EntryCardProps) {
             </Link>
           )}
         </p>
+      )}
+
+      {/* Q&A reflections */}
+      {v.qa_pairs.length > 0 && (
+        <details className="group/qa mb-3">
+          <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-1">
+              <ChevronRightIcon className="size-3 transition-transform group-open/qa:rotate-90" />
+              Reflexiók ({v.qa_pairs.length})
+            </span>
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {v.qa_pairs.map((qa) => (
+              <div
+                key={qa.position}
+                className="rounded-md border border-muted/60 bg-muted/10 p-3"
+              >
+                <p className="mb-1 text-sm text-muted-foreground">
+                  {qa.question}
+                </p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                  {qa.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* Metadata row */}

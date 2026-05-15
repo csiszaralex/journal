@@ -2,7 +2,11 @@ import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../client';
-import { entries, entryVersions, entryVersionTags, tags } from '../schema';
+import { entries, entryQaPairs, entryVersions, entryVersionTags, tags } from '../schema';
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type QAPairInput = { position: number; question: string; answer: string };
 
 export type EntryWithVersion = {
   id: string;
@@ -19,6 +23,7 @@ export type EntryWithVersion = {
     energy_score: number | null;
     edited_at: number;
     tags: { id: string; name: string; display_name: string }[];
+    qa_pairs: { position: number; question: string; answer: string }[];
   };
 };
 
@@ -29,6 +34,7 @@ export type CreateEntryInput = {
   energy_score?: number | null;
   tag_ids?: string[];
   client_id?: string;
+  qa_pairs?: QAPairInput[];
 };
 
 export type UpdateEntryInput = {
@@ -37,6 +43,7 @@ export type UpdateEntryInput = {
   mood_score?: number | null;
   energy_score?: number | null;
   tag_ids?: string[];
+  qa_pairs?: QAPairInput[];
 };
 
 export type ListEntriesFilters = {
@@ -57,6 +64,43 @@ function getEntryTags(versionId: string) {
     .innerJoin(tags, eq(entryVersionTags.tag_id, tags.id))
     .where(eq(entryVersionTags.version_id, versionId))
     .all();
+}
+
+export function getEntryQAPairs(
+  versionId: string,
+): Array<{ position: number; question: string; answer: string }> {
+  return db
+    .select({
+      position: entryQaPairs.position,
+      question: entryQaPairs.question,
+      answer: entryQaPairs.answer,
+    })
+    .from(entryQaPairs)
+    .where(eq(entryQaPairs.entry_version_id, versionId))
+    .orderBy(entryQaPairs.position)
+    .all();
+}
+
+export function insertEntryQAPairs(
+  versionId: string,
+  pairs: QAPairInput[],
+  tx?: Tx,
+): void {
+  if (!pairs.length) return;
+  const runner = tx ?? db;
+  const now = Date.now();
+  runner
+    .insert(entryQaPairs)
+    .values(
+      pairs.map((p) => ({
+        entry_version_id: versionId,
+        position: p.position,
+        question: p.question,
+        answer: p.answer,
+        created_at: now,
+      })),
+    )
+    .run();
 }
 
 export function createEntry(input: CreateEntryInput): EntryWithVersion {
@@ -107,6 +151,8 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
         .values(input.tag_ids.map((tag_id) => ({ version_id: versionId, tag_id })))
         .run();
     }
+
+    insertEntryQAPairs(versionId, input.qa_pairs ?? [], tx);
   });
 
   return getEntry(entryId)!;
@@ -141,6 +187,8 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
         .values(input.tag_ids.map((tag_id) => ({ version_id: versionId, tag_id })))
         .run();
     }
+
+    insertEntryQAPairs(versionId, input.qa_pairs ?? [], tx);
   });
 
   return getEntry(id);
@@ -184,6 +232,7 @@ export function getEntry(id: string): EntryWithVersion | null {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      qa_pairs: getEntryQAPairs(row.v_id),
     },
   };
 }
@@ -270,6 +319,7 @@ export function listEntries(filters: ListEntriesFilters = {}) {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      qa_pairs: getEntryQAPairs(row.v_id),
     },
   }));
 }
@@ -341,6 +391,7 @@ export function searchEntries(query: string, limit = 20) {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      qa_pairs: getEntryQAPairs(row.v_id),
     },
   }));
 }
@@ -356,6 +407,7 @@ export function getVersionHistory(entryId: string) {
   return rows.map((v) => ({
     ...v,
     tags: getEntryTags(v.id),
+    qa_pairs: getEntryQAPairs(v.id),
   }));
 }
 
