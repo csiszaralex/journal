@@ -115,6 +115,7 @@ jobs:
             echo "VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}"
             echo "R2_ACCESS_KEY_ID=${{ vars.R2_ACCESS_KEY_ID }}"
             echo "R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }}"
+            echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}"
           } > .env
 
       - name: Fix data volume permissions

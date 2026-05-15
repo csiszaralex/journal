@@ -10,6 +10,7 @@ export const env = createEnv({
     VAPID_PRIVATE_KEY: z.string().min(1),
     VAPID_SUBJECT: z.string().min(1),
     ALLOWED_EMAIL: z.email(),
+    ANTHROPIC_API_KEY: z.string().min(1),
   },
   client: {},
   runtimeEnv: {
@@ -20,6 +21,7 @@ export const env = createEnv({
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
     ALLOWED_EMAIL: process.env.ALLOWED_EMAIL,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });
