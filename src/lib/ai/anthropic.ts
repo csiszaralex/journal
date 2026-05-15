@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/env";
 
-export const QUESTIONS_MODEL = "claude-haiku-4-5-20251001";
+export const QUESTIONS_MODEL = "claude-sonnet-4-6";
 
 let client: Anthropic | null = null;
 
