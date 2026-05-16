@@ -50,7 +50,8 @@ export function SignInContent({ registrationEnabled }: Props) {
     }
   }
 
-  async function handleRegister() {
+  async function handleRegister(e?: React.SubmitEvent) {
+    e?.preventDefault();
     setError(null);
     const trimmed = email.trim();
     if (!trimmed) {
@@ -78,14 +79,14 @@ export function SignInContent({ registrationEnabled }: Props) {
         </CardHeader>
 
         <CardContent className='flex flex-col gap-4'>
-          <Button onClick={handleAuthenticate} size='lg' className='w-full'>
+          <Button onClick={handleAuthenticate} size='lg' className='w-full' autoFocus>
             Sign in with passkey
           </Button>
 
           {registrationEnabled && (
             <>
               <Separator />
-              <div className='flex flex-col gap-3'>
+              <form onSubmit={handleRegister} className='flex flex-col gap-3'>
                 <p className='text-xs text-muted-foreground text-center'>
                   First time? Register a passkey
                 </p>
@@ -100,7 +101,7 @@ export function SignInContent({ registrationEnabled }: Props) {
                   />
                 </div>
                 <Button
-                  onClick={handleRegister}
+                  type='submit'
                   disabled={registering}
                   variant='outline'
                   size='lg'
@@ -108,7 +109,7 @@ export function SignInContent({ registrationEnabled }: Props) {
                 >
                   {registering ? 'Registering…' : 'Register passkey'}
                 </Button>
-              </div>
+              </form>
             </>
           )}
 
