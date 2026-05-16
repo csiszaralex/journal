@@ -9,24 +9,30 @@ import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 
 const requestSchema = z.object({
   todayText: z.string().max(4000).optional(),
+  count: z.number().int().min(1).max(5).optional(),
+  existingQuestions: z.array(z.string().min(1).max(500)).max(10).optional(),
 });
 
-const toolResponseSchema = z.object({
-  questions: z.array(z.string().min(1)).length(3),
-});
+const SYSTEM_PROMPT = `You are an assistant for a daily reflective journal. The user is currently writing today's entry and wants follow-up questions that help them describe today more accurately and notice things they might otherwise gloss over.
 
-const SYSTEM_PROMPT = `Egy napi reflexiós napló asszisztense vagy. A felhasználó éppen most tölti ki a mai bejegyzést, és segítséget kér: tegyél fel pontosan 3 rövid, konkrét, nyitott kérdést, amik segítenek pontosabb képet rajzolni a mai napjáról.
+You receive:
+- The past few days of journal entries with their tags (topic labels)
+- Optionally, what the user has already written for today
+- Optionally, questions they have already received and want to keep — you MUST NOT duplicate or paraphrase these
 
-Támaszkodj az előző napok bejegyzéseire és a hozzájuk tartozó címkékre (a címkék témajelölők). Ha valamit elkezdett, szorongott valami miatt, vagy tervezett valamit, kérdezz rá konkrétan. Ha a címkék között visszatérő téma van (pl. "edzés", "munka"), kérdezhetsz a folytatásról.
+Your job: generate N open-ended questions that pull on specific threads from the past entries.
 
-Szabályok:
-- Pontosan 3 kérdés.
-- Tegezve, magyarul.
-- Egy kérdés max. 1 mondat.
-- Ne kérdezz zárt (igen/nem) kérdést.
-- Ne ismételd, amit ma már leírt.
+Hard rules — these are strictly enforced:
+1. Each question must reference a SPECIFIC concrete detail from the past entries: a plan that was mentioned, a worry that was expressed, a person or activity named, a recurring tag/theme. Generic catch-all questions are forbidden. Examples of BAD questions (do not produce these or anything like them): "How are you feeling today?", "What did you accomplish?", "What's on your mind?", "What was the best part of your day?". Examples of GOOD questions: "Sikerült ma beszélned Annával arról a témáról, amit tegnap halogattál?", "Eljutottál ma az edzésre, vagy megint kimaradt?", "A pénteki határidőhöz közelebb kerültél valamit?"
+2. Open-ended only. No yes/no questions, no questions answerable with a single word.
+3. Maximum 1 sentence per question. Conversational, not formal.
+4. Do not ask about content the user has already written for today.
+5. If existing questions are provided, your new questions must explore SUBSTANTIVELY different topics or angles. No paraphrasing of the existing ones.
+6. If two past days mention the same thread (e.g. a recurring worry, an unfinished task), prefer asking about the continuation/resolution of it.
 
-A választ kizárólag a \`submit_questions\` tool meghívásával add vissza.`;
+OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/familiar (tegező) form. The questions themselves must be Hungarian even though these instructions are in English.
+
+Return your questions ONLY via the \`submit_questions\` tool. Do not produce any free text.`;
 
 const RATE_LIMIT_MS = 5000;
 const lastCallByUser = new Map<string, number>();
@@ -34,20 +40,28 @@ const lastCallByUser = new Map<string, number>();
 function buildUserMessage(
   priorDays: { entry_date: string; text: string; tagNames: string[] }[],
   todayText: string | undefined,
+  existingQuestions: string[] | undefined,
+  count: number,
 ): string {
   const priorSection =
     priorDays.length === 0
-      ? '(nincs korábbi bejegyzés)'
+      ? '(no prior entries)'
       : priorDays
           .map((d) => {
-            const labels = d.tagNames.length > 0 ? d.tagNames.join(', ') : 'nincs';
-            return `### ${d.entry_date} (címkék: ${labels})\n${d.text}`;
+            const labels = d.tagNames.length > 0 ? d.tagNames.join(', ') : 'none';
+            return `### ${d.entry_date} (tags: ${labels})\n${d.text}`;
           })
           .join('\n\n');
 
-  const todaySection = todayText && todayText.trim().length > 0 ? todayText : '(még üres)';
+  const todaySection =
+    todayText && todayText.trim().length > 0 ? todayText : '(empty so far)';
 
-  return `## Előző napok:\n\n${priorSection}\n\n## Mai (még nem mentett) szöveg:\n${todaySection}`;
+  const existingSection =
+    existingQuestions && existingQuestions.length > 0
+      ? `\n\n## Questions already shown to the user (do NOT duplicate or paraphrase any of these):\n${existingQuestions.map((q) => `- ${q}`).join('\n')}`
+      : '';
+
+  return `## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -74,7 +88,12 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
-  const { todayText } = parsed.data;
+  const { todayText, existingQuestions } = parsed.data;
+  const count = parsed.data.count ?? 3;
+
+  const toolResponseSchema = z.object({
+    questions: z.array(z.string().min(1)).length(count),
+  });
 
   // Today's date in the app's timezone (so "today" matches user's calendar day).
   const todayStr = formatInTimeZone(new Date(), 'Europe/Budapest', 'yyyy-MM-dd');
@@ -93,7 +112,7 @@ export async function POST(req: NextRequest) {
       tagNames: e.version.tags.map((t) => t.display_name),
     }));
 
-  const userMessage = buildUserMessage(priorDays, todayText);
+  const userMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);
 
   // Update rate-limit timestamp BEFORE the API call so two near-simultaneous
   // requests can't both slip past the check.
@@ -114,15 +133,15 @@ export async function POST(req: NextRequest) {
       tools: [
         {
           name: 'submit_questions',
-          description: 'Visszaadja a 3 reflektív kérdést a mai napi naplóhoz.',
+          description: `Submit exactly ${count} reflective question${count === 1 ? '' : 's'} in Hungarian.`,
           input_schema: {
             type: 'object' as const,
             properties: {
               questions: {
                 type: 'array',
                 items: { type: 'string' },
-                minItems: 3,
-                maxItems: 3,
+                minItems: count,
+                maxItems: count,
               },
             },
             required: ['questions'],
@@ -145,11 +164,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
     }
 
-    const [q1, q2, q3] = validated.data.questions;
-    return NextResponse.json({ questions: [q1, q2, q3] satisfies [string, string, string] });
+    return NextResponse.json({ questions: validated.data.questions });
   } catch (err) {
     console.error('[ai/questions]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
-

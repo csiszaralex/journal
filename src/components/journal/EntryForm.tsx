@@ -51,6 +51,7 @@ type FormState = {
   tagKey: number;
   qaPairs: QaPair[];
   qaLoading: boolean;
+  qaLoadingIndex: number | null;
   qaError: string | null;
 };
 
@@ -75,6 +76,9 @@ type FormAction =
   | { type: 'QA_REQUEST_SUCCESS'; questions: string[] }
   | { type: 'QA_REQUEST_ERROR'; error: string }
   | { type: 'QA_ANSWER_CHANGE'; index: number; value: string }
+  | { type: 'QA_REPLACE_ONE_START'; index: number }
+  | { type: 'QA_REPLACE_ONE_SUCCESS'; index: number; question: string }
+  | { type: 'QA_REPLACE_ONE_ERROR'; error: string }
   | { type: 'QA_CLEAR' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
@@ -99,6 +103,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
         tagKey: state.tagKey + 1,
         qaPairs: [],
         qaLoading: false,
+        qaLoadingIndex: null,
         qaError: null,
       };
     case 'APPLY_TEMPLATE':
@@ -128,16 +133,17 @@ function formReducer(state: FormState, action: FormAction): FormState {
         qaPairs: action.qaPairs ?? state.qaPairs,
       };
     case 'QA_REQUEST_START':
-      return { ...state, qaLoading: true, qaError: null };
+      return { ...state, qaLoading: true, qaLoadingIndex: null, qaError: null };
     case 'QA_REQUEST_SUCCESS':
       return {
         ...state,
         qaLoading: false,
+        qaLoadingIndex: null,
         qaError: null,
         qaPairs: action.questions.map((q) => ({ question: q, answer: '' })),
       };
     case 'QA_REQUEST_ERROR':
-      return { ...state, qaLoading: false, qaError: action.error };
+      return { ...state, qaLoading: false, qaLoadingIndex: null, qaError: action.error };
     case 'QA_ANSWER_CHANGE':
       return {
         ...state,
@@ -145,8 +151,27 @@ function formReducer(state: FormState, action: FormAction): FormState {
           i === action.index ? { ...p, answer: action.value } : p,
         ),
       };
+    case 'QA_REPLACE_ONE_START':
+      return { ...state, qaLoadingIndex: action.index, qaError: null };
+    case 'QA_REPLACE_ONE_SUCCESS':
+      return {
+        ...state,
+        qaLoadingIndex: null,
+        qaError: null,
+        qaPairs: state.qaPairs.map((p, i) =>
+          i === action.index ? { question: action.question, answer: '' } : p,
+        ),
+      };
+    case 'QA_REPLACE_ONE_ERROR':
+      return { ...state, qaLoadingIndex: null, qaError: action.error };
     case 'QA_CLEAR':
-      return { ...state, qaPairs: [], qaError: null, qaLoading: false };
+      return {
+        ...state,
+        qaPairs: [],
+        qaError: null,
+        qaLoading: false,
+        qaLoadingIndex: null,
+      };
   }
 }
 
@@ -178,6 +203,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     tagKey: 0,
     qaPairs: [],
     qaLoading: false,
+    qaLoadingIndex: null,
     qaError: null,
   });
 
@@ -268,14 +294,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     };
   }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.qaPairs, isEdit, todayStr]);
 
-  async function handleFetchQuestions() {
+  async function handleFetchQuestions(opts?: { existingQuestions?: string[] }) {
     dispatch({ type: 'QA_REQUEST_START' });
     try {
       const trimmed = state.textValue.trim();
       const res = await fetch('/api/ai/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ todayText: trimmed || undefined }),
+        body: JSON.stringify({
+          todayText: trimmed || undefined,
+          existingQuestions: opts?.existingQuestions,
+        }),
       });
       const data = (await res.json().catch(() => null)) as
         | { questions?: string[]; error?: string }
@@ -303,7 +332,52 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       const ok = window.confirm('A meglévő válaszaid elvesznek. Biztos?');
       if (!ok) return;
     }
-    handleFetchQuestions();
+    // Send current questions so the AI gives a substantively different set.
+    const existingQuestions = state.qaPairs.map((p) => p.question);
+    handleFetchQuestions({ existingQuestions });
+  }
+
+  async function handleRegenerateOne(index: number) {
+    const target = state.qaPairs[index];
+    if (!target) return;
+    if (target.answer.trim().length > 0) {
+      const ok = window.confirm('A válaszod ehhez a kérdéshez elveszik. Biztos?');
+      if (!ok) return;
+    }
+    dispatch({ type: 'QA_REPLACE_ONE_START', index });
+    try {
+      const trimmed = state.textValue.trim();
+      // Tell the AI not to duplicate the questions in the OTHER slots
+      // (and also not the one being replaced).
+      const existingQuestions = state.qaPairs.map((p) => p.question);
+      const res = await fetch('/api/ai/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          todayText: trimmed || undefined,
+          count: 1,
+          existingQuestions,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { questions?: string[]; error?: string }
+        | null;
+      if (!res.ok || !data) {
+        dispatch({
+          type: 'QA_REPLACE_ONE_ERROR',
+          error: data?.error ?? 'Hálózati hiba történt',
+        });
+        return;
+      }
+      const newQ = data.questions?.[0];
+      if (!newQ) {
+        dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        return;
+      }
+      dispatch({ type: 'QA_REPLACE_ONE_SUCCESS', index, question: newQ });
+    } catch {
+      dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: 'Hálózati hiba történt' });
+    }
   }
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
@@ -469,9 +543,11 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       <EntryQuestions
         pairs={state.qaPairs}
         loading={state.qaLoading}
+        loadingIndex={state.qaLoadingIndex}
         error={state.qaError}
-        onFetch={handleFetchQuestions}
+        onFetch={() => handleFetchQuestions()}
         onRegenerate={handleRegenerateQuestions}
+        onRegenerateOne={handleRegenerateOne}
         onAnswerChange={(index, value) =>
           dispatch({ type: 'QA_ANSWER_CHANGE', index, value })
         }
