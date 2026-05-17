@@ -9,6 +9,7 @@ import {
   recordNotificationSent,
 } from "../db/queries/subscriptions";
 import { sendPush, pickDailyPrompt, getPromptCount } from "../lib/push";
+import { countOpenIntentionsForToday } from "@/db/queries/intentions";
 import { env } from "../env";
 
 function maskSubject(subject: string): string {
@@ -71,7 +72,11 @@ async function tick() {
         continue;
       }
 
-      const body = pickDailyPrompt(todayStr);
+      const promptBody = pickDailyPrompt(todayStr);
+      const openCount = countOpenIntentionsForToday(todayStr);
+      const body = openCount > 0
+        ? `${promptBody} (${openCount} nyitott szándék mára)`
+        : promptBody;
       try {
         const result = await sendPush(sub, { title: "Journal", body });
         if (result.status === "sent") {

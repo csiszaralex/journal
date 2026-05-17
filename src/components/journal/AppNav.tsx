@@ -4,7 +4,7 @@ import { signOutAction } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { BarChart2Icon, CalendarIcon, HomeIcon, LogOutIcon, MoreHorizontalIcon, SearchIcon, SettingsIcon } from 'lucide-react';
+import { BarChart2Icon, CalendarIcon, HomeIcon, LogOutIcon, MoreHorizontalIcon, SearchIcon, SettingsIcon, TargetIcon } from 'lucide-react';
 import type { Route } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ type NavItem = { href: Route; icon: typeof HomeIcon; label: string };
 const primaryNavItems: NavItem[] = [
   { href: '/', icon: HomeIcon, label: 'Today' },
   { href: '/calendar', icon: CalendarIcon, label: 'Calendar' },
+  { href: '/intentions', icon: TargetIcon, label: 'Szándékok' },
 ];
 
 const secondaryNavItems: NavItem[] = [

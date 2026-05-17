@@ -5,6 +5,7 @@ import { getStreakInfo, listEntries } from "@/db/queries/entries";
 import { listTemplates } from "@/db/queries/templates";
 import { EntryForm } from "@/components/journal/EntryForm";
 import { EntryCard } from "@/components/journal/EntryCard";
+import { TodayIntentionsSection } from "@/components/journal/TodayIntentionsSection";
 import { FlameIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +51,9 @@ export default async function TodayPage({
       <div className="rounded-xl border bg-card p-4">
         <EntryForm templates={templates} defaultDate={prefill_date} />
       </div>
+
+      {/* Today's open intentions */}
+      <TodayIntentionsSection hasTodayEntry={todayEntries.length > 0} />
 
       {/* Today's entries */}
       {todayEntries.length > 0 && (

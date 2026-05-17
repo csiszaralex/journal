@@ -692,3 +692,13 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
     .all();
 }
 
+export function getTodayEntryId(todayISO: string): string | null {
+  const row = db
+    .select({ id: entries.id })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entryVersions.id, entries.current_version_id))
+    .where(and(isNull(entries.deleted_at), eq(entryVersions.entry_date, todayISO)))
+    .get();
+  return row?.id ?? null;
+}
+
