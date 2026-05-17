@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createEntry, updateEntry, softDeleteEntry } from "@/db/queries/entries";
+import { createEntry, updateEntry, softDeleteEntry, DuplicateDateError } from "@/db/queries/entries";
 import { logAudit } from "@/db/queries/audit";
 import { entryInputSchema } from "@/lib/validation";
 import { resolveEmotionIds, resolveTagIds } from "@/lib/entry-utils";
@@ -66,19 +66,43 @@ export async function POST(req: NextRequest) {
   try {
     if (action === "createEntry") {
       const { text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs } = payload;
-      const created = createEntry({
-        entry_date,
-        text,
-        mood_score,
-        energy_score,
-        tag_ids: resolveTagIds(tags),
-        emotion_ids: resolveEmotionIds(emotions),
-        client_id: clientId,
-        qa_pairs,
-      });
-      logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
-      revalidatePath("/");
-      return NextResponse.json({ ok: true, id: created.id });
+      const tag_ids = resolveTagIds(tags);
+      const emotion_ids = resolveEmotionIds(emotions);
+      try {
+        const created = createEntry({
+          entry_date,
+          text,
+          mood_score,
+          energy_score,
+          tag_ids,
+          emotion_ids,
+          client_id: clientId,
+          qa_pairs,
+        });
+        logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
+        revalidatePath("/");
+        return NextResponse.json({ ok: true, id: created.id });
+      } catch (err) {
+        if (!(err instanceof DuplicateDateError)) throw err;
+        // Concurrent tab or stale client tried to create a second entry for this date.
+        // Convert to an update of the existing one.
+        const updated = updateEntry(err.entryId, {
+          entry_date,
+          text,
+          mood_score,
+          energy_score,
+          tag_ids,
+          emotion_ids,
+          qa_pairs,
+        });
+        if (!updated) {
+          return NextResponse.json({ ok: false, error: "Entry not found", noRetry: true }, { status: 404 });
+        }
+        logAudit("entry.update", { entry_id: err.entryId, version: updated.version.version_number, via: "sync", from: "createEntry" });
+        revalidatePath("/");
+        revalidatePath(`/entry/${err.entryId}`);
+        return NextResponse.json({ ok: true, id: err.entryId });
+      }
     }
 
     if (action === "updateEntry") {

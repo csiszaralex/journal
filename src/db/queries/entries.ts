@@ -136,6 +136,23 @@ export function insertEntryQAPairs(
     .run();
 }
 
+export function getEntryByDate(dateISO: string): EntryWithVersion | null {
+  const row = db
+    .select({ id: entries.id })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entryVersions.id, entries.current_version_id))
+    .where(and(isNull(entries.deleted_at), eq(entryVersions.entry_date, dateISO)))
+    .get();
+  return row ? getEntry(row.id) : null;
+}
+
+export class DuplicateDateError extends Error {
+  constructor(public readonly entryId: string, public readonly entryDate: string) {
+    super(`Active entry already exists for ${entryDate}`);
+    this.name = 'DuplicateDateError';
+  }
+}
+
 export function createEntry(input: CreateEntryInput): EntryWithVersion {
   // Deduplicate: if a version with this client_id already exists, return it.
   if (input.client_id) {
@@ -146,6 +163,10 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
       .get();
     if (existing) return getEntry(existing.entry_id)!;
   }
+
+  // One active entry per day. Caller (sync route) must catch and route to updateEntry.
+  const dupe = getEntryByDate(input.entry_date);
+  if (dupe) throw new DuplicateDateError(dupe.id, input.entry_date);
 
   const entryId = createId();
   const versionId = createId();
@@ -693,12 +714,6 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
 }
 
 export function getTodayEntryId(todayISO: string): string | null {
-  const row = db
-    .select({ id: entries.id })
-    .from(entries)
-    .innerJoin(entryVersions, eq(entryVersions.id, entries.current_version_id))
-    .where(and(isNull(entries.deleted_at), eq(entryVersions.entry_date, todayISO)))
-    .get();
-  return row?.id ?? null;
+  return getEntryByDate(todayISO)?.id ?? null;
 }
 

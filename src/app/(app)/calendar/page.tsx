@@ -191,10 +191,10 @@ export default async function CalendarPage({
             <h2 className="text-sm font-medium">
               {format(new Date(selectedDay + "T00:00:00"), "EEEE, MMMM d")}
             </h2>
-            <Link href={`/?prefill_date=${selectedDay}`}>
+            <Link href={`/?date=${selectedDay}`}>
               <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
                 <PlusIcon className="size-3" />
-                New entry
+                Open entry
               </Button>
             </Link>
           </div>

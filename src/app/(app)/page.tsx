@@ -1,26 +1,29 @@
 export const dynamic = "force-dynamic";
 
 import { format } from "date-fns";
-import { getStreakInfo, listEntries } from "@/db/queries/entries";
+import { getEntryByDate, getStreakInfo } from "@/db/queries/entries";
 import { listTemplates } from "@/db/queries/templates";
 import { EntryForm } from "@/components/journal/EntryForm";
-import { EntryCard } from "@/components/journal/EntryCard";
 import { TodayIntentionsSection } from "@/components/journal/TodayIntentionsSection";
 import { FlameIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SearchParams = Promise<{ prefill_date?: string }>;
+type SearchParams = Promise<{ date?: string }>;
 
 export default async function TodayPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { prefill_date } = await searchParams;
+  const { date: dateParam } = await searchParams;
   const today = format(new Date(), "yyyy-MM-dd");
-  const todayEntries = listEntries({ from_date: today, to_date: today });
+  const selectedDate = dateParam ?? today;
+  const isToday = selectedDate === today;
+  const existingEntry = getEntryByDate(selectedDate);
   const templates = listTemplates();
   const { streak, wroteToday } = getStreakInfo();
+
+  const headerDate = new Date(selectedDate + "T00:00:00");
 
   return (
     <>
@@ -28,13 +31,13 @@ export default async function TodayPage({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            {format(new Date(), "EEEE, MMMM d")}
+            {format(headerDate, "EEEE, MMMM d")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {format(new Date(), "yyyy")}
+            {format(headerDate, "yyyy")}
           </p>
         </div>
-        {streak > 0 && (
+        {isToday && streak > 0 && (
           <div className={cn(
             "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm",
             wroteToday
@@ -47,32 +50,20 @@ export default async function TodayPage({
         )}
       </div>
 
-      {/* New entry form */}
+      {/* Entry form: edits existing day-entry or creates a new one.
+          Keyed by date so switching days remounts the form with fresh state. */}
       <div className="rounded-xl border bg-card p-4">
-        <EntryForm templates={templates} defaultDate={prefill_date} />
+        <EntryForm
+          key={existingEntry?.id ?? `new-${selectedDate}`}
+          entry={existingEntry ?? undefined}
+          templates={templates}
+          defaultDate={selectedDate}
+        />
       </div>
 
-      {/* Today's open intentions */}
-      <TodayIntentionsSection hasTodayEntry={todayEntries.length > 0} />
-
-      {/* Today's entries */}
-      {todayEntries.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {todayEntries.length === 1
-              ? "1 entry today"
-              : `${todayEntries.length} entries today`}
-          </h2>
-          {todayEntries.map((entry) => (
-            <EntryCard key={entry.id} entry={entry} today={today} />
-          ))}
-        </div>
-      )}
-
-      {todayEntries.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground/60 py-4">
-          No entries yet today. Write something above.
-        </p>
+      {/* Today's open intentions — only on today's view */}
+      {isToday && (
+        <TodayIntentionsSection hasTodayEntry={existingEntry !== null} />
       )}
     </>
   );

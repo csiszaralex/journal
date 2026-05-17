@@ -21,7 +21,8 @@ import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, HistoryIcon } from 'lucide-react';
+import Link from 'next/link';
 import { useReducer, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -523,12 +524,21 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
 
   return (
     <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-      {/* Header: label + template picker + date picker */}
+      {/* Header: label + version + template picker + date picker */}
       <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1.5'>
           <span className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
             {isEdit ? 'Edit entry' : 'New entry'}
           </span>
+          {isEdit && entry && (
+            <Link
+              href={`/entry/${entry.id}/history`}
+              className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+            >
+              <HistoryIcon className='size-3' />
+              v{entry.version.version_number}
+            </Link>
+          )}
           {!isEdit && (
             <TemplateSelector
               templates={templates}
@@ -550,8 +560,11 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
               selected={calendarDate}
               onSelect={(day) => {
                 if (day) {
-                  dispatch({ type: 'SET_DATE', date: format(day, 'yyyy-MM-dd') });
+                  const dateStr = format(day, 'yyyy-MM-dd');
                   setCalendarOpen(false);
+                  // Navigate to the chosen day so the server can load any existing
+                  // entry for that date into the form (or render an empty new-entry form).
+                  router.push(`/?date=${dateStr}`);
                 }
               }}
             />
