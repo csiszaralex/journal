@@ -53,6 +53,7 @@ export const tags = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").unique().notNull(),
     display_name: text("display_name").notNull(),
+    color: text("color").notNull().default("#9ca3af"),
     created_at: integer("created_at").notNull(),
     usage_count: integer("usage_count").notNull().default(0),
   },
@@ -75,6 +76,38 @@ export const entryVersionTags = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.version_id, t.tag_id] }),
     index("entry_version_tags_tag_id_idx").on(t.tag_id),
+  ]
+);
+
+export const emotions = sqliteTable(
+  "emotions",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").unique().notNull(),
+    display_name: text("display_name").notNull(),
+    color: text("color").notNull().default("#9ca3af"),
+    created_at: integer("created_at").notNull(),
+    usage_count: integer("usage_count").notNull().default(0),
+  },
+  (t) => [
+    index("emotions_name_idx").on(t.name),
+    index("emotions_usage_count_idx").on(t.usage_count),
+  ]
+);
+
+export const entryVersionEmotions = sqliteTable(
+  "entry_version_emotions",
+  {
+    version_id: text("version_id")
+      .notNull()
+      .references(() => entryVersions.id),
+    emotion_id: text("emotion_id")
+      .notNull()
+      .references(() => emotions.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.version_id, t.emotion_id] }),
+    index("entry_version_emotions_emotion_id_idx").on(t.emotion_id),
   ]
 );
 
