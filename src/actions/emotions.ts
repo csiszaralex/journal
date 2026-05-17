@@ -3,46 +3,46 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import {
-  deleteTag,
-  getPopularTags,
-  suggestTags,
-  TagNameConflictError,
-  updateTag,
-} from '@/db/queries/tags';
+  deleteEmotion,
+  EmotionNameConflictError,
+  getPopularEmotions,
+  suggestEmotions,
+  updateEmotion,
+} from '@/db/queries/emotions';
 import { HEX_COLOR_REGEX } from '@/lib/color';
 
-export async function suggestTagsAction(prefix: string) {
+export async function suggestEmotionsAction(prefix: string) {
   const validPrefix = z.string().parse(prefix);
-  return suggestTags(validPrefix, 10);
+  return suggestEmotions(validPrefix, 10);
 }
 
-export async function getPopularTagsAction() {
-  return getPopularTags(10);
+export async function getPopularEmotionsAction() {
+  return getPopularEmotions(10);
 }
 
-const updateTagSchema = z.object({
+const updateEmotionSchema = z.object({
   id: z.string().min(1),
   display_name: z.string().min(1).max(60),
   name: z.string().min(1).max(60),
   color: z.string().regex(HEX_COLOR_REGEX, 'Invalid hex color'),
 });
 
-export type UpdateTagResult =
+export type UpdateEmotionResult =
   | { ok: true }
   | { ok: false; error: string };
 
-export async function updateTagAction(input: unknown): Promise<UpdateTagResult> {
-  const parsed = updateTagSchema.safeParse(input);
+export async function updateEmotionAction(input: unknown): Promise<UpdateEmotionResult> {
+  const parsed = updateEmotionSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: 'Érvénytelen adatok' };
   }
   try {
-    updateTag(parsed.data);
+    updateEmotion(parsed.data);
     revalidatePath('/settings/tags');
     revalidatePath('/');
     return { ok: true };
   } catch (err) {
-    if (err instanceof TagNameConflictError) {
+    if (err instanceof EmotionNameConflictError) {
       return {
         ok: false,
         error: `Ez a név már létezik mint "${err.existingDisplayName}"`,
@@ -54,11 +54,11 @@ export async function updateTagAction(input: unknown): Promise<UpdateTagResult> 
 
 const idSchema = z.string().min(1);
 
-export async function deleteTagAction(id: unknown): Promise<{ ok: boolean; error?: string }> {
+export async function deleteEmotionAction(id: unknown): Promise<{ ok: boolean; error?: string }> {
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) return { ok: false, error: 'Érvénytelen azonosító' };
   try {
-    deleteTag(parsed.data);
+    deleteEmotion(parsed.data);
     revalidatePath('/settings/tags');
     revalidatePath('/');
     return { ok: true };

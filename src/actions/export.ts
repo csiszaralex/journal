@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  getAllEmotionsForExport,
   getAllEntriesForExport,
   getAllTagsForExport,
   getPushSubscriptionsForExport,
@@ -16,6 +17,7 @@ export async function exportJsonAction(): Promise<string> {
     exported_at: new Date().toISOString(),
     entries: getAllEntriesForExport(),
     tags: getAllTagsForExport(),
+    emotions: getAllEmotionsForExport(),
     push_subscriptions: getPushSubscriptionsForExport(),
     audit_log: getAuditLogForExport(),
   };
@@ -41,12 +43,16 @@ export async function exportMarkdownAction(): Promise<string> {
 
   const parts = sorted.map(({ entry, current }) => {
     const tagNames = current.tags.map((t) => t.display_name);
+    const emotionNames = current.emotions.map((e) => e.display_name);
     const frontmatter = [
       "---",
       `date: ${current.entry_date}`,
       current.mood_score != null ? `mood: ${current.mood_score}` : null,
       current.energy_score != null ? `energy: ${current.energy_score}` : null,
       tagNames.length > 0 ? `tags: [${tagNames.map((t) => `"${t}"`).join(", ")}]` : null,
+      emotionNames.length > 0
+        ? `emotions: [${emotionNames.map((e) => `"${e}"`).join(", ")}]`
+        : null,
       `created_at: ${new Date(entry.created_at).toISOString()}`,
       `version: ${current.version_number}`,
       "---",

@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { createEntry, updateEntry, softDeleteEntry } from "@/db/queries/entries";
 import { logAudit } from "@/db/queries/audit";
 import { entryInputSchema } from "@/lib/validation";
-import { resolveTagIds } from "@/lib/entry-utils";
+import { resolveEmotionIds, resolveTagIds } from "@/lib/entry-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -65,13 +65,14 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === "createEntry") {
-      const { text, mood_score, energy_score, entry_date, tags, qa_pairs } = payload;
+      const { text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs } = payload;
       const created = createEntry({
         entry_date,
         text,
         mood_score,
         energy_score,
         tag_ids: resolveTagIds(tags),
+        emotion_ids: resolveEmotionIds(emotions),
         client_id: clientId,
         qa_pairs,
       });
@@ -81,13 +82,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "updateEntry") {
-      const { entry_id, text, mood_score, energy_score, entry_date, tags, qa_pairs } = payload;
+      const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs } = payload;
       const updated = updateEntry(entry_id, {
         entry_date,
         text,
         mood_score,
         energy_score,
         tag_ids: resolveTagIds(tags),
+        emotion_ids: resolveEmotionIds(emotions),
         qa_pairs,
       });
       if (!updated) {

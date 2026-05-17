@@ -1,8 +1,10 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "../client";
 import {
+  emotions,
   entries,
   entryVersions,
+  entryVersionEmotions,
   entryVersionTags,
   tags,
   pushSubscriptions,
@@ -33,12 +35,28 @@ export function getAllEntriesForExport() {
       ...entry,
       versions: versions.map((v) => {
         const vTags = db
-          .select({ id: tags.id, name: tags.name, display_name: tags.display_name })
+          .select({
+            id: tags.id,
+            name: tags.name,
+            display_name: tags.display_name,
+            color: tags.color,
+          })
           .from(entryVersionTags)
           .innerJoin(tags, eq(entryVersionTags.tag_id, tags.id))
           .where(eq(entryVersionTags.version_id, v.id))
           .all();
-        return { ...v, tags: vTags };
+        const vEmotions = db
+          .select({
+            id: emotions.id,
+            name: emotions.name,
+            display_name: emotions.display_name,
+            color: emotions.color,
+          })
+          .from(entryVersionEmotions)
+          .innerJoin(emotions, eq(entryVersionEmotions.emotion_id, emotions.id))
+          .where(eq(entryVersionEmotions.version_id, v.id))
+          .all();
+        return { ...v, tags: vTags, emotions: vEmotions };
       }),
     };
   });
@@ -49,6 +67,14 @@ export function getAllTagsForExport() {
     .select()
     .from(tags)
     .orderBy(desc(tags.usage_count))
+    .all();
+}
+
+export function getAllEmotionsForExport() {
+  return db
+    .select()
+    .from(emotions)
+    .orderBy(desc(emotions.usage_count))
     .all();
 }
 

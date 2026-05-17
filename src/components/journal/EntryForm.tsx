@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createId } from '@paralleldrive/cuid2';
 import { TagCombobox } from './TagCombobox';
+import { EmotionCombobox } from './EmotionCombobox';
 import { TemplateSelector } from './TemplateSelector';
 import { EntryQuestions, type QaPair } from './EntryQuestions';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
@@ -49,6 +50,8 @@ type FormState = {
   energyScore: number | undefined;
   tags: string[];
   tagKey: number;
+  emotions: string[];
+  emotionKey: number;
   qaPairs: QaPair[];
   qaLoading: boolean;
   qaLoadingIndex: number | null;
@@ -61,6 +64,7 @@ type FormAction =
   | { type: 'SET_MOOD'; score: number | undefined }
   | { type: 'SET_ENERGY'; score: number | undefined }
   | { type: 'SET_TAGS'; tags: string[] }
+  | { type: 'SET_EMOTIONS'; emotions: string[] }
   | { type: 'RESET'; todayStr: string }
   | { type: 'APPLY_TEMPLATE'; template: EntryTemplate }
   | {
@@ -70,6 +74,7 @@ type FormAction =
       energyScore: number | undefined;
       date: string | undefined;
       tags: string[] | undefined;
+      emotions: string[] | undefined;
       qaPairs: QaPair[] | undefined;
     }
   | { type: 'QA_REQUEST_START' }
@@ -79,7 +84,8 @@ type FormAction =
   | { type: 'QA_REPLACE_ONE_START'; index: number }
   | { type: 'QA_REPLACE_ONE_SUCCESS'; index: number; question: string }
   | { type: 'QA_REPLACE_ONE_ERROR'; error: string }
-  | { type: 'QA_CLEAR' };
+  | { type: 'QA_CLEAR' }
+  | { type: 'REFRESH_PICKERS' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
@@ -93,6 +99,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, energyScore: action.score };
     case 'SET_TAGS':
       return { ...state, tags: action.tags };
+    case 'SET_EMOTIONS':
+      return { ...state, emotions: action.emotions };
     case 'RESET':
       return {
         entryDate: action.todayStr,
@@ -101,6 +109,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
         energyScore: undefined,
         tags: [],
         tagKey: state.tagKey + 1,
+        emotions: [],
+        emotionKey: state.emotionKey + 1,
         qaPairs: [],
         qaLoading: false,
         qaLoadingIndex: null,
@@ -120,6 +130,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             ? action.template.default_energy
             : state.energyScore,
         tagKey: state.tagKey + 1,
+        emotionKey: state.emotionKey + 1,
       };
     case 'RESTORE_DRAFT':
       return {
@@ -130,6 +141,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
         entryDate: action.date ?? state.entryDate,
         tags: action.tags ?? state.tags,
         tagKey: action.tags?.length ? state.tagKey + 1 : state.tagKey,
+        emotions: action.emotions ?? state.emotions,
+        emotionKey: action.emotions?.length ? state.emotionKey + 1 : state.emotionKey,
         qaPairs: action.qaPairs ?? state.qaPairs,
       };
     case 'QA_REQUEST_START':
@@ -172,6 +185,12 @@ function formReducer(state: FormState, action: FormAction): FormState {
         qaLoading: false,
         qaLoadingIndex: null,
       };
+    case 'REFRESH_PICKERS':
+      return {
+        ...state,
+        tagKey: state.tagKey + 1,
+        emotionKey: state.emotionKey + 1,
+      };
   }
 }
 
@@ -201,6 +220,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     energyScore: entry?.version.energy_score ?? undefined,
     tags: entry?.version.tags.map((t) => t.display_name) ?? [],
     tagKey: 0,
+    emotions: entry?.version.emotions.map((e) => e.display_name) ?? [],
+    emotionKey: 0,
     qaPairs: [],
     qaLoading: false,
     qaLoadingIndex: null,
@@ -230,6 +251,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         energy: z.number().nullable().optional(),
         date: z.string().optional(),
         tags: z.string().array().optional(),
+        emotions: z.string().array().optional(),
         qaPairs: z
           .object({ question: z.string(), answer: z.string() })
           .array()
@@ -245,6 +267,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         d.energy == null &&
         !d.date &&
         !d.tags?.length &&
+        !d.emotions?.length &&
         !d.qaPairs?.length
       )
         return;
@@ -256,6 +279,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         energyScore: d.energy ?? undefined,
         date: d.date,
         tags: d.tags?.length ? d.tags : undefined,
+        emotions: d.emotions?.length ? d.emotions : undefined,
         qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
       });
     } catch {
@@ -272,6 +296,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       state.energyScore !== undefined ||
       state.entryDate !== todayStr ||
       state.tags.length > 0 ||
+      state.emotions.length > 0 ||
       state.qaPairs.length > 0;
     if (!hasContent) return;
     if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
@@ -284,6 +309,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           energy: state.energyScore ?? null,
           date: state.entryDate,
           tags: state.tags,
+          emotions: state.emotions,
           qaPairs: state.qaPairs,
           savedAt: Date.now(),
         }),
@@ -292,7 +318,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.qaPairs, isEdit, todayStr]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.emotions, state.qaPairs, isEdit, todayStr]);
 
   async function handleFetchQuestions(opts?: { existingQuestions?: string[] }) {
     dispatch({ type: 'QA_REQUEST_START' });
@@ -390,6 +416,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       mood_score: state.moodScore,
       energy_score: state.energyScore,
       tags: JSON.stringify(state.tags),
+      emotions: JSON.stringify(state.emotions),
     };
 
     const filledQaPairs = state.qaPairs
@@ -407,7 +434,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       !payload.text &&
       payload.mood_score == null &&
       payload.energy_score == null &&
-      state.tags.length === 0;
+      state.tags.length === 0 &&
+      state.emotions.length === 0;
     if (isEmpty && !isEdit) {
       resetForm();
       return;
@@ -445,6 +473,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'QA_CLEAR' });
+          dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
       } else if (data.ok) {
@@ -454,6 +483,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'QA_CLEAR' });
+          dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
       } else {
@@ -478,6 +508,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'QA_CLEAR' });
+          dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
       } else {
@@ -609,6 +640,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           name='tags'
           defaultValue={state.tags}
           onValueChange={(tags) => dispatch({ type: 'SET_TAGS', tags })}
+        />
+      </div>
+
+      {/* Emotions */}
+      <div className='flex flex-col gap-1.5'>
+        <Label className='text-xs text-muted-foreground'>Emotions</Label>
+        <EmotionCombobox
+          key={state.emotionKey}
+          name='emotions'
+          defaultValue={state.emotions}
+          onValueChange={(emotions) => dispatch({ type: 'SET_EMOTIONS', emotions })}
         />
       </div>
 

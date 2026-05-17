@@ -16,7 +16,7 @@ const requestSchema = z.object({
 const SYSTEM_PROMPT = `You are an assistant for a daily reflective journal. The user is currently writing today's entry and wants follow-up questions that help them describe today more accurately and notice things they might otherwise gloss over.
 
 You receive:
-- The past few days of journal entries with their tags (topic labels)
+- The past few days of journal entries with their tags (topic labels) and emotions (how the user felt)
 - Optionally, what the user has already written for today
 - Optionally, questions they have already received and want to keep — you MUST NOT duplicate or paraphrase these
 
@@ -28,7 +28,7 @@ Hard rules — these are strictly enforced:
 3. Maximum 1 sentence per question. Conversational, not formal.
 4. Do not ask about content the user has already written for today.
 5. If existing questions are provided, your new questions must explore SUBSTANTIVELY different topics or angles. No paraphrasing of the existing ones.
-6. If two past days mention the same thread (e.g. a recurring worry, an unfinished task), prefer asking about the continuation/resolution of it.
+6. If two past days mention the same thread (e.g. a recurring worry, an unfinished task) or share an emotional thread (e.g. recurring frustration, sustained tiredness), prefer asking about the continuation/resolution of it.
 
 OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/familiar (tegező) form. The questions themselves must be Hungarian even though these instructions are in English.
 
@@ -38,7 +38,12 @@ const RATE_LIMIT_MS = 5000;
 const lastCallByUser = new Map<string, number>();
 
 function buildUserMessage(
-  priorDays: { entry_date: string; text: string; tagNames: string[] }[],
+  priorDays: {
+    entry_date: string;
+    text: string;
+    tagNames: string[];
+    emotionNames: string[];
+  }[],
   todayText: string | undefined,
   existingQuestions: string[] | undefined,
   count: number,
@@ -48,8 +53,10 @@ function buildUserMessage(
       ? '(no prior entries)'
       : priorDays
           .map((d) => {
-            const labels = d.tagNames.length > 0 ? d.tagNames.join(', ') : 'none';
-            return `### ${d.entry_date} (tags: ${labels})\n${d.text}`;
+            const tagLabels = d.tagNames.length > 0 ? d.tagNames.join(', ') : 'none';
+            const emotionLabels =
+              d.emotionNames.length > 0 ? d.emotionNames.join(', ') : 'none';
+            return `### ${d.entry_date} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}`;
           })
           .join('\n\n');
 
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
       entry_date: e.version.entry_date,
       text: e.version.text,
       tagNames: e.version.tags.map((t) => t.display_name),
+      emotionNames: e.version.emotions.map((em) => em.display_name),
     }));
 
   const userMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);

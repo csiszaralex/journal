@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { softDeleteEntryAction } from "@/actions/entries";
 import type { EntryWithVersion } from "@/db/queries/entries";
 import { cn } from "@/lib/utils";
+import { getContrastTextColor } from "@/lib/color";
 
 const MOOD_DOT: Record<number, string> = {
   1: "bg-red-500",
@@ -172,8 +173,23 @@ export function EntryCard({ entry, today }: EntryCardProps) {
           </div>
         )}
         {v.tags.map((tag) => (
-          <Badge key={tag.id} variant="secondary" className="h-4 px-1.5 py-0 text-[10px]">
+          <Badge
+            key={tag.id}
+            variant="secondary"
+            className="h-4 px-1.5 py-0 text-[10px]"
+            style={{ backgroundColor: tag.color, color: getContrastTextColor(tag.color) }}
+          >
             {tag.display_name}
+          </Badge>
+        ))}
+        {v.emotions.map((em) => (
+          <Badge
+            key={em.id}
+            variant="secondary"
+            className="h-4 px-1.5 py-0 text-[10px]"
+            style={{ backgroundColor: em.color, color: getContrastTextColor(em.color) }}
+          >
+            {em.display_name}
           </Badge>
         ))}
       </div>

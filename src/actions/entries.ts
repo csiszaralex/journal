@@ -8,7 +8,7 @@ import {
   softDeleteEntry,
   updateEntry,
 } from '@/db/queries/entries';
-import { resolveTagIds } from '@/lib/entry-utils';
+import { resolveEmotionIds, resolveTagIds } from '@/lib/entry-utils';
 import { entryInputSchema } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { revalidatePath } from 'next/cache';
@@ -18,16 +18,24 @@ export async function createEntryAction(_: unknown, formData: FormData) {
   const submission = parseWithZod(formData, { schema: entryInputSchema });
   if (submission.status !== 'success') return submission.reply();
 
-  const { text, mood_score, energy_score, entry_date, tags } = submission.value;
+  const { text, mood_score, energy_score, entry_date, tags, emotions } = submission.value;
 
-  const parsedTags = (() => {
+  const safeParseJsonArray = (s: string) => {
     try {
-      return JSON.parse(tags || '[]');
+      const v = JSON.parse(s || '[]');
+      return Array.isArray(v) ? v : [];
     } catch {
       return [];
     }
-  })();
-  const isEmpty = !text && mood_score == null && energy_score == null && parsedTags.length === 0;
+  };
+  const parsedTags = safeParseJsonArray(tags);
+  const parsedEmotions = safeParseJsonArray(emotions);
+  const isEmpty =
+    !text &&
+    mood_score == null &&
+    energy_score == null &&
+    parsedTags.length === 0 &&
+    parsedEmotions.length === 0;
   if (isEmpty) return submission.reply({ resetForm: true });
 
   const created = createEntry({
@@ -36,6 +44,7 @@ export async function createEntryAction(_: unknown, formData: FormData) {
     mood_score,
     energy_score,
     tag_ids: resolveTagIds(tags),
+    emotion_ids: resolveEmotionIds(emotions),
   });
   logAudit('entry.create', { entry_id: created.id, entry_date });
 
@@ -48,13 +57,14 @@ export async function updateEntryAction(_: unknown, formData: FormData) {
   const submission = parseWithZod(formData, { schema: updateSchema });
   if (submission.status !== 'success') return submission.reply();
 
-  const { entry_id, text, mood_score, energy_score, entry_date, tags } = submission.value;
+  const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions } = submission.value;
   const updated = updateEntry(entry_id, {
     entry_date,
     text,
     mood_score,
     energy_score,
     tag_ids: resolveTagIds(tags),
+    emotion_ids: resolveEmotionIds(emotions),
   });
   logAudit('entry.update', { entry_id: entry_id, version: updated?.version.version_number });
 

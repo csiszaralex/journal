@@ -8,6 +8,7 @@ import { getEntry, getVersionHistory } from "@/db/queries/entries";
 import { rollbackVersionAction } from "@/actions/entries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getContrastTextColor } from "@/lib/color";
 
 export default async function EntryHistoryPage({
   params,
@@ -90,15 +91,32 @@ export default async function EntryHistoryPage({
                 </p>
               )}
 
-              {version.tags.length > 0 && (
+              {(version.tags.length > 0 || version.emotions.length > 0) && (
                 <div className="flex flex-wrap gap-1">
                   {version.tags.map((tag) => (
                     <Badge
                       key={tag.id}
                       variant="secondary"
                       className="h-4 px-1.5 py-0 text-[10px]"
+                      style={{
+                        backgroundColor: tag.color,
+                        color: getContrastTextColor(tag.color),
+                      }}
                     >
                       {tag.display_name}
+                    </Badge>
+                  ))}
+                  {version.emotions.map((em) => (
+                    <Badge
+                      key={em.id}
+                      variant="secondary"
+                      className="h-4 px-1.5 py-0 text-[10px]"
+                      style={{
+                        backgroundColor: em.color,
+                        color: getContrastTextColor(em.color),
+                      }}
+                    >
+                      {em.display_name}
                     </Badge>
                   ))}
                 </div>

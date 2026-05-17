@@ -23,6 +23,7 @@ export const entryInputSchema = entryVersionInsertSchema
   })
   .extend({
     tags: z.string().default('[]'),
+    emotions: z.string().default('[]'),
   });
 
 export type EntryInput = z.infer<typeof entryInputSchema>;

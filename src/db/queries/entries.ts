@@ -2,11 +2,22 @@ import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../client';
-import { entries, entryQaPairs, entryVersions, entryVersionTags, tags } from '../schema';
+import {
+  emotions,
+  entries,
+  entryQaPairs,
+  entryVersions,
+  entryVersionEmotions,
+  entryVersionTags,
+  tags,
+} from '../schema';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type QAPairInput = { position: number; question: string; answer: string };
+
+export type TagSummary = { id: string; name: string; display_name: string; color: string };
+export type EmotionSummary = { id: string; name: string; display_name: string; color: string };
 
 export type EntryWithVersion = {
   id: string;
@@ -22,7 +33,8 @@ export type EntryWithVersion = {
     mood_score: number | null;
     energy_score: number | null;
     edited_at: number;
-    tags: { id: string; name: string; display_name: string }[];
+    tags: TagSummary[];
+    emotions: EmotionSummary[];
     qa_pairs: { position: number; question: string; answer: string }[];
   };
 };
@@ -33,6 +45,7 @@ export type CreateEntryInput = {
   mood_score?: number | null;
   energy_score?: number | null;
   tag_ids?: string[];
+  emotion_ids?: string[];
   client_id?: string;
   qa_pairs?: QAPairInput[];
 };
@@ -43,6 +56,7 @@ export type UpdateEntryInput = {
   mood_score?: number | null;
   energy_score?: number | null;
   tag_ids?: string[];
+  emotion_ids?: string[];
   qa_pairs?: QAPairInput[];
 };
 
@@ -57,12 +71,31 @@ export type ListEntriesFilters = {
   page_size?: number;
 };
 
-function getEntryTags(versionId: string) {
+function getEntryTags(versionId: string): TagSummary[] {
   return db
-    .select({ id: tags.id, name: tags.name, display_name: tags.display_name })
+    .select({
+      id: tags.id,
+      name: tags.name,
+      display_name: tags.display_name,
+      color: tags.color,
+    })
     .from(entryVersionTags)
     .innerJoin(tags, eq(entryVersionTags.tag_id, tags.id))
     .where(eq(entryVersionTags.version_id, versionId))
+    .all();
+}
+
+function getEntryEmotions(versionId: string): EmotionSummary[] {
+  return db
+    .select({
+      id: emotions.id,
+      name: emotions.name,
+      display_name: emotions.display_name,
+      color: emotions.color,
+    })
+    .from(entryVersionEmotions)
+    .innerJoin(emotions, eq(entryVersionEmotions.emotion_id, emotions.id))
+    .where(eq(entryVersionEmotions.version_id, versionId))
     .all();
 }
 
@@ -152,6 +185,12 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
         .run();
     }
 
+    if (input.emotion_ids?.length) {
+      tx.insert(entryVersionEmotions)
+        .values(input.emotion_ids.map((emotion_id) => ({ version_id: versionId, emotion_id })))
+        .run();
+    }
+
     insertEntryQAPairs(versionId, input.qa_pairs ?? [], tx);
   });
 
@@ -185,6 +224,12 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
     if (input.tag_ids !== undefined && input.tag_ids.length > 0) {
       tx.insert(entryVersionTags)
         .values(input.tag_ids.map((tag_id) => ({ version_id: versionId, tag_id })))
+        .run();
+    }
+
+    if (input.emotion_ids !== undefined && input.emotion_ids.length > 0) {
+      tx.insert(entryVersionEmotions)
+        .values(input.emotion_ids.map((emotion_id) => ({ version_id: versionId, emotion_id })))
         .run();
     }
 
@@ -232,6 +277,7 @@ export function getEntry(id: string): EntryWithVersion | null {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      emotions: getEntryEmotions(row.v_id),
       qa_pairs: getEntryQAPairs(row.v_id),
     },
   };
@@ -319,6 +365,7 @@ export function listEntries(filters: ListEntriesFilters = {}) {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      emotions: getEntryEmotions(row.v_id),
       qa_pairs: getEntryQAPairs(row.v_id),
     },
   }));
@@ -391,6 +438,7 @@ export function searchEntries(query: string, limit = 20) {
       energy_score: row.v_energy_score,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
+      emotions: getEntryEmotions(row.v_id),
       qa_pairs: getEntryQAPairs(row.v_id),
     },
   }));
@@ -407,6 +455,7 @@ export function getVersionHistory(entryId: string) {
   return rows.map((v) => ({
     ...v,
     tags: getEntryTags(v.id),
+    emotions: getEntryEmotions(v.id),
     qa_pairs: getEntryQAPairs(v.id),
   }));
 }
