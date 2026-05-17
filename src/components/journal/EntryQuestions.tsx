@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { RefreshCw, Sparkles } from 'lucide-react';
 
 export type QaPair = { question: string; answer: string };
@@ -34,7 +34,7 @@ export function EntryQuestions({
         {[0, 1, 2].map((i) => (
           <div key={i} className='flex flex-col gap-1.5'>
             <div className='h-3.5 w-2/3 animate-pulse rounded bg-muted' />
-            <div className='h-8 w-full animate-pulse rounded-lg bg-muted' />
+            <div className='h-16 w-full animate-pulse rounded-lg bg-muted' />
           </div>
         ))}
       </div>
@@ -78,7 +78,7 @@ export function EntryQuestions({
           return (
             <div key={idx} className='flex flex-col gap-1.5'>
               <div className='h-3.5 w-2/3 animate-pulse rounded bg-muted' />
-              <div className='h-8 w-full animate-pulse rounded-lg bg-muted' />
+              <div className='h-16 w-full animate-pulse rounded-lg bg-muted' />
             </div>
           );
         }
@@ -97,12 +97,13 @@ export function EntryQuestions({
                 <RefreshCw className='size-3' />
               </button>
             </div>
-            <Input
-              type='text'
+            <Textarea
+              rows={2}
               value={pair.answer}
               onChange={(e) => onAnswerChange(idx, e.target.value)}
               placeholder='Válaszolj röviden, vagy hagyd üresen…'
               maxLength={2000}
+              className='resize-y'
             />
           </div>
         );
