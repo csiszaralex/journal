@@ -156,14 +156,10 @@ export default async function CalendarPage({
                   {format(d, "d")}
                 </span>
 
-                {/* Emotion emojis */}
-                {emojis.length > 0 && (
-                  <div className="emoji mt-auto flex items-end justify-center gap-0.5 text-xl leading-none">
-                    {emojis.map((emoji, i) => (
-                      <span key={i} aria-hidden>
-                        {emoji}
-                      </span>
-                    ))}
+                {/* Primary emotion emoji */}
+                {emojis[0] && (
+                  <div className="emoji mt-auto flex items-end justify-center text-xl leading-none">
+                    <span aria-hidden>{emojis[0]}</span>
                   </div>
                 )}
               </Link>

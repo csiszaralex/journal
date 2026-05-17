@@ -746,9 +746,8 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
 
   const emojisByDate = new Map<string, string[]>();
   for (const row of emojiRows) {
-    const cur = emojisByDate.get(row.entry_date) ?? [];
-    if (cur.length < 3) cur.push(row.emoji);
-    emojisByDate.set(row.entry_date, cur);
+    if (emojisByDate.has(row.entry_date)) continue;
+    emojisByDate.set(row.entry_date, [row.emoji]);
   }
 
   return moodRows.map((r) => ({
