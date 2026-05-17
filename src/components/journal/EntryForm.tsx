@@ -56,6 +56,7 @@ type FormState = {
   qaPairs: QaPair[];
   qaLoading: boolean;
   qaLoadingIndex: number | null;
+  qaAppending: boolean;
   qaError: string | null;
 };
 
@@ -85,7 +86,9 @@ type FormAction =
   | { type: 'QA_REPLACE_ONE_START'; index: number }
   | { type: 'QA_REPLACE_ONE_SUCCESS'; index: number; question: string }
   | { type: 'QA_REPLACE_ONE_ERROR'; error: string }
-  | { type: 'QA_CLEAR' }
+  | { type: 'QA_APPEND_ONE_START' }
+  | { type: 'QA_APPEND_ONE_SUCCESS'; question: string }
+  | { type: 'QA_APPEND_ONE_ERROR'; error: string }
   | { type: 'REFRESH_PICKERS' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
@@ -115,6 +118,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
         qaPairs: [],
         qaLoading: false,
         qaLoadingIndex: null,
+        qaAppending: false,
         qaError: null,
       };
     case 'APPLY_TEMPLATE':
@@ -178,14 +182,17 @@ function formReducer(state: FormState, action: FormAction): FormState {
       };
     case 'QA_REPLACE_ONE_ERROR':
       return { ...state, qaLoadingIndex: null, qaError: action.error };
-    case 'QA_CLEAR':
+    case 'QA_APPEND_ONE_START':
+      return { ...state, qaAppending: true, qaError: null };
+    case 'QA_APPEND_ONE_SUCCESS':
       return {
         ...state,
-        qaPairs: [],
+        qaAppending: false,
         qaError: null,
-        qaLoading: false,
-        qaLoadingIndex: null,
+        qaPairs: [...state.qaPairs, { question: action.question, answer: '' }],
       };
+    case 'QA_APPEND_ONE_ERROR':
+      return { ...state, qaAppending: false, qaError: action.error };
     case 'REFRESH_PICKERS':
       return {
         ...state,
@@ -237,6 +244,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       })) ?? [],
     qaLoading: false,
     qaLoadingIndex: null,
+    qaAppending: false,
     qaError: null,
   });
 
@@ -418,6 +426,41 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     }
   }
 
+  async function handleAppendOne() {
+    dispatch({ type: 'QA_APPEND_ONE_START' });
+    try {
+      const trimmed = state.textValue.trim();
+      const existingQuestions = state.qaPairs.map((p) => p.question);
+      const res = await fetch('/api/ai/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          todayText: trimmed || undefined,
+          count: 1,
+          existingQuestions,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { questions?: string[]; error?: string }
+        | null;
+      if (!res.ok || !data) {
+        dispatch({
+          type: 'QA_APPEND_ONE_ERROR',
+          error: data?.error ?? 'Hálózati hiba történt',
+        });
+        return;
+      }
+      const newQ = data.questions?.[0];
+      if (!newQ) {
+        dispatch({ type: 'QA_APPEND_ONE_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        return;
+      }
+      dispatch({ type: 'QA_APPEND_ONE_SUCCESS', question: newQ });
+    } catch {
+      dispatch({ type: 'QA_APPEND_ONE_ERROR', error: 'Hálózati hiba történt' });
+    }
+  }
+
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrors([]);
@@ -484,7 +527,6 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
         } else {
-          dispatch({ type: 'QA_CLEAR' });
           dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
@@ -494,7 +536,6 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
         } else {
-          dispatch({ type: 'QA_CLEAR' });
           dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
@@ -519,7 +560,6 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           resetForm();
           localStorage.removeItem(DRAFT_KEY);
         } else {
-          dispatch({ type: 'QA_CLEAR' });
           dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
@@ -599,10 +639,12 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         pairs={state.qaPairs}
         loading={state.qaLoading}
         loadingIndex={state.qaLoadingIndex}
+        appending={state.qaAppending}
         error={state.qaError}
         onFetch={() => handleFetchQuestions()}
         onRegenerate={handleRegenerateQuestions}
         onRegenerateOne={handleRegenerateOne}
+        onAppendOne={handleAppendOne}
         onAnswerChange={(index, value) =>
           dispatch({ type: 'QA_ANSWER_CHANGE', index, value })
         }

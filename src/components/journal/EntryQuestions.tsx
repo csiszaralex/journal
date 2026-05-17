@@ -2,18 +2,22 @@
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, RefreshCw, Sparkles } from 'lucide-react';
 
 export type QaPair = { question: string; answer: string };
+
+const MAX_QUESTIONS = 6;
 
 type EntryQuestionsProps = {
   pairs: QaPair[];
   loading: boolean;
   loadingIndex: number | null;
+  appending: boolean;
   error: string | null;
   onFetch: () => void;
   onRegenerate: () => void;
   onRegenerateOne: (index: number) => void;
+  onAppendOne: () => void;
   onAnswerChange: (index: number, value: string) => void;
 };
 
@@ -21,12 +25,15 @@ export function EntryQuestions({
   pairs,
   loading,
   loadingIndex,
+  appending,
   error,
   onFetch,
   onRegenerate,
   onRegenerateOne,
+  onAppendOne,
   onAnswerChange,
 }: EntryQuestionsProps) {
+  const busy = loading || appending || loadingIndex !== null;
   // Full-set loading skeletons (initial fetch or "Más kérdéseket")
   if (loading) {
     return (
@@ -89,7 +96,7 @@ export function EntryQuestions({
               <button
                 type='button'
                 onClick={() => onRegenerateOne(idx)}
-                disabled={loadingIndex !== null}
+                disabled={busy}
                 title='Másik kérdést kérek erre a helyre'
                 aria-label='Másik kérdést kérek erre a helyre'
                 className='shrink-0 rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
@@ -108,19 +115,38 @@ export function EntryQuestions({
           </div>
         );
       })}
+      {appending && (
+        <div className='flex flex-col gap-1.5'>
+          <div className='h-3.5 w-2/3 animate-pulse rounded bg-muted' />
+          <div className='h-16 w-full animate-pulse rounded-lg bg-muted' />
+        </div>
+      )}
       {error && <p className='text-xs text-destructive'>{error}</p>}
-      <div>
+      <div className='flex flex-wrap items-center gap-1'>
         <Button
           type='button'
           variant='ghost'
           size='sm'
           onClick={onRegenerate}
-          disabled={loadingIndex !== null}
+          disabled={busy}
           className='text-muted-foreground'
         >
           <RefreshCw className='size-3.5' />
           Más kérdéseket
         </Button>
+        {pairs.length < MAX_QUESTIONS && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={onAppendOne}
+            disabled={busy}
+            className='text-muted-foreground'
+          >
+            <Plus className='size-3.5' />
+            +1 kérdés
+          </Button>
+        )}
       </div>
     </div>
   );

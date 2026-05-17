@@ -28,6 +28,7 @@ export type TaggableItem = {
 interface TaggablePickerProps {
   name: string;
   defaultValue?: string[];
+  initialColors?: Record<string, string>;
   onValueChange?: (values: string[]) => void;
   suggestAction: (input: { prefix: string }) => Promise<
     { data?: TaggableItem[]; serverError?: string; validationErrors?: unknown } | undefined
@@ -41,6 +42,7 @@ interface TaggablePickerProps {
 export function TaggablePicker({
   name,
   defaultValue = [],
+  initialColors,
   onValueChange,
   suggestAction,
   triggerLabel,
@@ -52,7 +54,9 @@ export function TaggablePicker({
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>(defaultValue);
   const [suggestions, setSuggestions] = useState<TaggableItem[]>([]);
-  const [colorByName, setColorByName] = useState<Record<string, string>>({});
+  const [colorByName, setColorByName] = useState<Record<string, string>>(
+    () => initialColors ?? {},
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mergeColors = useCallback((items: TaggableItem[]) => {
