@@ -131,21 +131,17 @@ export function TaggablePicker({
             const bg = colorByName[item] ?? DEFAULT_TAG_COLOR;
             const fg = getContrastTextColor(bg);
             return (
-              <span
+              <button
                 key={item}
-                className="inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs"
+                type="button"
+                onClick={(e) => removeItem(e, item)}
+                aria-label={`Remove ${item}`}
+                className="inline-flex cursor-pointer select-none items-center gap-0.5 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
                 style={{ backgroundColor: bg, color: fg }}
               >
                 {item}
-                <button
-                  type="button"
-                  onClick={(e) => removeItem(e, item)}
-                  className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
-                  aria-label={`Remove ${item}`}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </span>
+                <XIcon className="size-3 opacity-70" aria-hidden />
+              </button>
             );
           })}
         </div>
