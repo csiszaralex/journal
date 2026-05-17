@@ -64,6 +64,19 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-medium">Tags &amp; emotions</h2>
+        <p className="text-sm text-muted-foreground">
+          Szerkeszd a tag-ek és érzelmek megjelenített nevét, normalizált nevét és színét.
+        </p>
+        <Link
+          href="/settings/tags"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        >
+          Manage tags &amp; emotions →
+        </Link>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-medium">Entry templates</h2>
         <p className="text-sm text-muted-foreground">
           Templates pre-fill the entry form with default text, mood, and energy. Pick one when creating a new entry.
