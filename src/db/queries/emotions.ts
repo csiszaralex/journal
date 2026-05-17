@@ -1,5 +1,4 @@
-import { and, asc, desc, eq, like, ne, or, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, asc, desc, eq, like, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { emotions, entries, entryVersionEmotions } from "../schema";
@@ -47,12 +46,7 @@ export function suggestEmotions(prefix: string, limit = 10) {
   return db
     .select()
     .from(emotions)
-    .where(
-      or(
-        like(emotions.name, `${normalized}%`),
-        like(emotions.name, `%${normalized}%`)
-      )
-    )
+    .where(like(emotions.name, `%${normalized}%`))
     .orderBy(desc(emotions.usage_count))
     .limit(limit)
     .all();
@@ -115,29 +109,5 @@ export function deleteEmotion(id: string) {
   db.transaction((tx) => {
     tx.delete(entryVersionEmotions).where(eq(entryVersionEmotions.emotion_id, id)).run();
     tx.delete(emotions).where(eq(emotions.id, id)).run();
-  });
-}
-
-export function recomputeEmotionUsageCounts() {
-  const counts = db
-    .all(
-      sql`
-        SELECT em.id, COUNT(eve.emotion_id) AS cnt
-        FROM emotions em
-        LEFT JOIN entry_version_emotions eve ON eve.emotion_id = em.id
-        LEFT JOIN entries e ON e.current_version_id = eve.version_id
-        WHERE e.deleted_at IS NULL OR e.id IS NULL
-        GROUP BY em.id
-      `
-    )
-    .map((row) => z.object({ id: z.string(), cnt: z.number() }).parse(row));
-
-  db.transaction((tx) => {
-    for (const { id, cnt } of counts) {
-      tx.update(emotions)
-        .set({ usage_count: cnt })
-        .where(eq(emotions.id, id))
-        .run();
-    }
   });
 }

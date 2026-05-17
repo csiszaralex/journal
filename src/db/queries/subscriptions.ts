@@ -89,13 +89,6 @@ export function disableSubscription(id: string) {
     .run();
 }
 
-export function touchLastSeen(id: string) {
-  db.update(pushSubscriptions)
-    .set({ last_seen_at: Date.now() })
-    .where(eq(pushSubscriptions.id, id))
-    .run();
-}
-
 export function hasNotificationBeenSent(subscriptionId: string, date: string) {
   return !!db
     .select()

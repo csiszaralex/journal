@@ -11,7 +11,7 @@ import {
 import { env } from '@/env';
 import { friendlyNameFromUA } from '@/lib/user-agent';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import NextAuth from 'next-auth';
 import Passkey from 'next-auth/providers/passkey';
 import { headers } from 'next/headers';
@@ -74,13 +74,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn({ user }) {
       if (user.email !== env.ALLOWED_EMAIL) return false;
 
-      // Check whether this is a new registration (no existing authenticators for this email)
-      const hasAuthenticator = db.get(sql`
-        SELECT 1 FROM authenticator a
-        INNER JOIN "user" u ON u.id = a.userId
-        WHERE u.email = ${user.email}
-        LIMIT 1
-      `);
+      // New registration = no existing authenticators for this email.
+      // Block registration when the admin has disabled it.
+      const hasAuthenticator = db
+        .select({ id: authAuthenticators.credentialID })
+        .from(authAuthenticators)
+        .innerJoin(authUsers, eq(authUsers.id, authAuthenticators.userId))
+        .where(and(eq(authUsers.email, user.email)))
+        .get();
       if (!hasAuthenticator && !getRegistrationEnabled()) return false;
 
       return true;

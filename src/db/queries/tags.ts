@@ -1,5 +1,4 @@
-import { and, asc, desc, eq, like, ne, or, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, asc, desc, eq, like, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { entries, entryVersionTags, tags } from "../schema";
@@ -47,12 +46,7 @@ export function suggestTags(prefix: string, limit = 10) {
   return db
     .select()
     .from(tags)
-    .where(
-      or(
-        like(tags.name, `${normalized}%`),
-        like(tags.name, `%${normalized}%`)
-      )
-    )
+    .where(like(tags.name, `%${normalized}%`))
     .orderBy(desc(tags.usage_count))
     .limit(limit)
     .all();
@@ -115,29 +109,5 @@ export function deleteTag(id: string) {
   db.transaction((tx) => {
     tx.delete(entryVersionTags).where(eq(entryVersionTags.tag_id, id)).run();
     tx.delete(tags).where(eq(tags.id, id)).run();
-  });
-}
-
-export function recomputeUsageCounts() {
-  const counts = db
-    .all(
-      sql`
-        SELECT t.id, COUNT(evt.tag_id) AS cnt
-        FROM tags t
-        LEFT JOIN entry_version_tags evt ON evt.tag_id = t.id
-        LEFT JOIN entries e ON e.current_version_id = evt.version_id
-        WHERE e.deleted_at IS NULL OR e.id IS NULL
-        GROUP BY t.id
-      `
-    )
-    .map((row) => z.object({ id: z.string(), cnt: z.number() }).parse(row));
-
-  db.transaction((tx) => {
-    for (const { id, cnt } of counts) {
-      tx.update(tags)
-        .set({ usage_count: cnt })
-        .where(eq(tags.id, id))
-        .run();
-    }
   });
 }

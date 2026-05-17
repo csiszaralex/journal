@@ -221,13 +221,13 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
 
     tx.update(entries).set({ current_version_id: versionId }).where(eq(entries.id, id)).run();
 
-    if (input.tag_ids !== undefined && input.tag_ids.length > 0) {
+    if (input.tag_ids?.length) {
       tx.insert(entryVersionTags)
         .values(input.tag_ids.map((tag_id) => ({ version_id: versionId, tag_id })))
         .run();
     }
 
-    if (input.emotion_ids !== undefined && input.emotion_ids.length > 0) {
+    if (input.emotion_ids?.length) {
       tx.insert(entryVersionEmotions)
         .values(input.emotion_ids.map((emotion_id) => ({ version_id: versionId, emotion_id })))
         .run();
@@ -373,10 +373,6 @@ export function listEntries(filters: ListEntriesFilters = {}) {
 
 export function softDeleteEntry(id: string): void {
   db.update(entries).set({ deleted_at: Date.now() }).where(eq(entries.id, id)).run();
-}
-
-export function restoreEntry(id: string): void {
-  db.update(entries).set({ deleted_at: null }).where(eq(entries.id, id)).run();
 }
 
 export function searchEntries(query: string, limit = 20) {
