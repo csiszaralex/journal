@@ -227,6 +227,11 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const initialEmotionColors = Object.fromEntries(
     (entry?.version.emotions ?? []).map((e) => [e.display_name, e.color]),
   );
+  const initialEmotionEmojis = Object.fromEntries(
+    (entry?.version.emotions ?? [])
+      .filter((e): e is typeof e & { emoji: string } => Boolean(e.emoji))
+      .map((e) => [e.display_name, e.emoji]),
+  );
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
@@ -718,6 +723,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           name='emotions'
           defaultValue={state.emotions}
           initialColors={initialEmotionColors}
+          initialEmojis={initialEmotionEmojis}
           onValueChange={(emotions) => dispatch({ type: 'SET_EMOTIONS', emotions })}
         />
       </div>

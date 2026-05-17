@@ -186,9 +186,10 @@ export function EntryCard({ entry, today }: EntryCardProps) {
           <Badge
             key={em.id}
             variant="secondary"
-            className="h-4 px-1.5 py-0 text-[10px]"
+            className="h-4 gap-1 px-1.5 py-0 text-[10px]"
             style={{ backgroundColor: em.color, color: getContrastTextColor(em.color) }}
           >
+            {em.emoji && <span className="emoji" aria-hidden>{em.emoji}</span>}
             {em.display_name}
           </Badge>
         ))}

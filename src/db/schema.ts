@@ -86,6 +86,7 @@ export const emotions = sqliteTable(
     name: text("name").unique().notNull(),
     display_name: text("display_name").notNull(),
     color: text("color").notNull().default("#9ca3af"),
+    emoji: text("emoji"),
     created_at: integer("created_at").notNull(),
     usage_count: integer("usage_count").notNull().default(0),
   },

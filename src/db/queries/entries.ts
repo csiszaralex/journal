@@ -17,7 +17,13 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type QAPairInput = { position: number; question: string; answer: string };
 
 export type TagSummary = { id: string; name: string; display_name: string; color: string };
-export type EmotionSummary = { id: string; name: string; display_name: string; color: string };
+export type EmotionSummary = {
+  id: string;
+  name: string;
+  display_name: string;
+  color: string;
+  emoji: string | null;
+};
 
 export type EntryWithVersion = {
   id: string;
@@ -92,6 +98,7 @@ function getEntryEmotions(versionId: string): EmotionSummary[] {
       name: emotions.name,
       display_name: emotions.display_name,
       color: emotions.color,
+      emoji: emotions.emoji,
     })
     .from(entryVersionEmotions)
     .innerJoin(emotions, eq(entryVersionEmotions.emotion_id, emotions.id))
@@ -693,10 +700,14 @@ export function getFirstEntryDate(): string | null {
   return row?.first_date ?? null;
 }
 
-export type CalendarDot = { entry_date: string; mood_score: number | null };
+export type CalendarDot = {
+  entry_date: string;
+  mood_score: number | null;
+  emojis: string[];
+};
 
 export function getCalendarData(from: string, to: string): CalendarDot[] {
-  return db
+  const moodRows = db
     .select({
       entry_date: entryVersions.entry_date,
       mood_score: entryVersions.mood_score,
@@ -711,6 +722,40 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
       ),
     )
     .all();
+
+  const emojiRowSchema = z.object({
+    entry_date: z.string(),
+    emoji: z.string(),
+  });
+  const emojiRowsRaw = db.all(
+    sql`
+        SELECT ev.entry_date, em.emoji
+        FROM entries e
+        INNER JOIN entry_versions ev ON ev.id = e.current_version_id
+        INNER JOIN entry_version_emotions eve ON eve.version_id = ev.id
+        INNER JOIN emotions em ON em.id = eve.emotion_id
+        WHERE e.deleted_at IS NULL
+          AND ev.entry_date >= ${from}
+          AND ev.entry_date <= ${to}
+          AND em.emoji IS NOT NULL
+          AND em.emoji != ''
+        ORDER BY ev.entry_date, eve.rowid
+      `,
+  );
+  const emojiRows = z.array(emojiRowSchema).parse(emojiRowsRaw);
+
+  const emojisByDate = new Map<string, string[]>();
+  for (const row of emojiRows) {
+    const cur = emojisByDate.get(row.entry_date) ?? [];
+    if (cur.length < 3) cur.push(row.emoji);
+    emojisByDate.set(row.entry_date, cur);
+  }
+
+  return moodRows.map((r) => ({
+    entry_date: r.entry_date,
+    mood_score: r.mood_score,
+    emojis: emojisByDate.get(r.entry_date) ?? [],
+  }));
 }
 
 export function getTodayEntryId(todayISO: string): string | null {

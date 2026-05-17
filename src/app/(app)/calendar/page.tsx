@@ -18,17 +18,21 @@ import { cn } from "@/lib/utils";
 
 type SearchParams = Promise<{ month?: string; day?: string }>;
 
-const MOOD_DOT: Record<number, string> = {
-  1: "bg-red-500",
-  2: "bg-orange-500",
-  3: "bg-yellow-500",
-  4: "bg-green-500",
-  5: "bg-emerald-400",
+const MOOD_BG: Record<number, string> = {
+  1: "bg-rose-200 dark:bg-rose-300",
+  2: "bg-orange-200 dark:bg-orange-300",
+  3: "bg-amber-200 dark:bg-amber-300",
+  4: "bg-lime-200 dark:bg-lime-300",
+  5: "bg-emerald-200 dark:bg-emerald-300",
 };
 
-function moodDotClass(mood: number | null) {
-  return mood != null ? MOOD_DOT[mood] : "bg-muted-foreground/50";
-}
+const MOOD_TEXT: Record<number, string> = {
+  1: "text-rose-950",
+  2: "text-orange-950",
+  3: "text-amber-950",
+  4: "text-lime-950",
+  5: "text-emerald-950",
+};
 
 export default async function CalendarPage({
   searchParams,
@@ -45,18 +49,18 @@ export default async function CalendarPage({
   const prevMonthKey = format(subMonths(monthStart, 1), "yyyy-MM");
   const nextMonthKey = format(addMonths(monthStart, 1), "yyyy-MM");
 
-  // Per-entry mood dots
+  // One entry per day → per-day mood + first 3 emotion emojis.
   const calData = getCalendarData(
     format(monthStart, "yyyy-MM-dd"),
     format(monthEnd, "yyyy-MM-dd")
   );
 
-  // date → ordered list of mood values (one per entry)
-  const dateMap = new Map<string, (number | null)[]>();
+  const dateMap = new Map<
+    string,
+    { mood: number | null; emojis: string[] }
+  >();
   for (const d of calData) {
-    const cur = dateMap.get(d.entry_date) ?? [];
-    cur.push(d.mood_score);
-    dateMap.set(d.entry_date, cur);
+    dateMap.set(d.entry_date, { mood: d.mood_score, emojis: d.emojis });
   }
 
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -89,8 +93,8 @@ export default async function CalendarPage({
         </Link>
       </div>
 
-      {/* Calendar — compact, centered */}
-      <div className="mx-auto max-w-sm">
+      {/* Calendar — comfortable, centered */}
+      <div className="mx-auto max-w-md">
         {/* Weekday headers */}
         <div className="grid grid-cols-7 mb-1">
           {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
@@ -106,16 +110,18 @@ export default async function CalendarPage({
         {/* Day cells */}
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl bg-border">
           {Array.from({ length: firstDow }).map((_, i) => (
-            <div key={`pad-${i}`} className="bg-background h-12" />
+            <div key={`pad-${i}`} className="bg-background h-20" />
           ))}
 
           {days.map((d) => {
             const dateStr = format(d, "yyyy-MM-dd");
-            const moods = dateMap.get(dateStr) ?? [];
+            const data = dateMap.get(dateStr);
             const isSelected = selectedDay === dateStr;
             const isToday = dateStr === today;
-            const dots = moods.slice(0, 5);
-            const extra = moods.length - dots.length;
+            const hasEntry = data != null;
+            const moodBg = data?.mood != null ? MOOD_BG[data.mood] : null;
+            const moodText = data?.mood != null ? MOOD_TEXT[data.mood] : null;
+            const emojis = data?.emojis ?? [];
 
             return (
               <Link
@@ -126,39 +132,38 @@ export default async function CalendarPage({
                     : `/calendar?month=${monthKey}&day=${dateStr}`
                 }
                 className={cn(
-                  "group relative flex h-12 flex-col items-center justify-between bg-background px-1 py-1.5 transition-colors hover:bg-muted/60",
-                  isSelected && "bg-muted",
-                  isToday && "ring-1 ring-inset ring-primary/50"
+                  "group relative flex h-20 flex-col px-1.5 py-1 transition-colors",
+                  moodBg ?? "bg-background",
+                  moodBg ? "hover:opacity-90" : "hover:bg-muted/60",
+                  isSelected && !moodBg && "bg-muted",
+                  isSelected && "ring-2 ring-inset ring-primary/60",
+                  !isSelected && isToday && "ring-1 ring-inset ring-primary/50"
                 )}
               >
                 {/* Day number */}
                 <span
                   className={cn(
-                    "text-[11px] font-medium leading-none tabular-nums",
-                    isToday
-                      ? "text-primary font-semibold"
-                      : moods.length > 0
-                        ? "text-foreground"
-                        : "text-muted-foreground/50"
+                    "text-xs font-medium leading-none tabular-nums",
+                    moodText
+                      ? moodText
+                      : isToday
+                        ? "text-primary font-semibold"
+                        : hasEntry
+                          ? "text-foreground"
+                          : "text-muted-foreground/50"
                   )}
                 >
                   {format(d, "d")}
                 </span>
 
-                {/* Mood dots */}
-                {moods.length > 0 && (
-                  <div className="flex items-center gap-px">
-                    {dots.map((mood, i) => (
-                      <div
-                        key={i}
-                        className={cn("size-1 rounded-full", moodDotClass(mood))}
-                      />
-                    ))}
-                    {extra > 0 && (
-                      <span className="ml-0.5 text-[8px] leading-none text-muted-foreground">
-                        +{extra}
+                {/* Emotion emojis */}
+                {emojis.length > 0 && (
+                  <div className="emoji mt-auto flex items-end justify-center gap-0.5 text-xl leading-none">
+                    {emojis.map((emoji, i) => (
+                      <span key={i} aria-hidden>
+                        {emoji}
                       </span>
-                    )}
+                    ))}
                   </div>
                 )}
               </Link>

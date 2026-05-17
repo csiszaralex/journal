@@ -23,12 +23,14 @@ export type TaggableItem = {
   name: string;
   display_name: string;
   color: string;
+  emoji?: string | null;
 };
 
 interface TaggablePickerProps {
   name: string;
   defaultValue?: string[];
   initialColors?: Record<string, string>;
+  initialEmojis?: Record<string, string>;
   onValueChange?: (values: string[]) => void;
   suggestAction: (input: { prefix: string }) => Promise<
     { data?: TaggableItem[]; serverError?: string; validationErrors?: unknown } | undefined
@@ -43,6 +45,7 @@ export function TaggablePicker({
   name,
   defaultValue = [],
   initialColors,
+  initialEmojis,
   onValueChange,
   suggestAction,
   triggerLabel,
@@ -57,9 +60,12 @@ export function TaggablePicker({
   const [colorByName, setColorByName] = useState<Record<string, string>>(
     () => initialColors ?? {},
   );
+  const [emojiByName, setEmojiByName] = useState<Record<string, string>>(
+    () => initialEmojis ?? {},
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const mergeColors = useCallback((items: TaggableItem[]) => {
+  const mergeMetadata = useCallback((items: TaggableItem[]) => {
     setColorByName((prev) => {
       const next = { ...prev };
       let changed = false;
@@ -71,15 +77,30 @@ export function TaggablePicker({
       }
       return changed ? next : prev;
     });
+    setEmojiByName((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const it of items) {
+        const emoji = it.emoji ?? "";
+        if (emoji && next[it.display_name] !== emoji) {
+          next[it.display_name] = emoji;
+          changed = true;
+        } else if (!emoji && next[it.display_name]) {
+          delete next[it.display_name];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, []);
 
   useEffect(() => {
     suggestAction({ prefix: "" }).then((result) => {
       const items = result?.data ?? [];
       setSuggestions(items);
-      mergeColors(items);
+      mergeMetadata(items);
     });
-  }, [suggestAction, mergeColors]);
+  }, [suggestAction, mergeMetadata]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -87,12 +108,12 @@ export function TaggablePicker({
       const result = await suggestAction({ prefix: search });
       const items = result?.data ?? [];
       setSuggestions(items);
-      mergeColors(items);
+      mergeMetadata(items);
     }, 200);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [search, suggestAction, mergeColors]);
+  }, [search, suggestAction, mergeMetadata]);
 
   const toggle = useCallback(
     (displayName: string) => {
@@ -130,15 +151,17 @@ export function TaggablePicker({
           {selected.map((item) => {
             const bg = colorByName[item] ?? DEFAULT_TAG_COLOR;
             const fg = getContrastTextColor(bg);
+            const emoji = emojiByName[item];
             return (
               <button
                 key={item}
                 type="button"
                 onClick={(e) => removeItem(e, item)}
                 aria-label={`Remove ${item}`}
-                className="inline-flex cursor-pointer select-none items-center gap-0.5 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
+                className="inline-flex cursor-pointer select-none items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
                 style={{ backgroundColor: bg, color: fg }}
               >
+                {emoji && <span className="emoji" aria-hidden>{emoji}</span>}
                 {item}
                 <XIcon className="size-3 opacity-70" aria-hidden />
               </button>
@@ -202,6 +225,7 @@ export function TaggablePicker({
                         style={{ backgroundColor: item.color }}
                         aria-hidden
                       />
+                      {item.emoji && <span className="emoji" aria-hidden>{item.emoji}</span>}
                       {item.display_name}
                     </CommandItem>
                   ))}

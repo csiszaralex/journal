@@ -68,6 +68,7 @@ export function listAllEmotions() {
       name: emotions.name,
       display_name: emotions.display_name,
       color: emotions.color,
+      emoji: emotions.emoji,
       created_at: emotions.created_at,
       usage_count: sql<number>`COUNT(DISTINCT CASE WHEN ${entries.deleted_at} IS NULL THEN ${entries.id} END)`,
     })
@@ -84,6 +85,7 @@ export function updateEmotion(input: {
   display_name: string;
   name: string;
   color: string;
+  emoji: string | null;
 }) {
   const newName = input.name.trim().toLowerCase();
   const newDisplay = input.display_name.trim();
@@ -97,8 +99,10 @@ export function updateEmotion(input: {
     .get();
   if (conflict) throw new EmotionNameConflictError(conflict.display_name);
 
+  const emoji = input.emoji?.trim() || null;
+
   db.update(emotions)
-    .set({ name: newName, display_name: newDisplay, color: input.color })
+    .set({ name: newName, display_name: newDisplay, color: input.color, emoji })
     .where(eq(emotions.id, input.id))
     .run();
 

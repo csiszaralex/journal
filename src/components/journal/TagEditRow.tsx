@@ -23,6 +23,7 @@ export type TagLike = {
   name: string;
   display_name: string;
   color: string;
+  emoji?: string | null;
   usage_count: number;
 };
 
@@ -36,6 +37,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
   const [displayName, setDisplayName] = useState(item.display_name);
   const [name, setName] = useState(item.name);
   const [color, setColor] = useState(item.color);
+  const [emoji, setEmoji] = useState(item.emoji ?? '');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -45,19 +47,28 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
   const dirty =
     displayName.trim() !== item.display_name ||
     name.trim().toLowerCase() !== item.name ||
-    color !== item.color;
+    color !== item.color ||
+    (kind === 'emotion' && emoji.trim() !== (item.emoji ?? ''));
 
   function handleSave() {
     setError(null);
     setSuccess(false);
     startTransition(async () => {
-      const action = kind === 'tag' ? updateTagAction : updateEmotionAction;
-      const result = await action({
-        id: item.id,
-        display_name: displayName.trim(),
-        name: name.trim().toLowerCase(),
-        color,
-      });
+      const result =
+        kind === 'tag'
+          ? await updateTagAction({
+              id: item.id,
+              display_name: displayName.trim(),
+              name: name.trim().toLowerCase(),
+              color,
+            })
+          : await updateEmotionAction({
+              id: item.id,
+              display_name: displayName.trim(),
+              name: name.trim().toLowerCase(),
+              color,
+              emoji: emoji.trim() || null,
+            });
       if (result?.serverError) {
         setError(result.serverError);
         return;
@@ -100,10 +111,23 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
           className="h-8 w-10 cursor-pointer rounded border border-input bg-background"
           aria-label="Color"
         />
+        {kind === 'emotion' && (
+          <Input
+            value={emoji}
+            onChange={(e) => setEmoji(e.target.value)}
+            placeholder="🙂"
+            maxLength={10}
+            aria-label="Emoji"
+            className="emoji h-8 w-14 text-center text-base"
+          />
+        )}
         <span
-          className="inline-flex items-center rounded-md px-2 py-0.5 text-xs"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
           style={{ backgroundColor: color, color: getContrastTextColor(color) }}
         >
+          {kind === 'emotion' && emoji.trim() && (
+            <span className="emoji" aria-hidden>{emoji.trim()}</span>
+          )}
           {displayName || '—'}
         </span>
         <div className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">

@@ -8,15 +8,23 @@ interface EmotionComboboxProps {
   name: string;
   defaultValue?: string[];
   initialColors?: Record<string, string>;
+  initialEmojis?: Record<string, string>;
   onValueChange?: (emotions: string[]) => void;
 }
 
-export function EmotionCombobox({ name, defaultValue, initialColors, onValueChange }: EmotionComboboxProps) {
+export function EmotionCombobox({
+  name,
+  defaultValue,
+  initialColors,
+  initialEmojis,
+  onValueChange,
+}: EmotionComboboxProps) {
   return (
     <TaggablePicker
       name={name}
       defaultValue={defaultValue}
       initialColors={initialColors}
+      initialEmojis={initialEmojis}
       onValueChange={onValueChange}
       suggestAction={suggestEmotionsAction}
       triggerLabel="Add emotion"

@@ -24,6 +24,7 @@ export const updateEmotionAction = authActionClient
       display_name: z.string().min(1).max(60),
       name: z.string().min(1).max(60),
       color: z.string().regex(HEX_COLOR_REGEX, 'Invalid hex color'),
+      emoji: z.string().max(16).nullable(),
     }),
   )
   .action(async ({ parsedInput }): Promise<UpdateEmotionResult> => {
