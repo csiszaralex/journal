@@ -223,7 +223,11 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     tagKey: 0,
     emotions: entry?.version.emotions.map((e) => e.display_name) ?? [],
     emotionKey: 0,
-    qaPairs: [],
+    qaPairs:
+      entry?.version.qa_pairs.map((qa) => ({
+        question: qa.question,
+        answer: qa.answer,
+      })) ?? [],
     qaLoading: false,
     qaLoadingIndex: null,
     qaError: null,
