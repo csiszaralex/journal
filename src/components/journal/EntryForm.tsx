@@ -214,6 +214,13 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
+  const initialTagColors = Object.fromEntries(
+    (entry?.version.tags ?? []).map((t) => [t.display_name, t.color]),
+  );
+  const initialEmotionColors = Object.fromEntries(
+    (entry?.version.emotions ?? []).map((e) => [e.display_name, e.color]),
+  );
+
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
     textValue: entry?.version.text ?? '',
@@ -656,6 +663,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           key={state.tagKey}
           name='tags'
           defaultValue={state.tags}
+          initialColors={initialTagColors}
           onValueChange={(tags) => dispatch({ type: 'SET_TAGS', tags })}
         />
       </div>
@@ -667,6 +675,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           key={state.emotionKey}
           name='emotions'
           defaultValue={state.emotions}
+          initialColors={initialEmotionColors}
           onValueChange={(emotions) => dispatch({ type: 'SET_EMOTIONS', emotions })}
         />
       </div>
