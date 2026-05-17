@@ -3,11 +3,11 @@
 import { logAudit } from '@/db/queries/audit';
 import {
   createEntry,
-  restoreEntry,
   rollbackToVersion,
   softDeleteEntry,
   updateEntry,
 } from '@/db/queries/entries';
+import { requireUserId } from '@/lib/auth';
 import { resolveEmotionIds, resolveTagIds } from '@/lib/entry-utils';
 import { entryInputSchema } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
@@ -15,6 +15,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 export async function createEntryAction(_: unknown, formData: FormData) {
+  await requireUserId();
   const submission = parseWithZod(formData, { schema: entryInputSchema });
   if (submission.status !== 'success') return submission.reply();
 
@@ -53,6 +54,7 @@ export async function createEntryAction(_: unknown, formData: FormData) {
 }
 
 export async function updateEntryAction(_: unknown, formData: FormData) {
+  await requireUserId();
   const updateSchema = entryInputSchema.extend({ entry_id: z.string().min(1, 'Entry not found') });
   const submission = parseWithZod(formData, { schema: updateSchema });
   if (submission.status !== 'success') return submission.reply();
@@ -76,20 +78,15 @@ export async function updateEntryAction(_: unknown, formData: FormData) {
 const idSchema = z.string().min(1);
 
 export async function softDeleteEntryAction(id: string) {
+  await requireUserId();
   const validId = idSchema.parse(id);
   softDeleteEntry(validId);
   logAudit('entry.delete', { entry_id: validId });
   revalidatePath('/');
 }
 
-export async function restoreEntryAction(id: string) {
-  const validId = idSchema.parse(id);
-  restoreEntry(validId);
-  logAudit('entry.restore', { entry_id: validId });
-  revalidatePath('/');
-}
-
 export async function rollbackVersionAction(entryId: string, versionNumber: number) {
+  await requireUserId();
   const validId = idSchema.parse(entryId);
   const validVersion = z.number().int().min(1).parse(versionNumber);
   rollbackToVersion(validId, validVersion);

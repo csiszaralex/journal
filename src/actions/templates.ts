@@ -1,6 +1,7 @@
 'use server';
 
 import { createTemplate, deleteTemplate, updateTemplate } from '@/db/queries/templates';
+import { requireUserId } from '@/lib/auth';
 import { templateSchema } from '@/lib/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -10,6 +11,7 @@ const updateTemplateSchema = templateSchema.extend({
 });
 
 export async function createTemplateAction(_: unknown, formData: FormData) {
+  await requireUserId();
   const parsed = templateSchema.safeParse({
     name: formData.get('name'),
     text: formData.get('text'),
@@ -30,6 +32,7 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
 }
 
 export async function updateTemplateAction(_: unknown, formData: FormData) {
+  await requireUserId();
   const parsed = updateTemplateSchema.safeParse({
     id: formData.get('id'),
     name: formData.get('name'),
@@ -52,6 +55,7 @@ export async function updateTemplateAction(_: unknown, formData: FormData) {
 }
 
 export async function deleteTemplateAction(id: string) {
+  await requireUserId();
   deleteTemplate(z.string().min(1).parse(id));
   revalidatePath('/settings');
 }
