@@ -12,7 +12,7 @@ export function RegistrationToggle({ enabled }: Props) {
 
   function toggle() {
     startTransition(async () => {
-      await setRegistrationEnabledAction(!enabled);
+      await setRegistrationEnabledAction({ enabled: !enabled });
     });
   }
 

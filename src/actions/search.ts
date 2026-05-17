@@ -1,6 +1,7 @@
 "use server";
 
 import { searchEntries, listEntries } from "@/db/queries/entries";
+import { authActionClient } from "@/lib/safe-action";
 import { z } from "zod";
 
 const searchParamsSchema = z.object({
@@ -14,20 +15,21 @@ const searchParamsSchema = z.object({
 
 export type SearchActionParams = z.infer<typeof searchParamsSchema>;
 
-export async function searchEntriesAction(params: SearchActionParams) {
-  const validParams = searchParamsSchema.parse(params);
-  const { q, from, to, moodMin, moodMax, page = 1 } = validParams;
+export const searchEntriesAction = authActionClient
+  .inputSchema(searchParamsSchema)
+  .action(async ({ parsedInput }) => {
+    const { q, from, to, moodMin, moodMax, page = 1 } = parsedInput;
 
-  if (q?.trim()) {
-    return searchEntries(q.trim(), 25);
-  }
+    if (q?.trim()) {
+      return searchEntries(q.trim(), 25);
+    }
 
-  return listEntries({
-    from_date: from || undefined,
-    to_date: to || undefined,
-    min_mood: moodMin,
-    max_mood: moodMax,
-    page,
-    page_size: 25,
+    return listEntries({
+      from_date: from || undefined,
+      to_date: to || undefined,
+      min_mood: moodMin,
+      max_mood: moodMax,
+      page,
+      page_size: 25,
+    });
   });
-}

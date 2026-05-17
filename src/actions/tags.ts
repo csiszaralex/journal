@@ -4,65 +4,50 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import {
   deleteTag,
-  getPopularTags,
   suggestTags,
   TagNameConflictError,
   updateTag,
 } from '@/db/queries/tags';
+import { authActionClient } from '@/lib/safe-action';
 import { HEX_COLOR_REGEX } from '@/lib/color';
 
-export async function suggestTagsAction(prefix: string) {
-  const validPrefix = z.string().parse(prefix);
-  return suggestTags(validPrefix, 10);
-}
+type UpdateTagResult = { ok: true } | { ok: false; error: string };
 
-export async function getPopularTagsAction() {
-  return getPopularTags(10);
-}
+export const suggestTagsAction = authActionClient
+  .inputSchema(z.object({ prefix: z.string() }))
+  .action(async ({ parsedInput }) => suggestTags(parsedInput.prefix, 10));
 
-const updateTagSchema = z.object({
-  id: z.string().min(1),
-  display_name: z.string().min(1).max(60),
-  name: z.string().min(1).max(60),
-  color: z.string().regex(HEX_COLOR_REGEX, 'Invalid hex color'),
-});
-
-export type UpdateTagResult =
-  | { ok: true }
-  | { ok: false; error: string };
-
-export async function updateTagAction(input: unknown): Promise<UpdateTagResult> {
-  const parsed = updateTagSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: 'Érvénytelen adatok' };
-  }
-  try {
-    updateTag(parsed.data);
-    revalidatePath('/settings/tags');
-    revalidatePath('/');
-    return { ok: true };
-  } catch (err) {
-    if (err instanceof TagNameConflictError) {
-      return {
-        ok: false,
-        error: `Ez a név már létezik mint "${err.existingDisplayName}"`,
-      };
+export const updateTagAction = authActionClient
+  .inputSchema(
+    z.object({
+      id: z.string().min(1),
+      display_name: z.string().min(1).max(60),
+      name: z.string().min(1).max(60),
+      color: z.string().regex(HEX_COLOR_REGEX, 'Invalid hex color'),
+    }),
+  )
+  .action(async ({ parsedInput }): Promise<UpdateTagResult> => {
+    try {
+      updateTag(parsedInput);
+      revalidatePath('/settings/tags');
+      revalidatePath('/');
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof TagNameConflictError) {
+        return {
+          ok: false,
+          error: `Ez a név már létezik mint "${err.existingDisplayName}"`,
+        };
+      }
+      throw err;
     }
-    return { ok: false, error: 'Mentés sikertelen' };
-  }
-}
+  });
 
-const idSchema = z.string().min(1);
-
-export async function deleteTagAction(id: unknown): Promise<{ ok: boolean; error?: string }> {
-  const parsed = idSchema.safeParse(id);
-  if (!parsed.success) return { ok: false, error: 'Érvénytelen azonosító' };
-  try {
-    deleteTag(parsed.data);
+export const deleteTagAction = authActionClient
+  .inputSchema(z.object({ id: z.string().min(1) }))
+  .action(async ({ parsedInput }) => {
+    deleteTag(parsedInput.id);
     revalidatePath('/settings/tags');
     revalidatePath('/');
     return { ok: true };
-  } catch {
-    return { ok: false, error: 'Törlés sikertelen' };
-  }
-}
+  });

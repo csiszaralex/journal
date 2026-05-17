@@ -8,10 +8,11 @@ import {
   getAuditLogForExport,
 } from "@/db/queries/export";
 import { logAudit } from "@/db/queries/audit";
+import { authActionClient } from "@/lib/safe-action";
 
 const SCHEMA_VERSION = 1;
 
-export async function exportJsonAction(): Promise<string> {
+export const exportJsonAction = authActionClient.action(async () => {
   const data = {
     schema_version: SCHEMA_VERSION,
     exported_at: new Date().toISOString(),
@@ -25,12 +26,11 @@ export async function exportJsonAction(): Promise<string> {
   logAudit("export.json", { entry_count: data.entries.length });
 
   return JSON.stringify(data, null, 2);
-}
+});
 
-export async function exportMarkdownAction(): Promise<string> {
+export const exportMarkdownAction = authActionClient.action(async () => {
   const entries = getAllEntriesForExport();
 
-  // Sort by current version's entry_date ascending
   const sorted = entries
     .filter((e) => e.deleted_at == null)
     .map((e) => {
@@ -66,4 +66,4 @@ export async function exportMarkdownAction(): Promise<string> {
   logAudit("export.markdown", { entry_count: sorted.length });
 
   return parts.join("\n\n---\n\n");
-}
+});

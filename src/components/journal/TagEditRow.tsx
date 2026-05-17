@@ -58,11 +58,17 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
         name: name.trim().toLowerCase(),
         color,
       });
-      if (result.ok) {
+      if (result?.serverError) {
+        setError(result.serverError);
+        return;
+      }
+      if (result?.data?.ok) {
         setSuccess(true);
         setTimeout(() => setSuccess(false), 1500);
+      } else if (result?.data && !result.data.ok) {
+        setError(result.data.error);
       } else {
-        setError(result.error);
+        setError('Mentés sikertelen');
       }
     });
   }
@@ -71,12 +77,12 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
     setError(null);
     startDelete(async () => {
       const action = kind === 'tag' ? deleteTagAction : deleteEmotionAction;
-      const result = await action(item.id);
-      if (result.ok) {
+      const result = await action({ id: item.id });
+      if (result?.data?.ok) {
         setConfirmOpen(false);
         router.refresh();
       } else {
-        setError(result.error ?? 'Törlés sikertelen');
+        setError(result?.serverError ?? 'Törlés sikertelen');
         setConfirmOpen(false);
       }
     });

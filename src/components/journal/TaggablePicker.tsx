@@ -29,7 +29,9 @@ interface TaggablePickerProps {
   name: string;
   defaultValue?: string[];
   onValueChange?: (values: string[]) => void;
-  suggestAction: (prefix: string) => Promise<TaggableItem[]>;
+  suggestAction: (input: { prefix: string }) => Promise<
+    { data?: TaggableItem[]; serverError?: string; validationErrors?: unknown } | undefined
+  >;
   triggerLabel: string;
   TriggerIcon: ComponentType<{ className?: string }>;
   searchPlaceholder?: string;
@@ -68,7 +70,8 @@ export function TaggablePicker({
   }, []);
 
   useEffect(() => {
-    suggestAction("").then((items) => {
+    suggestAction({ prefix: "" }).then((result) => {
+      const items = result?.data ?? [];
       setSuggestions(items);
       mergeColors(items);
     });
@@ -77,9 +80,10 @@ export function TaggablePicker({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const results = await suggestAction(search);
-      setSuggestions(results);
-      mergeColors(results);
+      const result = await suggestAction({ prefix: search });
+      const items = result?.data ?? [];
+      setSuggestions(items);
+      mergeColors(items);
     }, 200);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

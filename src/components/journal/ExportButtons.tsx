@@ -24,8 +24,8 @@ export function ExportButtons() {
   async function handleJson() {
     setLoadingJson(true);
     try {
-      const data = await exportJsonAction();
-      downloadBlob(data, `journal-${dateStamp}.json`, "application/json");
+      const result = await exportJsonAction();
+      if (result?.data) downloadBlob(result.data, `journal-${dateStamp}.json`, "application/json");
     } finally {
       setLoadingJson(false);
     }
@@ -34,8 +34,8 @@ export function ExportButtons() {
   async function handleMarkdown() {
     setLoadingMd(true);
     try {
-      const data = await exportMarkdownAction();
-      downloadBlob(data, `journal-${dateStamp}.md`, "text/markdown");
+      const result = await exportMarkdownAction();
+      if (result?.data) downloadBlob(result.data, `journal-${dateStamp}.md`, "text/markdown");
     } finally {
       setLoadingMd(false);
     }

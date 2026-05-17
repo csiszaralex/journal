@@ -46,21 +46,29 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
   const [subscribing, setSubscribing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function reportResult(label: string, result: SendActionResult) {
-    if (result.ok) {
+  function reportResult(label: string, data: SendActionResult | undefined, serverError: string | undefined) {
+    if (serverError) {
+      toast.error(`${label} failed: ${serverError}`);
+      return;
+    }
+    if (!data) {
+      toast.error(`${label} failed: no response`);
+      return;
+    }
+    if (data.ok) {
       toast.success(`${label} sent ✓`);
       return;
     }
-    if (result.reason === "gone") {
+    if (data.reason === "gone") {
       toast.error("Subscription expired — re-enable notifications on this device.");
       return;
     }
-    if (result.reason === "not-found") {
+    if (data.reason === "not-found") {
       toast.error("Subscription not found.");
       return;
     }
-    const status = result.statusCode ? ` (HTTP ${result.statusCode})` : "";
-    toast.error(`${label} failed${status}: ${result.message ?? "Unknown error"}`);
+    const status = data.statusCode ? ` (HTTP ${data.statusCode})` : "";
+    toast.error(`${label} failed${status}: ${data.message ?? "Unknown error"}`);
   }
 
   async function handleSubscribe() {
@@ -152,7 +160,7 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
               isPending={isPending}
               onUpdate={(patch) =>
                 startTransition(async () => {
-                  await updateSubscriptionAction(sub.id, patch);
+                  await updateSubscriptionAction({ id: sub.id, patch });
                   setSubscriptions((prev) =>
                     prev.map((s) => (s.id === sub.id ? { ...s, ...patch } : s))
                   );
@@ -160,25 +168,25 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
               }
               onDelete={() =>
                 startTransition(async () => {
-                  await deleteSubscriptionAction(sub.id);
+                  await deleteSubscriptionAction({ id: sub.id });
                   setSubscriptions((prev) => prev.filter((s) => s.id !== sub.id));
                 })
               }
               onTest={() =>
                 startTransition(async () => {
-                  const result = await sendTestNotificationAction(sub.id);
-                  reportResult("Test", result);
+                  const result = await sendTestNotificationAction({ id: sub.id });
+                  reportResult("Test", result?.data, result?.serverError);
                 })
               }
               onPreview={() =>
                 startTransition(async () => {
-                  const result = await sendScheduledPreviewAction(sub.id);
-                  reportResult("Sample prompt", result);
+                  const result = await sendScheduledPreviewAction({ id: sub.id });
+                  reportResult("Sample prompt", result?.data, result?.serverError);
                 })
               }
               onToggle={(enabled) =>
                 startTransition(async () => {
-                  await toggleSubscriptionAction(sub.id, enabled);
+                  await toggleSubscriptionAction({ id: sub.id, enabled });
                   setSubscriptions((prev) =>
                     prev.map((s) => (s.id === sub.id ? { ...s, enabled: enabled ? 1 : 0 } : s))
                   );

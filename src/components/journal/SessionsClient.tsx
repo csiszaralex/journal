@@ -77,9 +77,12 @@ export function SessionsClient({
     setError(null);
     setRegistering(true);
     try {
-      const options = await getPasskeyRegistrationOptionsAction();
-      const response = await startRegistration(options);
-      await verifyPasskeyRegistrationAction(response);
+      const optionsResult = await getPasskeyRegistrationOptionsAction();
+      if (optionsResult?.serverError) throw new Error(optionsResult.serverError);
+      if (!optionsResult?.data) throw new Error("Failed to get registration options");
+      const response = await startRegistration(optionsResult.data);
+      const verifyResult = await verifyPasskeyRegistrationAction({ response });
+      if (verifyResult?.serverError) throw new Error(verifyResult.serverError);
       router.refresh();
     } catch (err) {
       // User-cancel surfaces as DOMException with name 'NotAllowedError' — silence that
@@ -133,34 +136,30 @@ export function SessionsClient({
                 isPending={isPending}
                 onRename={(name) =>
                   startTransition(async () => {
-                    try {
-                      setError(null);
-                      await renamePasskeyAction(p.credentialID, name);
-                      setPasskeys((prev) =>
-                        prev.map((x) =>
-                          x.credentialID === p.credentialID
-                            ? { ...x, name }
-                            : x,
-                        ),
-                      );
-                    } catch (err) {
-                      reportError(err);
+                    setError(null);
+                    const result = await renamePasskeyAction({ credentialID: p.credentialID, name });
+                    if (result?.serverError) {
+                      reportError(new Error(result.serverError));
+                      return;
                     }
+                    setPasskeys((prev) =>
+                      prev.map((x) =>
+                        x.credentialID === p.credentialID ? { ...x, name } : x,
+                      ),
+                    );
                   })
                 }
                 onDelete={() =>
                   startTransition(async () => {
-                    try {
-                      setError(null);
-                      await deletePasskeyAction(p.credentialID);
-                      setPasskeys((prev) =>
-                        prev.filter(
-                          (x) => x.credentialID !== p.credentialID,
-                        ),
-                      );
-                    } catch (err) {
-                      reportError(err);
+                    setError(null);
+                    const result = await deletePasskeyAction({ credentialID: p.credentialID });
+                    if (result?.serverError) {
+                      reportError(new Error(result.serverError));
+                      return;
                     }
+                    setPasskeys((prev) =>
+                      prev.filter((x) => x.credentialID !== p.credentialID),
+                    );
                   })
                 }
               />
@@ -190,34 +189,30 @@ export function SessionsClient({
                 isPending={isPending}
                 onRename={(name) =>
                   startTransition(async () => {
-                    try {
-                      setError(null);
-                      await renameSessionAction(s.sessionToken, name);
-                      setSessions((prev) =>
-                        prev.map((x) =>
-                          x.sessionToken === s.sessionToken
-                            ? { ...x, name }
-                            : x,
-                        ),
-                      );
-                    } catch (err) {
-                      reportError(err);
+                    setError(null);
+                    const result = await renameSessionAction({ token: s.sessionToken, name });
+                    if (result?.serverError) {
+                      reportError(new Error(result.serverError));
+                      return;
                     }
+                    setSessions((prev) =>
+                      prev.map((x) =>
+                        x.sessionToken === s.sessionToken ? { ...x, name } : x,
+                      ),
+                    );
                   })
                 }
                 onDelete={() =>
                   startTransition(async () => {
-                    try {
-                      setError(null);
-                      await deleteSessionAction(s.sessionToken);
-                      setSessions((prev) =>
-                        prev.filter(
-                          (x) => x.sessionToken !== s.sessionToken,
-                        ),
-                      );
-                    } catch (err) {
-                      reportError(err);
+                    setError(null);
+                    const result = await deleteSessionAction({ token: s.sessionToken });
+                    if (result?.serverError) {
+                      reportError(new Error(result.serverError));
+                      return;
                     }
+                    setSessions((prev) =>
+                      prev.filter((x) => x.sessionToken !== s.sessionToken),
+                    );
                   })
                 }
               />

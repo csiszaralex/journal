@@ -67,15 +67,18 @@ export function SearchView({
 
   const { data: entries = [], isFetching, isError } = useQuery({
     queryKey: ["search", debouncedQ, debouncedFrom, debouncedTo, moodMin, moodMax, page],
-    queryFn: () =>
-      searchEntriesAction({
+    queryFn: async () => {
+      const result = await searchEntriesAction({
         q: debouncedQ || undefined,
         from: debouncedFrom || undefined,
         to: debouncedTo || undefined,
         moodMin: moodMin ? parseInt(moodMin, 10) : undefined,
         moodMax: moodMax ? parseInt(moodMax, 10) : undefined,
         page,
-      }),
+      });
+      if (result?.serverError) throw new Error(result.serverError);
+      return result?.data ?? [];
+    },
     placeholderData: (prev) => prev,
   });
 
