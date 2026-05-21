@@ -43,6 +43,7 @@ function buildUserMessage(
     text: string;
     tagNames: string[];
     emotionNames: string[];
+    qaPairs: { question: string; answer: string }[];
   }[],
   todayText: string | undefined,
   existingQuestions: string[] | undefined,
@@ -54,14 +55,17 @@ function buildUserMessage(
       : priorDays
           .map((d) => {
             const tagLabels = d.tagNames.length > 0 ? d.tagNames.join(', ') : 'none';
-            const emotionLabels =
-              d.emotionNames.length > 0 ? d.emotionNames.join(', ') : 'none';
-            return `### ${d.entry_date} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}`;
+            const emotionLabels = d.emotionNames.length > 0 ? d.emotionNames.join(', ') : 'none';
+            const qaSection =
+              d.qaPairs.length > 0
+                ? '\n\nQ&A from this day:\n' +
+                  d.qaPairs.map((p) => `- Q: ${p.question}\n  A: ${p.answer}`).join('\n')
+                : '';
+            return `### ${d.entry_date} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
           })
           .join('\n\n');
 
-  const todaySection =
-    todayText && todayText.trim().length > 0 ? todayText : '(empty so far)';
+  const todaySection = todayText && todayText.trim().length > 0 ? todayText : '(empty so far)';
 
   const existingSection =
     existingQuestions && existingQuestions.length > 0
@@ -118,6 +122,9 @@ export async function POST(req: NextRequest) {
       text: e.version.text,
       tagNames: e.version.tags.map((t) => t.display_name),
       emotionNames: e.version.emotions.map((em) => em.display_name),
+      qaPairs: e.version.qa_pairs
+        .filter((p) => p.answer.trim().length > 0)
+        .map((p) => ({ question: p.question, answer: p.answer })),
     }));
 
   const userMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);
@@ -178,3 +185,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
+

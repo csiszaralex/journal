@@ -1,8 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { CircleMinus, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 
 export type QaPair = { question: string; answer: string };
 
@@ -19,6 +29,7 @@ type EntryQuestionsProps = {
   onRegenerateOne: (index: number) => void;
   onAppendOne: () => void;
   onAnswerChange: (index: number, value: string) => void;
+  onDeleteOne: (index: number) => void;
 };
 
 export function EntryQuestions({
@@ -32,7 +43,9 @@ export function EntryQuestions({
   onRegenerateOne,
   onAppendOne,
   onAnswerChange,
+  onDeleteOne,
 }: EntryQuestionsProps) {
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const busy = loading || appending || loadingIndex !== null;
   // Full-set loading skeletons (initial fetch or "Más kérdéseket")
   if (loading) {
@@ -93,16 +106,34 @@ export function EntryQuestions({
           <div key={idx} className='flex flex-col gap-1.5'>
             <div className='flex items-start justify-between gap-2'>
               <p className='text-sm text-muted-foreground'>{pair.question}</p>
-              <button
-                type='button'
-                onClick={() => onRegenerateOne(idx)}
-                disabled={busy}
-                title='Másik kérdést kérek erre a helyre'
-                aria-label='Másik kérdést kérek erre a helyre'
-                className='shrink-0 rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
-              >
-                <RefreshCw className='size-3' />
-              </button>
+              <div className='flex shrink-0 gap-0.5'>
+                <button
+                  type='button'
+                  onClick={() => onRegenerateOne(idx)}
+                  disabled={busy}
+                  title='Másik kérdést kérek erre a helyre'
+                  aria-label='Másik kérdést kérek erre a helyre'
+                  className='rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+                >
+                  <RefreshCw className='size-3' />
+                </button>
+                <button
+                  type='button'
+                  onClick={() => {
+                    if (pair.answer.trim().length > 0) {
+                      setDeleteConfirmIndex(idx);
+                    } else {
+                      onDeleteOne(idx);
+                    }
+                  }}
+                  disabled={busy}
+                  title='Kérdés törlése'
+                  aria-label='Kérdés törlése'
+                  className='rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40'
+                >
+                  <CircleMinus className='size-3' />
+                </button>
+              </div>
             </div>
             <Textarea
               rows={2}
@@ -148,6 +179,34 @@ export function EntryQuestions({
           </Button>
         )}
       </div>
+      <Dialog
+        open={deleteConfirmIndex !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmIndex(null); }}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Törlöd ezt a kérdést?</DialogTitle>
+            <DialogDescription>A beírt válaszod elvész.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant='outline' size='sm' />}>
+              Mégsem
+            </DialogClose>
+            <Button
+              size='sm'
+              variant='destructive'
+              onClick={() => {
+                if (deleteConfirmIndex !== null) {
+                  onDeleteOne(deleteConfirmIndex);
+                  setDeleteConfirmIndex(null);
+                }
+              }}
+            >
+              Törlés
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -89,6 +89,7 @@ type FormAction =
   | { type: 'QA_APPEND_ONE_START' }
   | { type: 'QA_APPEND_ONE_SUCCESS'; question: string }
   | { type: 'QA_APPEND_ONE_ERROR'; error: string }
+  | { type: 'QA_DELETE_ONE'; index: number }
   | { type: 'REFRESH_PICKERS' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
@@ -193,6 +194,11 @@ function formReducer(state: FormState, action: FormAction): FormState {
       };
     case 'QA_APPEND_ONE_ERROR':
       return { ...state, qaAppending: false, qaError: action.error };
+    case 'QA_DELETE_ONE':
+      return {
+        ...state,
+        qaPairs: state.qaPairs.filter((_, i) => i !== action.index),
+      };
     case 'REFRESH_PICKERS':
       return {
         ...state,
@@ -653,6 +659,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         onAnswerChange={(index, value) =>
           dispatch({ type: 'QA_ANSWER_CHANGE', index, value })
         }
+        onDeleteOne={(index) => dispatch({ type: 'QA_DELETE_ONE', index })}
       />
 
       {/* Mood */}
