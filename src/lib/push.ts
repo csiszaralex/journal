@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { disableSubscription } from "@/db/queries/subscriptions";
+import { disableSubscription, listSubscriptions } from "@/db/queries/subscriptions";
 import { env } from "@/env";
 import promptsData from "../../data/prompts.json";
 
@@ -15,6 +15,10 @@ function ensureVapid() {
   vapidConfigured = true;
 }
 
+export type PushPayload =
+  | { type: "daily"; title: string; body: string; date?: string }
+  | { type: "close"; date: string };
+
 export type SendPushResult =
   | { status: "sent" }
   | { status: "gone"; statusCode: number }
@@ -22,7 +26,7 @@ export type SendPushResult =
 
 export async function sendPush(
   subscription: { id: string; endpoint: string; p256dh: string; auth: string },
-  payload: { title: string; body: string }
+  payload: PushPayload
 ): Promise<SendPushResult> {
   ensureVapid();
   try {
@@ -44,6 +48,15 @@ export async function sendPush(
       err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown push error";
     return { status: "error", statusCode, message };
   }
+}
+
+export async function dismissNotificationsForDate(date: string): Promise<void> {
+  const subscriptions = listSubscriptions();
+  await Promise.allSettled(
+    subscriptions
+      .filter((sub) => !!sub.enabled)
+      .map((sub) => sendPush(sub, { type: "close", date }))
+  );
 }
 
 const prompts: string[] = Array.isArray(promptsData) ? (promptsData as string[]) : [];

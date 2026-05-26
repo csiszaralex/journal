@@ -8,6 +8,7 @@ import { entryInputSchema } from "@/lib/validation";
 import { resolveEmotionIds, resolveTagIds } from "@/lib/entry-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { dismissNotificationsForDate } from "@/lib/push";
 
 const qaPairsSchema = z
   .array(
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
         });
         logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
         revalidatePath("/");
+        dismissNotificationsForDate(entry_date).catch(() => {});
         return NextResponse.json({ ok: true, id: created.id });
       } catch (err) {
         if (!(err instanceof DuplicateDateError)) throw err;
@@ -101,6 +103,7 @@ export async function POST(req: NextRequest) {
         logAudit("entry.update", { entry_id: err.entryId, version: updated.version.version_number, via: "sync", from: "createEntry" });
         revalidatePath("/");
         revalidatePath(`/entry/${err.entryId}`);
+        dismissNotificationsForDate(entry_date).catch(() => {});
         return NextResponse.json({ ok: true, id: err.entryId });
       }
     }
@@ -122,6 +125,7 @@ export async function POST(req: NextRequest) {
       logAudit("entry.update", { entry_id, version: updated.version.version_number, via: "sync" });
       revalidatePath("/");
       revalidatePath(`/entry/${entry_id}`);
+      dismissNotificationsForDate(entry_date).catch(() => {});
       return NextResponse.json({ ok: true, id: entry_id });
     }
 

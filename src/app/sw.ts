@@ -62,19 +62,43 @@ self.addEventListener('message', (event) => {
 // ── Push notifications ────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? { title: 'Journal', body: '' };
+  const data = event.data?.json() ?? { type: 'daily', title: 'Journal', body: '' };
+
+  if (data.type === 'close' && data.date) {
+    event.waitUntil(
+      self.registration.getNotifications({ tag: `daily-${data.date}` }).then((ns) => {
+        ns.forEach((n) => n.close());
+      }),
+    );
+    return;
+  }
+
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+    self.registration.showNotification(data.title ?? 'Journal', {
+      body: data.body ?? '',
       icon: '/icons/192.png',
       badge: '/icons/badge.png',
-      data: { url: '/' },
+      tag: data.date ? `daily-${data.date}` : undefined,
+      data: { url: '/', date: data.date ?? null },
     }),
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
+  const { url, date } = event.notification.data as { url: string; date: string | null };
   event.notification.close();
-  event.waitUntil(self.clients.openWindow(event.notification.data.url));
+  event.waitUntil(
+    Promise.all([
+      self.clients.openWindow(url),
+      date
+        ? fetch('/api/push/dismiss', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date }),
+          }).catch(() => {})
+        : Promise.resolve(),
+    ]),
+  );
 });
 

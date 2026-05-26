@@ -78,7 +78,7 @@ async function tick() {
         ? `${promptBody} (${openCount} nyitott szándék mára)`
         : promptBody;
       try {
-        const result = await sendPush(sub, { title: "Journal", body });
+        const result = await sendPush(sub, { type: "daily", title: "Journal", body, date: todayStr });
         if (result.status === "sent") {
           recordNotificationSent(sub.id, todayStr);
           console.log(JSON.stringify({ evt: "tick.sent", sub: sub.id, label: sub.device_label, date: todayStr }));

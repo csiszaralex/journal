@@ -6,8 +6,8 @@ import {
   removeSubscription,
   updateSubscription,
 } from '@/db/queries/subscriptions';
+import { pickDailyPrompt, sendPush } from '@/lib/push';
 import { authActionClient } from '@/lib/safe-action';
-import { sendPush, pickDailyPrompt } from '@/lib/push';
 import { formatInTimeZone } from 'date-fns-tz';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -55,6 +55,7 @@ export const sendTestNotificationAction = authActionClient
       return { ok: false, reason: 'not-found' };
     }
     const result = await sendPush(sub, {
+      type: 'daily',
       title: 'Journal',
       body: 'Test notification — everything is working!',
     });
@@ -89,7 +90,7 @@ export const sendScheduledPreviewAction = authActionClient
     }
     const todayStr = formatInTimeZone(new Date(), sub.timezone, 'yyyy-MM-dd');
     const body = pickDailyPrompt(todayStr);
-    const result = await sendPush(sub, { title: 'Journal', body });
+    const result = await sendPush(sub, { type: 'daily', title: 'Journal', body, date: todayStr });
     if (result.status === 'sent') {
       logAudit('push.preview.success', { subscription_id: parsedInput.id, date: todayStr });
       return { ok: true };
@@ -118,3 +119,4 @@ export const toggleSubscriptionAction = authActionClient
     logAudit('push.toggle', { subscription_id: parsedInput.id, enabled: parsedInput.enabled });
     revalidatePath('/settings/devices');
   });
+
