@@ -5,20 +5,7 @@ import { format } from 'date-fns';
 import { ArrowLeftIcon } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
-
-export const CATEGORIES = [
-  'auth',
-  'entry',
-  'tag',
-  'emotion',
-  'profile',
-  'intention',
-  'template',
-  'export',
-  'push',
-  'settings',
-  'ai',
-] as const;
+import { CATEGORIES } from './categories';
 
 const LIMIT = 50;
 
