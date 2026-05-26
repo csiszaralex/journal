@@ -1,9 +1,13 @@
+import { CATEGORIES } from '@/app/(app)/settings/audit-log/page';
 import { createId } from '@paralleldrive/cuid2';
 import { and, count, desc, like, or } from 'drizzle-orm';
 import { db } from '../client';
 import { auditLog } from '../schema';
 
-export function logAudit(event: string, metadata?: Record<string, unknown>): void {
+type Category = (typeof CATEGORIES)[number];
+type CategoryEvent = `${Category}.${string}`;
+
+export function logAudit(event: CategoryEvent, metadata?: Record<string, unknown>): void {
   db.insert(auditLog)
     .values({
       id: createId(),

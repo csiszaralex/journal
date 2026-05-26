@@ -24,6 +24,7 @@ export default function SettingsPage() {
         <SettingsCard emoji='🔔' label='Devices & notifications' href='/settings/devices' />
         <SettingsCard emoji='👤' label='Profil' href='/settings/profile' />
         <SettingsCard emoji='🏷️' label='Tags & emotions' href='/settings/tags' />
+        <SettingsCard emoji='📋' label='Audit log' href='/settings/audit-log' />
       </div>
 
       <section className='space-y-3'>
