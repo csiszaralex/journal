@@ -1,13 +1,13 @@
 import { createId } from '@paralleldrive/cuid2';
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../client';
 import {
   emotions,
   entries,
   entryQaPairs,
-  entryVersions,
   entryVersionEmotions,
+  entryVersions,
   entryVersionTags,
   tags,
 } from '../schema';
@@ -122,11 +122,7 @@ export function getEntryQAPairs(
     .all();
 }
 
-export function insertEntryQAPairs(
-  versionId: string,
-  pairs: QAPairInput[],
-  tx?: Tx,
-): void {
+export function insertEntryQAPairs(versionId: string, pairs: QAPairInput[], tx?: Tx): void {
   if (!pairs.length) return;
   const runner = tx ?? db;
   const now = Date.now();
@@ -155,7 +151,10 @@ export function getEntryByDate(dateISO: string): EntryWithVersion | null {
 }
 
 export class DuplicateDateError extends Error {
-  constructor(public readonly entryId: string, public readonly entryDate: string) {
+  constructor(
+    public readonly entryId: string,
+    public readonly entryDate: string,
+  ) {
     super(`Active entry already exists for ${entryDate}`);
     this.name = 'DuplicateDateError';
   }
@@ -216,7 +215,13 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
 
     if (input.emotion_ids?.length) {
       tx.insert(entryVersionEmotions)
-        .values(input.emotion_ids.map((emotion_id, index) => ({ version_id: versionId, emotion_id, position: index })))
+        .values(
+          input.emotion_ids.map((emotion_id, index) => ({
+            version_id: versionId,
+            emotion_id,
+            position: index,
+          })),
+        )
         .run();
     }
 
@@ -258,7 +263,13 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
 
     if (input.emotion_ids?.length) {
       tx.insert(entryVersionEmotions)
-        .values(input.emotion_ids.map((emotion_id, index) => ({ version_id: versionId, emotion_id, position: index })))
+        .values(
+          input.emotion_ids.map((emotion_id, index) => ({
+            version_id: versionId,
+            emotion_id,
+            position: index,
+          })),
+        )
         .run();
     }
 
@@ -705,6 +716,7 @@ export type CalendarDot = {
   entry_date: string;
   mood_score: number | null;
   emojis: string[];
+  emotionColors: string[];
 };
 
 export function getCalendarData(from: string, to: string): CalendarDot[] {
@@ -724,37 +736,68 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
     )
     .all();
 
-  const emojiRowSchema = z.object({
-    entry_date: z.string(),
-    emoji: z.string(),
-  });
-  const emojiRowsRaw = db.all(
-    sql`
-        SELECT ev.entry_date, em.emoji
-        FROM entries e
-        INNER JOIN entry_versions ev ON ev.id = e.current_version_id
-        INNER JOIN entry_version_emotions eve ON eve.version_id = ev.id
-        INNER JOIN emotions em ON em.id = eve.emotion_id
-        WHERE e.deleted_at IS NULL
-          AND ev.entry_date >= ${from}
-          AND ev.entry_date <= ${to}
-          AND em.emoji IS NOT NULL
-          AND em.emoji != ''
-        ORDER BY ev.entry_date, eve.position
-      `,
-  );
-  const emojiRows = z.array(emojiRowSchema).parse(emojiRowsRaw);
+  const emojiRows = db
+    .select({
+      entry_date: entryVersions.entry_date,
+      emoji: emotions.emoji,
+    })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
+    .innerJoin(entryVersionEmotions, eq(entryVersionEmotions.version_id, entryVersions.id))
+    .innerJoin(emotions, eq(emotions.id, entryVersionEmotions.emotion_id))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        gte(entryVersions.entry_date, from),
+        lte(entryVersions.entry_date, to),
+        isNotNull(emotions.emoji),
+        ne(emotions.emoji, ''),
+      ),
+    )
+    .orderBy(entryVersions.entry_date, entryVersionEmotions.position)
+    .all();
+
+  const colorRows = db
+    .select({
+      entry_date: entryVersions.entry_date,
+      color: emotions.color,
+    })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
+    .innerJoin(entryVersionEmotions, eq(entryVersionEmotions.version_id, entryVersions.id))
+    .innerJoin(emotions, eq(emotions.id, entryVersionEmotions.emotion_id))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        gte(entryVersions.entry_date, from),
+        lte(entryVersions.entry_date, to),
+        isNotNull(emotions.color),
+        ne(emotions.color, ''),
+      ),
+    )
+    .orderBy(entryVersions.entry_date, entryVersionEmotions.position)
+    .all();
 
   const emojisByDate = new Map<string, string[]>();
   for (const row of emojiRows) {
-    if (emojisByDate.has(row.entry_date)) continue;
+    if (!row.emoji || emojisByDate.has(row.entry_date)) continue;
     emojisByDate.set(row.entry_date, [row.emoji]);
+  }
+
+  const colorsByDate = new Map<string, string[]>();
+  for (const row of colorRows) {
+    const existing = colorsByDate.get(row.entry_date) ?? [];
+    if (existing.length < 3) {
+      existing.push(row.color);
+      colorsByDate.set(row.entry_date, existing);
+    }
   }
 
   return moodRows.map((r) => ({
     entry_date: r.entry_date,
     mood_score: r.mood_score,
     emojis: emojisByDate.get(r.entry_date) ?? [],
+    emotionColors: colorsByDate.get(r.entry_date) ?? [],
   }));
 }
 

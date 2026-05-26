@@ -57,10 +57,14 @@ export default async function CalendarPage({
 
   const dateMap = new Map<
     string,
-    { mood: number | null; emojis: string[] }
+    { mood: number | null; emojis: string[]; emotionColors: string[] }
   >();
   for (const d of calData) {
-    dateMap.set(d.entry_date, { mood: d.mood_score, emojis: d.emojis });
+    dateMap.set(d.entry_date, {
+      mood: d.mood_score,
+      emojis: d.emojis,
+      emotionColors: d.emotionColors,
+    });
   }
 
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -122,6 +126,7 @@ export default async function CalendarPage({
             const moodBg = data?.mood != null ? MOOD_BG[data.mood] : null;
             const moodText = data?.mood != null ? MOOD_TEXT[data.mood] : null;
             const emojis = data?.emojis ?? [];
+            const emotionColors = data?.emotionColors ?? [];
 
             return (
               <Link
@@ -156,10 +161,26 @@ export default async function CalendarPage({
                   {format(d, "d")}
                 </span>
 
-                {/* Primary emotion emoji */}
-                {emojis[0] && (
-                  <div className="emoji mt-auto flex items-end justify-center text-xl leading-none">
-                    <span aria-hidden>{emojis[0]}</span>
+                {/* Primary emoji + emotion color dots */}
+                {(emojis[0] || emotionColors.length > 0) && (
+                  <div className="mt-auto flex flex-col items-center gap-0.5">
+                    {emojis[0] && (
+                      <span className="emoji text-xl leading-none" aria-hidden>
+                        {emojis[0]}
+                      </span>
+                    )}
+                    {emotionColors.length > 0 && (
+                      <div className="flex gap-0.5">
+                        {emotionColors.map((color, i) => (
+                          <span
+                            key={`${color}-${i}`}
+                            aria-hidden="true"
+                            className="block size-1.5 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </Link>
