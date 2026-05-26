@@ -1,11 +1,12 @@
 export const dynamic = 'force-dynamic';
 
+import { listEntries } from '@/db/queries/entries';
+import { getProfileBio, listProfileQa } from '@/db/queries/profile';
+import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
+import { auth } from '@/lib/auth';
+import { formatInTimeZone } from 'date-fns-tz';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { formatInTimeZone } from 'date-fns-tz';
-import { auth } from '@/lib/auth';
-import { listEntries } from '@/db/queries/entries';
-import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 
 const requestSchema = z.object({
   todayText: z.string().max(4000).optional(),
@@ -75,6 +76,24 @@ function buildUserMessage(
   return `## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
 }
 
+function buildProfileContext(
+  bio: string,
+  qaItems: { question: string; answer: string | null }[],
+): string | null {
+  const answered = qaItems.filter((q) => q.answer && q.answer.trim().length > 0);
+  if (!bio.trim() && answered.length === 0) return null;
+
+  const lines: string[] = [
+    '[User context — use this to personalize questions and avoid asking things already known]',
+  ];
+  if (bio.trim()) lines.push(`Bio: "${bio.trim()}"`);
+  if (answered.length > 0) {
+    lines.push('Known facts:');
+    answered.forEach((q) => lines.push(`- Q: ${q.question} / A: ${q.answer}`));
+  }
+  return lines.join('\n');
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -127,7 +146,12 @@ export async function POST(req: NextRequest) {
         .map((p) => ({ question: p.question, answer: p.answer })),
     }));
 
-  const userMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);
+  const bio = getProfileBio();
+  const profileQa = listProfileQa();
+  const profileContext = buildProfileContext(bio, profileQa);
+
+  const baseUserMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);
+  const userMessage = profileContext ? `${profileContext}\n\n${baseUserMessage}` : baseUserMessage;
 
   // Update rate-limit timestamp BEFORE the API call so two near-simultaneous
   // requests can't both slip past the check.
