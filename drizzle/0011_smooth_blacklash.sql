@@ -1,0 +1,1 @@
+ALTER TABLE `entry_version_emotions` ADD `position` integer DEFAULT 0 NOT NULL;

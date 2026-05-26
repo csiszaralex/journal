@@ -105,6 +105,7 @@ export const entryVersionEmotions = sqliteTable(
     emotion_id: text("emotion_id")
       .notNull()
       .references(() => emotions.id),
+    position: integer("position").notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.version_id, t.emotion_id] }),
