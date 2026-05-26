@@ -7,6 +7,13 @@ import { SearchIcon, LoaderIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EntryCard } from "@/components/journal/EntryCard";
 import { searchEntriesAction } from "@/actions/search";
 
@@ -140,25 +147,37 @@ export function SearchView({
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Min mood</Label>
-          <select
-            value={moodMin}
-            onChange={(e) => setMoodMin(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          <Select
+            value={moodMin || "any"}
+            onValueChange={(v) => setMoodMin(!v || v === "any" ? "" : v)}
           >
-            <option value="">Any</option>
-            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any</SelectItem>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Max mood</Label>
-          <select
-            value={moodMax}
-            onChange={(e) => setMoodMax(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          <Select
+            value={moodMax || "any"}
+            onValueChange={(v) => setMoodMax(!v || v === "any" ? "" : v)}
           >
-            <option value="">Any</option>
-            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any</SelectItem>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -176,13 +195,9 @@ export function SearchView({
                 : `${entries.length} result${entries.length === 1 ? "" : "s"}`}
           </span>
           {hasFilters && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <Button variant="ghost" size="xs" onClick={clearAll}>
               Clear
-            </button>
+            </Button>
           )}
         </div>
       </div>

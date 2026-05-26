@@ -654,7 +654,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger
             type='button'
-            className='inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+            className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
           >
             <CalendarIcon className='size-3' />
             {state.entryDate}
@@ -717,10 +717,10 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
                 dispatch({ type: 'SET_MOOD', score: state.moodScore === s ? undefined : s })
               }
               className={cn(
-                'size-7 rounded-full border text-xs font-medium transition-all',
+                'size-7 cursor-pointer rounded-full border text-xs font-medium transition-all',
                 state.moodScore === s
                   ? SCORE_COLORS[s]
-                  : 'border-border text-muted-foreground hover:border-foreground/40',
+                  : 'border-border text-muted-foreground hover:bg-muted',
               )}
             >
               {s}
@@ -741,10 +741,10 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
                 dispatch({ type: 'SET_ENERGY', score: state.energyScore === s ? undefined : s })
               }
               className={cn(
-                'size-7 rounded-full border text-xs font-medium transition-all',
+                'size-7 cursor-pointer rounded-full border text-xs font-medium transition-all',
                 state.energyScore === s
                   ? SCORE_COLORS[s]
-                  : 'border-border text-muted-foreground hover:border-foreground/40',
+                  : 'border-border text-muted-foreground hover:bg-muted',
               )}
             >
               {s}

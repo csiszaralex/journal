@@ -29,6 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEFAULT_TAG_COLOR, getContrastTextColor } from "@/lib/color";
 
@@ -228,7 +229,7 @@ export function TaggablePicker({
         <PopoverTrigger
           type="button"
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             "w-fit"
           )}
         >
@@ -248,9 +249,10 @@ export function TaggablePicker({
               )}
               {trimmed && !hasExactMatch && suggestions.length === 0 && (
                 <CommandEmpty>
-                  <button
+                  <Button
                     type="button"
-                    className="flex w-full items-center gap-2 text-sm"
+                    variant="ghost"
+                    className="h-auto w-full justify-start px-1 py-0.5 text-sm font-normal"
                     onClick={() => {
                       toggle(trimmed);
                       setSearch("");
@@ -259,7 +261,7 @@ export function TaggablePicker({
                   >
                     <PlusIcon className="size-3.5" />
                     Create &quot;{trimmed}&quot;
-                  </button>
+                  </Button>
                 </CommandEmpty>
               )}
               {suggestions.length > 0 && (

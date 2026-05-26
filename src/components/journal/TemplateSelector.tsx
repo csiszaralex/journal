@@ -21,7 +21,7 @@ export function TemplateSelector({ templates, onSelect }: Props) {
     <DropdownMenu>
       <DropdownMenuTrigger
         type='button'
-        className='inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+        className='inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
       >
         <LayoutTemplateIcon className='size-3' />
         Template

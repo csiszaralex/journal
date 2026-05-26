@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { EntryTemplate } from '@/db/queries/templates';
+import { cn } from '@/lib/utils';
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { useActionState, useEffect, useState } from 'react';
 
@@ -46,11 +47,12 @@ function ScoreRow({
             key={s}
             type='button'
             onClick={() => onChange(value === s ? undefined : s)}
-            className={`size-6 rounded-full border text-xs font-medium transition-all ${
+            className={cn(
+              'size-6 cursor-pointer rounded-full border text-xs font-medium transition-all',
               value === s
                 ? SCORE_COLORS[s]
-                : 'border-border text-muted-foreground hover:border-foreground/40'
-            }`}
+                : 'border-border text-muted-foreground hover:bg-muted',
+            )}
           >
             {s}
           </button>

@@ -107,18 +107,22 @@ export function EntryQuestions({
             <div className='flex items-start justify-between gap-2'>
               <p className='text-sm text-muted-foreground'>{pair.question}</p>
               <div className='flex shrink-0 gap-0.5'>
-                <button
+                <Button
                   type='button'
+                  variant='ghost'
+                  size='icon-xs'
                   onClick={() => onRegenerateOne(idx)}
                   disabled={busy}
                   title='Másik kérdést kérek erre a helyre'
                   aria-label='Másik kérdést kérek erre a helyre'
-                  className='rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+                  className='text-muted-foreground/60'
                 >
                   <RefreshCw className='size-3' />
-                </button>
-                <button
+                </Button>
+                <Button
                   type='button'
+                  variant='ghost'
+                  size='icon-xs'
                   onClick={() => {
                     if (pair.answer.trim().length > 0) {
                       setDeleteConfirmIndex(idx);
@@ -129,10 +133,10 @@ export function EntryQuestions({
                   disabled={busy}
                   title='Kérdés törlése'
                   aria-label='Kérdés törlése'
-                  className='rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40'
+                  className='text-muted-foreground/60 hover:text-destructive'
                 >
                   <CircleMinus className='size-3' />
-                </button>
+                </Button>
               </div>
             </div>
             <Textarea

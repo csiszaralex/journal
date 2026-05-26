@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   updateSubscriptionAction,
   deleteSubscriptionAction,
   sendTestNotificationAction,
@@ -281,50 +288,65 @@ function SubscriptionCard({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Timezone</Label>
-          <select
+          <Select
             value={timezone}
-            onChange={(e) => {
-              setTimezone(e.target.value);
-              onUpdate({ timezone: e.target.value });
+            onValueChange={(v) => {
+              if (!v) return;
+              setTimezone(v);
+              onUpdate({ timezone: v });
             }}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONES.map((tz) => (
+                <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Notify hour</Label>
-          <select
-            value={hour}
-            onChange={(e) => {
-              const v = parseInt(e.target.value);
-              setHour(v);
-              onUpdate({ notify_hour: v });
+          <Select
+            value={String(hour)}
+            onValueChange={(v) => {
+              if (!v) return;
+              const n = parseInt(v, 10);
+              setHour(n);
+              onUpdate({ notify_hour: n });
             }}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            {Array.from({ length: 24 }, (_, i) => (
-              <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 24 }, (_, i) => (
+                <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Notify minute</Label>
-          <select
-            value={minute}
-            onChange={(e) => {
-              const v = parseInt(e.target.value);
-              setMinute(v);
-              onUpdate({ notify_minute: v });
+          <Select
+            value={String(minute)}
+            onValueChange={(v) => {
+              if (!v) return;
+              const n = parseInt(v, 10);
+              setMinute(n);
+              onUpdate({ notify_minute: n });
             }}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            {[0, 15, 30, 45].map((m) => (
-              <option key={m} value={m}>:{String(m).padStart(2, "0")}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[0, 15, 30, 45].map((m) => (
+                <SelectItem key={m} value={String(m)}>:{String(m).padStart(2, "0")}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

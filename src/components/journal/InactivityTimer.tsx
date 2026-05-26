@@ -1,6 +1,7 @@
 'use client';
 
 import { signOutInactiveAction } from '@/actions/auth';
+import { Button } from '@/components/ui/button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const TIMEOUT_MS = 30 * 60 * 1000;
@@ -76,18 +77,12 @@ export function InactivityTimer() {
           </p>
         </div>
         <div className='flex gap-2'>
-          <button
-            onClick={resetTimer}
-            className='flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90'
-          >
+          <Button onClick={resetTimer} size='sm' className='flex-1'>
             Stay logged in
-          </button>
-          <button
-            onClick={() => signOutInactiveAction()}
-            className='rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-          >
+          </Button>
+          <Button onClick={() => signOutInactiveAction()} size='sm' variant='ghost'>
             Sign out
-          </button>
+          </Button>
         </div>
       </div>
     </div>

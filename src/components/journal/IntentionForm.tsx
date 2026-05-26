@@ -62,7 +62,7 @@ export function IntentionForm({
             <PopoverTrigger
               type="button"
               disabled={pending}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
               <CalendarIcon className="size-3" />
               {dueDate || 'Dátum'}
@@ -79,15 +79,17 @@ export function IntentionForm({
             </PopoverContent>
           </Popover>
           {dueDate && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setDueDate('')}
               disabled={pending}
               aria-label="Dátum törlése"
-              className="ml-0.5 inline-flex h-7 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="ml-0.5"
             >
               <XIcon className="size-3" />
-            </button>
+            </Button>
           )}
         </div>
       )}

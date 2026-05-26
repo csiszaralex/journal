@@ -89,7 +89,10 @@ export function AppNav() {
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             render={
-              <button className='flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-medium text-muted-foreground' />
+              <Button
+                variant='ghost'
+                className='flex h-auto flex-1 shrink flex-col items-center gap-1 py-3 text-[10px] font-medium text-muted-foreground'
+              />
             }
           >
             <MoreHorizontalIcon className='size-5' />
@@ -117,13 +120,14 @@ export function AppNav() {
 
             <div className='mt-4 border-t border-border pt-4'>
               <form action={signOutAction}>
-                <button
+                <Button
                   type='submit'
-                  className='flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
+                  variant='ghost'
+                  className='w-full justify-start gap-3 rounded-xl px-3 py-3 text-sm font-medium'
                 >
                   <LogOutIcon className='size-5' />
                   Sign out
-                </button>
+                </Button>
               </form>
             </div>
           </SheetContent>

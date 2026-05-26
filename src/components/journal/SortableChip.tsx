@@ -2,7 +2,6 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { XIcon } from 'lucide-react';
 
 interface SortableChipProps {
   id: string;
@@ -32,7 +31,9 @@ export function SortableChip({ id, bg, fg, emoji, onRemove }: SortableChipProps)
     >
       <span
         {...listeners}
-        className='inline-flex cursor-grab items-center gap-1 py-0.5 pl-2 pr-1 active:cursor-grabbing'
+        onDoubleClick={onRemove}
+        title='Double-click to remove'
+        className='inline-flex cursor-grab items-center gap-1 px-2 py-0.5 active:cursor-grabbing'
       >
         {emoji && (
           <span className='emoji' aria-hidden>
@@ -41,14 +42,6 @@ export function SortableChip({ id, bg, fg, emoji, onRemove }: SortableChipProps)
         )}
         {id}
       </span>
-      <button
-        type='button'
-        onClick={onRemove}
-        aria-label={`Remove ${id}`}
-        className='inline-flex cursor-pointer items-center py-0.5 pr-1.5 opacity-70 transition-opacity hover:opacity-100'
-      >
-        <XIcon className='size-3' aria-hidden />
-      </button>
     </div>
   );
 }
