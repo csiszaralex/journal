@@ -106,7 +106,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax' as const,
-        maxAge: 90 * 24 * 60 * 60,
+        maxAge: 7 * 24 * 60 * 60,
       },
     },
   },
