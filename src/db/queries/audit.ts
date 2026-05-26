@@ -1,4 +1,4 @@
-import { CATEGORIES } from '@/app/(app)/settings/audit-log/page';
+import { CATEGORIES } from '@/app/(app)/settings/audit-log/categories';
 import { createId } from '@paralleldrive/cuid2';
 import { and, count, desc, like, or } from 'drizzle-orm';
 import { db } from '../client';
