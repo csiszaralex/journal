@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { logAudit } from '@/db/queries/audit';
 import { listEntries } from '@/db/queries/entries';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
@@ -194,18 +195,32 @@ export async function POST(req: NextRequest) {
     const toolUse = message.content.find((b) => b.type === 'tool_use');
     if (!toolUse) {
       console.error('[ai/questions] no tool_use block in response');
+      logAudit('ai.questions', { model: QUESTIONS_MODEL, success: false, error: 'no_tool_use' });
       return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
     }
 
     const validated = toolResponseSchema.safeParse(toolUse.input);
     if (!validated.success) {
       console.error('[ai/questions] tool_use input failed validation', validated.error);
+      logAudit('ai.questions', {
+        model: QUESTIONS_MODEL,
+        success: false,
+        error: 'validation_failed',
+      });
       return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
     }
 
+    logAudit('ai.questions', {
+      model: QUESTIONS_MODEL,
+      input_tokens: message.usage.input_tokens,
+      output_tokens: message.usage.output_tokens,
+      count,
+      success: true,
+    });
     return NextResponse.json({ questions: validated.data.questions });
   } catch (err) {
     console.error('[ai/questions]', err);
+    logAudit('ai.questions', { model: QUESTIONS_MODEL, success: false, error: 'exception' });
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

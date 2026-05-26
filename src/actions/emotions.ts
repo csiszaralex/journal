@@ -1,15 +1,16 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { logAudit } from '@/db/queries/audit';
 import {
   deleteEmotion,
   EmotionNameConflictError,
   suggestEmotions,
   updateEmotion,
 } from '@/db/queries/emotions';
-import { authActionClient } from '@/lib/safe-action';
 import { HEX_COLOR_REGEX } from '@/lib/color';
+import { authActionClient } from '@/lib/safe-action';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 type UpdateEmotionResult = { ok: true } | { ok: false; error: string };
 
@@ -32,6 +33,7 @@ export const updateEmotionAction = authActionClient
       updateEmotion(parsedInput);
       revalidatePath('/settings/tags');
       revalidatePath('/');
+      logAudit('emotion.update', { id: parsedInput.id, name: parsedInput.name });
       return { ok: true };
     } catch (err) {
       if (err instanceof EmotionNameConflictError) {
@@ -50,6 +52,7 @@ export const deleteEmotionAction = authActionClient
     deleteEmotion(parsedInput.id);
     revalidatePath('/settings/tags');
     revalidatePath('/');
+    logAudit('emotion.delete', { id: parsedInput.id });
     return { ok: true };
   });
 

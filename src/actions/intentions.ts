@@ -1,18 +1,19 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { logAudit } from '@/db/queries/audit';
+import { getTodayEntryId } from '@/db/queries/entries';
 import {
-  createIntention,
-  updateIntention,
   completeIntention,
+  createIntention,
+  deleteIntention,
   dropIntention,
   reopenIntention,
-  deleteIntention,
+  updateIntention,
 } from '@/db/queries/intentions';
-import { getTodayEntryId } from '@/db/queries/entries';
-import { authActionClient } from '@/lib/safe-action';
 import { todayInAppTZ } from '@/lib/date';
+import { authActionClient } from '@/lib/safe-action';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -37,6 +38,7 @@ export const createIntentionAction = authActionClient
       entry_id: parsedInput.entry_id ?? null,
     });
     revalidateAll(parsedInput.entry_id ?? null);
+    logAudit('intention.create', { id: created.id });
     return { ok: true as const, id: created.id };
   });
 
@@ -51,6 +53,7 @@ export const updateIntentionAction = authActionClient
   .action(async ({ parsedInput }) => {
     updateIntention(parsedInput);
     revalidateAll();
+    logAudit('intention.update', { id: parsedInput.id });
     return { ok: true as const };
   });
 
@@ -69,6 +72,7 @@ export const completeIntentionAction = authActionClient
     }
     completeIntention({ id: parsedInput.id, completed_in_entry_id });
     revalidateAll(completed_in_entry_id);
+    logAudit('intention.complete', { id: parsedInput.id });
     return { ok: true as const, linked_entry_id: completed_in_entry_id };
   });
 
@@ -77,6 +81,7 @@ export const dropIntentionAction = authActionClient
   .action(async ({ parsedInput }) => {
     dropIntention(parsedInput.id);
     revalidateAll();
+    logAudit('intention.drop', { id: parsedInput.id });
     return { ok: true as const };
   });
 
@@ -85,6 +90,7 @@ export const reopenIntentionAction = authActionClient
   .action(async ({ parsedInput }) => {
     reopenIntention(parsedInput.id);
     revalidateAll();
+    logAudit('intention.reopen', { id: parsedInput.id });
     return { ok: true as const };
   });
 
@@ -93,5 +99,7 @@ export const deleteIntentionAction = authActionClient
   .action(async ({ parsedInput }) => {
     deleteIntention(parsedInput.id);
     revalidateAll();
+    logAudit('intention.delete', { id: parsedInput.id });
     return { ok: true as const };
   });
+

@@ -1,5 +1,6 @@
 'use server';
 
+import { logAudit } from '@/db/queries/audit';
 import { createTemplate, deleteTemplate, updateTemplate } from '@/db/queries/templates';
 import { requireUserId } from '@/lib/auth';
 import { templateSchema } from '@/lib/validation';
@@ -26,8 +27,9 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
     };
   }
 
-  createTemplate(parsed.data);
+  const created = createTemplate(parsed.data);
   revalidatePath('/settings');
+  logAudit('template.create', { id: created.id, name: created.name });
   return { status: 'success' as const };
 }
 
@@ -51,6 +53,7 @@ export async function updateTemplateAction(_: unknown, formData: FormData) {
   const { id, ...data } = parsed.data;
   updateTemplate(id, data);
   revalidatePath('/settings');
+  logAudit('template.update', { id });
   return { status: 'success' as const };
 }
 
@@ -58,5 +61,6 @@ export async function deleteTemplateAction(id: string) {
   await requireUserId();
   deleteTemplate(z.string().min(1).parse(id));
   revalidatePath('/settings');
+  logAudit('template.delete', { id });
 }
 

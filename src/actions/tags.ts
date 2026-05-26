@@ -1,15 +1,11 @@
 'use server';
 
+import { logAudit } from '@/db/queries/audit';
+import { deleteTag, suggestTags, TagNameConflictError, updateTag } from '@/db/queries/tags';
+import { HEX_COLOR_REGEX } from '@/lib/color';
+import { authActionClient } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import {
-  deleteTag,
-  suggestTags,
-  TagNameConflictError,
-  updateTag,
-} from '@/db/queries/tags';
-import { authActionClient } from '@/lib/safe-action';
-import { HEX_COLOR_REGEX } from '@/lib/color';
 
 type UpdateTagResult = { ok: true } | { ok: false; error: string };
 
@@ -31,6 +27,7 @@ export const updateTagAction = authActionClient
       updateTag(parsedInput);
       revalidatePath('/settings/tags');
       revalidatePath('/');
+      logAudit('tag.update', { id: parsedInput.id, name: parsedInput.name });
       return { ok: true };
     } catch (err) {
       if (err instanceof TagNameConflictError) {
@@ -49,5 +46,7 @@ export const deleteTagAction = authActionClient
     deleteTag(parsedInput.id);
     revalidatePath('/settings/tags');
     revalidatePath('/');
+    logAudit('tag.delete', { id: parsedInput.id });
     return { ok: true };
   });
+

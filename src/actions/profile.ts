@@ -1,5 +1,6 @@
 'use server';
 
+import { logAudit } from '@/db/queries/audit';
 import {
   deleteProfileQaItem,
   insertProfileQaItems,
@@ -15,6 +16,7 @@ export const setProfileBioAction = authActionClient
   .inputSchema(z.object({ bio: z.string().max(10000) }))
   .action(async ({ parsedInput }) => {
     setProfileBio(parsedInput.bio);
+    logAudit('profile.bio.update');
     revalidatePath('/settings/profile');
   });
 
@@ -26,6 +28,7 @@ export const appendProfileQaAction = authActionClient
   )
   .action(async ({ parsedInput }) => {
     insertProfileQaItems(parsedInput.questions);
+    logAudit('profile.qa.create', { count: parsedInput.questions.length });
     revalidatePath('/settings/profile');
     return listProfileQa();
   });
@@ -39,6 +42,7 @@ export const updateProfileQaAnswerAction = authActionClient
   )
   .action(async ({ parsedInput }) => {
     updateProfileQaAnswer(parsedInput.id, parsedInput.answer);
+    logAudit('profile.qa.update', { id: parsedInput.id });
     revalidatePath('/settings/profile');
   });
 
@@ -46,6 +50,7 @@ export const deleteProfileQaAction = authActionClient
   .inputSchema(z.object({ id: z.number().int().positive() }))
   .action(async ({ parsedInput }) => {
     deleteProfileQaItem(parsedInput.id);
+    logAudit('profile.qa.delete', { id: parsedInput.id });
     revalidatePath('/settings/profile');
   });
 

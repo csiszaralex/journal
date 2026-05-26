@@ -1,5 +1,6 @@
 'use server';
 
+import { logAudit } from '@/db/queries/audit';
 import { setRegistrationEnabled } from '@/db/queries/settings';
 import { authActionClient } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
@@ -10,4 +11,6 @@ export const setRegistrationEnabledAction = authActionClient
   .action(async ({ parsedInput }) => {
     setRegistrationEnabled(parsedInput.enabled);
     revalidatePath('/settings');
+    logAudit('settings.registration.toggle', { enabled: parsedInput.enabled });
   });
+
