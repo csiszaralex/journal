@@ -3,6 +3,7 @@ import { InactivityTimer } from '@/components/journal/InactivityTimer';
 import { KeyboardShortcuts } from '@/components/journal/KeyboardShortcuts';
 import { OfflineIndicator } from '@/components/journal/OfflineIndicator';
 import { QueryProvider } from '@/components/query-provider';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
@@ -12,15 +13,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <QueryProvider>
-      <AppNav />
-      <div className='flex-1'>
-        <div className='mx-auto max-w-2xl space-y-6 px-4 py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4'>
-          {children}
+      <TooltipProvider>
+        <AppNav />
+        <div className='flex-1'>
+          <div className='mx-auto max-w-2xl space-y-6 px-4 py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4'>
+            {children}
+          </div>
         </div>
-      </div>
-      <KeyboardShortcuts />
-      <InactivityTimer />
-      <OfflineIndicator />
+        <KeyboardShortcuts />
+        <InactivityTimer />
+        <OfflineIndicator />
+      </TooltipProvider>
     </QueryProvider>
   );
 }

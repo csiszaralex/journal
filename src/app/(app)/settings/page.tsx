@@ -1,125 +1,54 @@
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import Link from "next/link";
-import { ExportButtons } from "@/components/journal/ExportButtons";
-import { TemplatesManager } from "@/components/journal/TemplatesManager";
-import { ThemeToggle } from "@/components/journal/ThemeToggle";
-import { RegistrationToggle } from "@/components/journal/RegistrationToggle";
-import { listTemplates } from "@/db/queries/templates";
-import { getRegistrationEnabled } from "@/db/queries/settings";
+import { ExportButtons } from '@/components/journal/ExportButtons';
+import { RegistrationToggle } from '@/components/journal/RegistrationToggle';
+import { TemplatesManager } from '@/components/journal/TemplatesManager';
+import { InstallAppCollapsible } from '@/components/settings/InstallAppCollapsible';
+import { KeyboardShortcutsCollapsible } from '@/components/settings/KeyboardShortcutsCollapsible';
+import { SettingsCard } from '@/components/settings/SettingsCard';
+import { ThemeCard } from '@/components/settings/ThemeCard';
+import { getRegistrationEnabled } from '@/db/queries/settings';
+import { listTemplates } from '@/db/queries/templates';
 
 export default function SettingsPage() {
   const templates = listTemplates();
   const registrationEnabled = getRegistrationEnabled();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-10 px-4 py-8">
-      <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+    <div className='mx-auto max-w-2xl space-y-10 px-4 py-8'>
+      <h1 className='text-xl font-semibold tracking-tight'>Settings</h1>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Appearance</h2>
-        <p className="text-sm text-muted-foreground">
-          Toggle between dark and light mode. Your preference is saved in the browser.
-        </p>
-        <ThemeToggle />
-      </section>
+      <div className='grid grid-cols-3 sm:grid-cols-6 gap-2'>
+        <ThemeCard />
+        <SettingsCard emoji='🔑' label='Sessions & passkeys' href='/settings/sessions' />
+        <SettingsCard emoji='🔔' label='Devices & notifications' href='/settings/devices' />
+        <SettingsCard emoji='👤' label='Profil' href='/settings/profile' />
+        <SettingsCard emoji='🏷️' label='Tags & emotions' href='/settings/tags' />
+      </div>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Sessions &amp; passkeys</h2>
-        <p className="text-sm text-muted-foreground">
-          View, rename, or revoke registered passkeys and active sign-in sessions.
-        </p>
-        <Link
-          href="/settings/sessions"
-          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
-        >
-          Manage sessions →
-        </Link>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Devices &amp; notifications</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage push notification subscriptions on your devices.
-        </p>
-        <Link
-          href="/settings/devices"
-          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
-        >
-          Manage devices →
-        </Link>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Install app</h2>
-        <p className="text-sm text-muted-foreground">
-          Journal can be installed as a PWA for offline access and push notifications.
-        </p>
-        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">iOS (Safari)</p>
-          <p>Tap the <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">Share</span> button → <em>Add to Home Screen</em>. Push notifications require iOS 16.4 or later and installation to Home Screen first.</p>
-          <p className="font-medium text-foreground pt-1">Android / Desktop (Chrome)</p>
-          <p>Tap the install icon in the address bar, or open the browser menu and choose <em>Install app</em>.</p>
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Rólam</h2>
-        <p className="text-sm text-muted-foreground">
-          Adj meg személyes kontextust, hogy az AI személyre szabottabb kérdéseket tudjon feltenni.
-        </p>
-        <Link
-          href="/settings/profile"
-          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
-        >
-          Profil szerkesztése →
-        </Link>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Tags &amp; emotions</h2>
-        <p className="text-sm text-muted-foreground">
-          Szerkeszd a tag-ek és érzelmek megjelenített nevét, normalizált nevét és színét.
-        </p>
-        <Link
-          href="/settings/tags"
-          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
-        >
-          Manage tags &amp; emotions →
-        </Link>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Entry templates</h2>
-        <p className="text-sm text-muted-foreground">
-          Templates pre-fill the entry form with default text, mood, and energy. Pick one when creating a new entry.
-        </p>
+      <section className='space-y-3'>
+        <h2 className='text-sm font-medium'>Entry templates</h2>
         <TemplatesManager templates={templates} />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Keyboard shortcuts</h2>
-        <p className="text-sm text-muted-foreground">
-          Press <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">?</kbd> anywhere to open the shortcuts reference. Single-letter shortcuts: <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">h</kbd> Today · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">c</kbd> Calendar · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">s</kbd> Search · <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">t</kbd> Stats. Shortcuts are disabled when typing in a field.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Registration</h2>
-        <p className="text-sm text-muted-foreground">
-          Control whether new passkey registrations are accepted. Disable this once you&apos;ve set up your account.
-        </p>
+      <section className='space-y-3'>
+        <h2 className='text-sm font-medium'>Registration</h2>
         <RegistrationToggle enabled={registrationEnabled} />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Export data</h2>
-        <p className="text-sm text-muted-foreground">
-          Download all your journal entries. JSON includes full version history
-          and metadata; Markdown is human-readable with YAML frontmatter.
-        </p>
+      <section>
+        <KeyboardShortcutsCollapsible />
+      </section>
+
+      <section>
+        <InstallAppCollapsible />
+      </section>
+
+      <section className='space-y-3'>
+        <h2 className='text-sm font-medium'>Export data</h2>
         <ExportButtons />
       </section>
     </div>
   );
 }
+
