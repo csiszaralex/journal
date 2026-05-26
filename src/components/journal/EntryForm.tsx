@@ -769,15 +769,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       <div className='flex flex-col gap-1.5'>
         <div className='flex items-center justify-between'>
           <Label className='text-xs text-muted-foreground'>Emotions</Label>
-          <button
+          <Button
             type='button'
+            variant='ghost'
+            size='xs'
             onClick={handleGenerateEmotions}
             disabled={isGeneratingEmotions}
-            className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
+            className='text-muted-foreground'
           >
             <Sparkles className='size-3' />
             {isGeneratingEmotions ? 'Generálás…' : 'AI javaslat'}
-          </button>
+          </Button>
         </div>
         <EmotionCombobox
           key={state.emotionKey}

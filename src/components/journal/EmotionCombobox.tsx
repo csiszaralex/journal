@@ -30,6 +30,7 @@ export function EmotionCombobox({
       triggerLabel="Add emotion"
       TriggerIcon={SmileIcon}
       emptyMessage="No emotions yet."
+      sortable
     />
   );
 }

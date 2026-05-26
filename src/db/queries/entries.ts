@@ -103,6 +103,7 @@ function getEntryEmotions(versionId: string): EmotionSummary[] {
     .from(entryVersionEmotions)
     .innerJoin(emotions, eq(entryVersionEmotions.emotion_id, emotions.id))
     .where(eq(entryVersionEmotions.version_id, versionId))
+    .orderBy(entryVersionEmotions.position)
     .all();
 }
 
@@ -215,7 +216,7 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
 
     if (input.emotion_ids?.length) {
       tx.insert(entryVersionEmotions)
-        .values(input.emotion_ids.map((emotion_id) => ({ version_id: versionId, emotion_id })))
+        .values(input.emotion_ids.map((emotion_id, index) => ({ version_id: versionId, emotion_id, position: index })))
         .run();
     }
 
@@ -257,7 +258,7 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
 
     if (input.emotion_ids?.length) {
       tx.insert(entryVersionEmotions)
-        .values(input.emotion_ids.map((emotion_id) => ({ version_id: versionId, emotion_id })))
+        .values(input.emotion_ids.map((emotion_id, index) => ({ version_id: versionId, emotion_id, position: index })))
         .run();
     }
 
@@ -739,7 +740,7 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
           AND ev.entry_date <= ${to}
           AND em.emoji IS NOT NULL
           AND em.emoji != ''
-        ORDER BY ev.entry_date, eve.rowid
+        ORDER BY ev.entry_date, eve.position
       `,
   );
   const emojiRows = z.array(emojiRowSchema).parse(emojiRowsRaw);

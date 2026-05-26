@@ -3,6 +3,20 @@
 import { useState, useEffect, useRef, useCallback, type ComponentType } from "react";
 import { XIcon, PlusIcon } from "lucide-react";
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { SortableChip } from "./SortableChip";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -39,7 +53,9 @@ interface TaggablePickerProps {
   TriggerIcon: ComponentType<{ className?: string }>;
   searchPlaceholder?: string;
   emptyMessage?: string;
+  sortable?: boolean;
 }
+
 
 export function TaggablePicker({
   name,
@@ -52,6 +68,7 @@ export function TaggablePicker({
   TriggerIcon,
   searchPlaceholder = "Search or create…",
   emptyMessage = "No items yet.",
+  sortable = false,
 }: TaggablePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -64,6 +81,10 @@ export function TaggablePicker({
     () => initialEmojis ?? {},
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
 
   const mergeMetadata = useCallback((items: TaggableItem[]) => {
     setColorByName((prev) => {
@@ -137,37 +158,70 @@ export function TaggablePicker({
     [selected, onValueChange]
   );
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = selected.indexOf(active.id as string);
+      const newIndex = selected.indexOf(over.id as string);
+      const newOrder = arrayMove(selected, oldIndex, newIndex);
+      setSelected(newOrder);
+      onValueChange?.(newOrder);
+    }
+  }
+
   const trimmed = search.trim();
   const hasExactMatch = suggestions.some(
     (s) => s.display_name.toLowerCase() === trimmed.toLowerCase()
+  );
+
+  const chips = selected.length > 0 && (
+    <div className="flex flex-wrap gap-1">
+      {selected.map((item) => {
+        const bg = colorByName[item] ?? DEFAULT_TAG_COLOR;
+        const fg = getContrastTextColor(bg);
+        const emoji = emojiByName[item];
+        if (sortable) {
+          return (
+            <SortableChip
+              key={item}
+              id={item}
+              bg={bg}
+              fg={fg}
+              emoji={emoji}
+              onRemove={(e) => removeItem(e, item)}
+            />
+          );
+        }
+        return (
+          <button
+            key={item}
+            type="button"
+            onClick={(e) => removeItem(e, item)}
+            aria-label={`Remove ${item}`}
+            className="inline-flex cursor-pointer select-none items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
+            style={{ backgroundColor: bg, color: fg }}
+          >
+            {emoji && <span className="emoji" aria-hidden>{emoji}</span>}
+            {item}
+            <XIcon className="size-3 opacity-70" aria-hidden />
+          </button>
+        );
+      })}
+    </div>
   );
 
   return (
     <div className="flex flex-col gap-2">
       <input type="hidden" name={name} value={JSON.stringify(selected)} />
 
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {selected.map((item) => {
-            const bg = colorByName[item] ?? DEFAULT_TAG_COLOR;
-            const fg = getContrastTextColor(bg);
-            const emoji = emojiByName[item];
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={(e) => removeItem(e, item)}
-                aria-label={`Remove ${item}`}
-                className="inline-flex cursor-pointer select-none items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
-                style={{ backgroundColor: bg, color: fg }}
-              >
-                {emoji && <span className="emoji" aria-hidden>{emoji}</span>}
-                {item}
-                <XIcon className="size-3 opacity-70" aria-hidden />
-              </button>
-            );
-          })}
-        </div>
+      {sortable && selected.length > 0 ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={selected} strategy={horizontalListSortingStrategy}>
+            {chips}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        chips
       )}
 
       <Popover open={open} onOpenChange={setOpen}>
