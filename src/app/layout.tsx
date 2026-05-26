@@ -14,14 +14,16 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const appTitle = process.env.NODE_ENV === 'development' ? '◆ Journal' : 'Journal';
+
 export const metadata: Metadata = {
-  title: 'Journal',
+  title: appTitle,
   description: 'Your private journal',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Journal',
+    title: appTitle,
   },
 };
 
