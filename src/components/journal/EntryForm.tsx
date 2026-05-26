@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon, HistoryIcon } from 'lucide-react';
+import { CalendarIcon, HistoryIcon, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useReducer, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -67,6 +67,7 @@ type FormAction =
   | { type: 'SET_ENERGY'; score: number | undefined }
   | { type: 'SET_TAGS'; tags: string[] }
   | { type: 'SET_EMOTIONS'; emotions: string[] }
+  | { type: 'EMOTIONS_AI_ADD'; newEmotions: string[] }
   | { type: 'RESET'; todayStr: string }
   | { type: 'APPLY_TEMPLATE'; template: EntryTemplate }
   | {
@@ -106,6 +107,16 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, tags: action.tags };
     case 'SET_EMOTIONS':
       return { ...state, emotions: action.emotions };
+    case 'EMOTIONS_AI_ADD': {
+      const existing = new Set(state.emotions.map((e) => e.toLowerCase()));
+      const toAdd = action.newEmotions.filter((e) => !existing.has(e.toLowerCase()));
+      if (toAdd.length === 0) return state;
+      return {
+        ...state,
+        emotions: [...state.emotions, ...toAdd],
+        emotionKey: state.emotionKey + 1,
+      };
+    }
     case 'RESET':
       return {
         entryDate: action.todayStr,
@@ -223,6 +234,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  const [isGeneratingEmotions, setIsGeneratingEmotions] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
@@ -350,6 +362,37 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
   }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.emotions, state.qaPairs, isEdit, todayStr]);
+
+  async function handleGenerateEmotions() {
+    setIsGeneratingEmotions(true);
+    try {
+      const res = await fetch('/api/ai/emotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentEmotions: state.emotions,
+          entryContent: state.textValue.trim() || undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { emotions?: string[]; error?: string }
+        | null;
+      if (!res.ok || !data) {
+        toast.error(data?.error ?? 'Hálózati hiba történt');
+        return;
+      }
+      if (!data.emotions || !Array.isArray(data.emotions)) {
+        toast.error(data?.error ?? 'Hálózati hiba történt');
+        return;
+      }
+      const capitalized = data.emotions.map((e) => e.charAt(0).toUpperCase() + e.slice(1));
+      dispatch({ type: 'EMOTIONS_AI_ADD', newEmotions: capitalized });
+    } catch {
+      toast.error('Hálózati hiba történt');
+    } finally {
+      setIsGeneratingEmotions(false);
+    }
+  }
 
   async function handleFetchQuestions(opts?: { existingQuestions?: string[] }) {
     dispatch({ type: 'QA_REQUEST_START' });
@@ -724,7 +767,18 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
 
       {/* Emotions */}
       <div className='flex flex-col gap-1.5'>
-        <Label className='text-xs text-muted-foreground'>Emotions</Label>
+        <div className='flex items-center justify-between'>
+          <Label className='text-xs text-muted-foreground'>Emotions</Label>
+          <button
+            type='button'
+            onClick={handleGenerateEmotions}
+            disabled={isGeneratingEmotions}
+            className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
+          >
+            <Sparkles className='size-3' />
+            {isGeneratingEmotions ? 'Generálás…' : 'AI javaslat'}
+          </button>
+        </div>
         <EmotionCombobox
           key={state.emotionKey}
           name='emotions'
