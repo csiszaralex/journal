@@ -64,6 +64,19 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-medium">Rólam</h2>
+        <p className="text-sm text-muted-foreground">
+          Adj meg személyes kontextust, hogy az AI személyre szabottabb kérdéseket tudjon feltenni.
+        </p>
+        <Link
+          href="/settings/profile"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        >
+          Profil szerkesztése →
+        </Link>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-medium">Tags &amp; emotions</h2>
         <p className="text-sm text-muted-foreground">
           Szerkeszd a tag-ek és érzelmek megjelenített nevét, normalizált nevét és színét.
