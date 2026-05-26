@@ -115,7 +115,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
           <Input
             value={emoji}
             onChange={(e) => setEmoji(e.target.value)}
-            placeholder="🙂"
+            placeholder=""
             maxLength={10}
             aria-label="Emoji"
             className="emoji h-8 w-14 text-center text-base"
