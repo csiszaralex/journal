@@ -32,6 +32,7 @@ import { EmotionCombobox } from './EmotionCombobox';
 import { TemplateSelector } from './TemplateSelector';
 import { EntryQuestions, type QaPair } from './EntryQuestions';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
+import { suggestEmotionsAction } from '@/actions/emotions';
 
 
 const SCORE_COLORS: Record<number, string> = {
@@ -242,13 +243,16 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const initialTagColors = Object.fromEntries(
     (entry?.version.tags ?? []).map((t) => [t.display_name, t.color]),
   );
-  const initialEmotionColors = Object.fromEntries(
-    (entry?.version.emotions ?? []).map((e) => [e.display_name, e.color]),
+  const [emotionColorMap, setEmotionColorMap] = useState<Record<string, string>>(
+    () => Object.fromEntries((entry?.version.emotions ?? []).map((e) => [e.display_name, e.color])),
   );
-  const initialEmotionEmojis = Object.fromEntries(
-    (entry?.version.emotions ?? [])
-      .filter((e): e is typeof e & { emoji: string } => Boolean(e.emoji))
-      .map((e) => [e.display_name, e.emoji]),
+  const [emotionEmojiMap, setEmotionEmojiMap] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        (entry?.version.emotions ?? [])
+          .filter((e): e is typeof e & { emoji: string } => Boolean(e.emoji))
+          .map((e) => [e.display_name, e.emoji]),
+      ),
   );
 
   const [state, dispatch] = useReducer(formReducer, {
@@ -386,6 +390,22 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         return;
       }
       const capitalized = data.emotions.map((e) => e.charAt(0).toUpperCase() + e.slice(1));
+
+      // Fetch color/emoji metadata for AI-suggested emotions so chips render with color immediately
+      const fetched = await Promise.all(capitalized.map((name) => suggestEmotionsAction({ prefix: name })));
+      const newColors: Record<string, string> = {};
+      const newEmojis: Record<string, string> = {};
+      for (let i = 0; i < capitalized.length; i++) {
+        const items = fetched[i]?.data ?? [];
+        const match = items.find((e) => e.display_name.toLowerCase() === capitalized[i].toLowerCase());
+        if (match) {
+          newColors[capitalized[i]] = match.color;
+          if (match.emoji) newEmojis[capitalized[i]] = match.emoji;
+        }
+      }
+      if (Object.keys(newColors).length > 0) setEmotionColorMap((prev) => ({ ...prev, ...newColors }));
+      if (Object.keys(newEmojis).length > 0) setEmotionEmojiMap((prev) => ({ ...prev, ...newEmojis }));
+
       dispatch({ type: 'EMOTIONS_AI_ADD', newEmotions: capitalized });
     } catch {
       toast.error('Hálózati hiba történt');
@@ -785,8 +805,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
           key={state.emotionKey}
           name='emotions'
           defaultValue={state.emotions}
-          initialColors={initialEmotionColors}
-          initialEmojis={initialEmotionEmojis}
+          initialColors={emotionColorMap}
+          initialEmojis={emotionEmojiMap}
           onValueChange={(emotions) => dispatch({ type: 'SET_EMOTIONS', emotions })}
         />
       </div>
