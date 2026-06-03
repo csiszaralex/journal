@@ -20,8 +20,8 @@ import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
-import { format } from 'date-fns';
-import { CalendarIcon, HistoryIcon, Sparkles } from 'lucide-react';
+import { format, addDays } from 'date-fns';
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, HistoryIcon, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useReducer, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -647,6 +647,13 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
 
   const calendarDate = new Date(state.entryDate + 'T00:00:00');
 
+  // Shift the entry date by ±1 day. Navigates the same way picking a day in the
+  // calendar does, so the server loads any existing entry for the new date.
+  function shiftDate(days: number) {
+    const next = format(addDays(calendarDate, days), 'yyyy-MM-dd');
+    router.push(`/?date=${next}`);
+  }
+
   return (
     <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
       {/* Header: label + version + template picker + date picker */}
@@ -671,30 +678,49 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
             />
           )}
         </div>
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-          <PopoverTrigger
+        <div className='flex items-center gap-0.5'>
+          <button
             type='button'
-            className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+            onClick={() => shiftDate(-1)}
+            aria-label='Előző nap'
+            className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
           >
-            <CalendarIcon className='size-3' />
-            {state.entryDate}
-          </PopoverTrigger>
-          <PopoverContent className='w-auto p-0' align='end'>
-            <Calendar
-              mode='single'
-              selected={calendarDate}
-              onSelect={(day) => {
-                if (day) {
-                  const dateStr = format(day, 'yyyy-MM-dd');
-                  setCalendarOpen(false);
-                  // Navigate to the chosen day so the server can load any existing
-                  // entry for that date into the form (or render an empty new-entry form).
-                  router.push(`/?date=${dateStr}`);
-                }
-              }}
-            />
-          </PopoverContent>
-        </Popover>
+            <ChevronLeftIcon className='size-4' />
+          </button>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger
+              type='button'
+              className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+            >
+              <CalendarIcon className='size-3' />
+              {state.entryDate}
+            </PopoverTrigger>
+            <PopoverContent className='w-auto p-0' align='end'>
+              <Calendar
+                mode='single'
+                selected={calendarDate}
+                defaultMonth={calendarDate}
+                onSelect={(day) => {
+                  if (day) {
+                    const dateStr = format(day, 'yyyy-MM-dd');
+                    setCalendarOpen(false);
+                    // Navigate to the chosen day so the server can load any existing
+                    // entry for that date into the form (or render an empty new-entry form).
+                    router.push(`/?date=${dateStr}`);
+                  }
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+          <button
+            type='button'
+            onClick={() => shiftDate(1)}
+            aria-label='Következő nap'
+            className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+          >
+            <ChevronRightIcon className='size-4' />
+          </button>
+        </div>
       </div>
 
       {/* Textarea */}

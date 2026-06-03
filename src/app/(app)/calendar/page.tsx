@@ -1,59 +1,53 @@
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import Link from "next/link";
+import { EntryCard } from '@/components/journal/EntryCard';
+import { MonthSwipe } from '@/components/journal/MonthSwipe';
+import { Button } from '@/components/ui/button';
+import { getCalendarData, listEntries } from '@/db/queries/entries';
+import { cn } from '@/lib/utils';
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  getDay,
   addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  getDay,
+  startOfMonth,
   subMonths,
-} from "date-fns";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
-import { getCalendarData, listEntries } from "@/db/queries/entries";
-import { EntryCard } from "@/components/journal/EntryCard";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+} from 'date-fns';
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
+import Link from 'next/link';
 
 type SearchParams = Promise<{ month?: string; day?: string }>;
 
 const MOOD_BG: Record<number, string> = {
-  1: "bg-rose-200 dark:bg-rose-300",
-  2: "bg-orange-200 dark:bg-orange-300",
-  3: "bg-amber-200 dark:bg-amber-300",
-  4: "bg-lime-200 dark:bg-lime-300",
-  5: "bg-emerald-200 dark:bg-emerald-300",
+  1: 'bg-rose-200 dark:bg-rose-300',
+  2: 'bg-orange-200 dark:bg-orange-300',
+  3: 'bg-amber-200 dark:bg-amber-300',
+  4: 'bg-lime-200 dark:bg-lime-300',
+  5: 'bg-emerald-200 dark:bg-emerald-300',
 };
 
 const MOOD_TEXT: Record<number, string> = {
-  1: "text-rose-950",
-  2: "text-orange-950",
-  3: "text-amber-950",
-  4: "text-lime-950",
-  5: "text-emerald-950",
+  1: 'text-rose-950',
+  2: 'text-orange-950',
+  3: 'text-amber-950',
+  4: 'text-lime-950',
+  5: 'text-emerald-950',
 };
 
-export default async function CalendarPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default async function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
   const { month, day } = await searchParams;
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = format(new Date(), 'yyyy-MM-dd');
 
-  const monthDate = month ? new Date(month + "-01T00:00:00") : new Date();
+  const monthDate = month ? new Date(month + '-01T00:00:00') : new Date();
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
-  const monthKey = format(monthStart, "yyyy-MM");
-  const prevMonthKey = format(subMonths(monthStart, 1), "yyyy-MM");
-  const nextMonthKey = format(addMonths(monthStart, 1), "yyyy-MM");
+  const monthKey = format(monthStart, 'yyyy-MM');
+  const prevMonthKey = format(subMonths(monthStart, 1), 'yyyy-MM');
+  const nextMonthKey = format(addMonths(monthStart, 1), 'yyyy-MM');
 
   // One entry per day → per-day mood + first 3 emotion emojis.
-  const calData = getCalendarData(
-    format(monthStart, "yyyy-MM-dd"),
-    format(monthEnd, "yyyy-MM-dd")
-  );
+  const calData = getCalendarData(format(monthStart, 'yyyy-MM-dd'), format(monthEnd, 'yyyy-MM-dd'));
 
   const dateMap = new Map<
     string,
@@ -79,32 +73,34 @@ export default async function CalendarPage({
   return (
     <>
       {/* Month navigation */}
-      <div className="flex items-center justify-between">
+      <div className='flex items-center justify-between'>
         <Link
           href={`/calendar?month=${prevMonthKey}`}
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className='flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
         >
-          <ChevronLeftIcon className="size-4" />
+          <ChevronLeftIcon className='size-4' />
         </Link>
-        <h1 className="text-lg font-semibold tracking-tight">
-          {format(monthStart, "MMMM yyyy")}
-        </h1>
+        <h1 className='text-lg font-semibold tracking-tight'>{format(monthStart, 'MMMM yyyy')}</h1>
         <Link
           href={`/calendar?month=${nextMonthKey}`}
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className='flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
         >
-          <ChevronRightIcon className="size-4" />
+          <ChevronRightIcon className='size-4' />
         </Link>
       </div>
 
-      {/* Calendar — comfortable, centered */}
-      <div className="mx-auto max-w-md">
+      {/* Calendar — comfortable, centered. Swipe left/right to change month on touch. */}
+      <MonthSwipe
+        prevHref={`/calendar?month=${prevMonthKey}`}
+        nextHref={`/calendar?month=${nextMonthKey}`}
+        className='mx-auto max-w-md'
+      >
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 mb-1">
-          {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+        <div className='grid grid-cols-7 mb-1'>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
             <div
               key={i}
-              className="py-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+              className='py-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground'
             >
               {d}
             </div>
@@ -112,13 +108,13 @@ export default async function CalendarPage({
         </div>
 
         {/* Day cells */}
-        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl bg-border">
+        <div className='grid grid-cols-7 gap-px overflow-hidden rounded-xl bg-border'>
           {Array.from({ length: firstDow }).map((_, i) => (
-            <div key={`pad-${i}`} className="bg-background h-20" />
+            <div key={`pad-${i}`} className='bg-background h-20' />
           ))}
 
           {days.map((d) => {
-            const dateStr = format(d, "yyyy-MM-dd");
+            const dateStr = format(d, 'yyyy-MM-dd');
             const data = dateMap.get(dateStr);
             const isSelected = selectedDay === dateStr;
             const isToday = dateStr === today;
@@ -137,45 +133,45 @@ export default async function CalendarPage({
                     : `/calendar?month=${monthKey}&day=${dateStr}`
                 }
                 className={cn(
-                  "group relative flex h-20 flex-col px-1.5 py-1 transition-colors",
-                  moodBg ?? "bg-background",
-                  moodBg ? "hover:opacity-90" : "hover:bg-muted/60",
-                  isSelected && !moodBg && "bg-muted",
-                  isSelected && "ring-2 ring-inset ring-primary/60",
-                  !isSelected && isToday && "ring-1 ring-inset ring-primary/50"
+                  'group relative flex h-20 flex-col px-1.5 py-1 transition-colors',
+                  moodBg ?? 'bg-background',
+                  moodBg ? 'hover:opacity-90' : 'hover:bg-muted/60',
+                  isSelected && !moodBg && 'bg-muted',
+                  isSelected && 'ring-2 ring-inset ring-primary/60',
+                  !isSelected && isToday && 'ring-1 ring-inset ring-primary/50',
                 )}
               >
                 {/* Day number */}
                 <span
                   className={cn(
-                    "text-xs font-medium leading-none tabular-nums",
+                    'text-xs font-medium leading-none tabular-nums',
                     moodText
                       ? moodText
                       : isToday
-                        ? "text-primary font-semibold"
+                        ? 'text-primary font-semibold'
                         : hasEntry
-                          ? "text-foreground"
-                          : "text-muted-foreground/50"
+                          ? 'text-foreground'
+                          : 'text-muted-foreground/50',
                   )}
                 >
-                  {format(d, "d")}
+                  {format(d, 'd')}
                 </span>
 
                 {/* Primary emoji + emotion color dots */}
                 {(emojis[0] || emotionColors.length > 0) && (
-                  <div className="mt-auto flex flex-col items-center gap-0.5">
+                  <div className='mt-auto flex flex-col items-center gap-0.5'>
                     {emojis[0] && (
-                      <span className="emoji text-xl leading-none" aria-hidden>
+                      <span className='emoji text-xl leading-none' aria-hidden>
                         {emojis[0]}
                       </span>
                     )}
                     {emotionColors.length > 0 && (
-                      <div className="flex gap-0.5">
+                      <div className='flex gap-0.5'>
                         {emotionColors.map((color, i) => (
                           <span
                             key={`${color}-${i}`}
-                            aria-hidden="true"
-                            className="block size-1.5 rounded-full"
+                            aria-hidden='true'
+                            className='block size-1.5 rounded-full'
                             style={{ backgroundColor: color }}
                           />
                         ))}
@@ -189,49 +185,46 @@ export default async function CalendarPage({
         </div>
 
         {/* Legend */}
-        <div className="mt-3 flex items-center justify-center gap-3 flex-wrap">
+        <div className='mt-3 flex items-center justify-center gap-3 flex-wrap'>
           {[
-            { color: "bg-red-500", label: "1" },
-            { color: "bg-orange-500", label: "2" },
-            { color: "bg-yellow-500", label: "3" },
-            { color: "bg-green-500", label: "4" },
-            { color: "bg-emerald-400", label: "5" },
-            { color: "bg-muted-foreground/50", label: "—" },
+            { color: 'bg-red-500', label: '1' },
+            { color: 'bg-orange-500', label: '2' },
+            { color: 'bg-yellow-500', label: '3' },
+            { color: 'bg-green-500', label: '4' },
+            { color: 'bg-emerald-400', label: '5' },
+            { color: 'bg-muted-foreground/50', label: '—' },
           ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1">
-              <div className={cn("size-1.5 rounded-full", color)} />
-              <span className="text-[10px] text-muted-foreground">{label}</span>
+            <div key={label} className='flex items-center gap-1'>
+              <div className={cn('size-1.5 rounded-full', color)} />
+              <span className='text-[10px] text-muted-foreground'>{label}</span>
             </div>
           ))}
         </div>
-      </div>
+      </MonthSwipe>
 
       {/* Selected day */}
       {selectedDay && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium">
-              {format(new Date(selectedDay + "T00:00:00"), "EEEE, MMMM d")}
+        <div className='space-y-3'>
+          <div className='flex items-center justify-between'>
+            <h2 className='text-sm font-medium'>
+              {format(new Date(selectedDay + 'T00:00:00'), 'EEEE, MMMM d')}
             </h2>
             <Link href={`/?date=${selectedDay}`}>
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-                <PlusIcon className="size-3" />
+              <Button size='sm' variant='outline' className='h-7 gap-1.5 text-xs'>
+                <PlusIcon className='size-3' />
                 Open entry
               </Button>
             </Link>
           </div>
 
           {dayEntries.length === 0 ? (
-            <p className="py-2 text-sm text-muted-foreground/60">
-              No entries for this day.
-            </p>
+            <p className='py-2 text-sm text-muted-foreground/60'>No entries for this day.</p>
           ) : (
-            dayEntries.map((entry) => (
-              <EntryCard key={entry.id} entry={entry} today={today} />
-            ))
+            dayEntries.map((entry) => <EntryCard key={entry.id} entry={entry} today={today} />)
           )}
         </div>
       )}
     </>
   );
 }
+
