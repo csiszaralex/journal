@@ -175,6 +175,22 @@ export function TaggablePicker({
     (s) => s.display_name.toLowerCase() === trimmed.toLowerCase()
   );
 
+  // Enter commits the typed value: add the existing item if one matches,
+  // otherwise create it — so you never have to mouse over to the "Create" button.
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    const value = search.trim();
+    if (!value) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const exact = suggestions.find(
+      (s) => s.display_name.toLowerCase() === value.toLowerCase()
+    );
+    const name = exact ? exact.display_name : value;
+    if (!selected.includes(name)) toggle(name);
+    setSearch("");
+  }
+
   const chips = selected.length > 0 && (
     <div className="flex flex-wrap gap-1">
       {selected.map((item) => {
@@ -242,6 +258,7 @@ export function TaggablePicker({
               placeholder={searchPlaceholder}
               value={search}
               onValueChange={setSearch}
+              onKeyDown={handleInputKeyDown}
             />
             <CommandList>
               {suggestions.length === 0 && !trimmed && (
