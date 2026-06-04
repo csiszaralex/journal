@@ -8,7 +8,7 @@ import { getContrastTextColor, resolveCategoryColor } from '@/lib/color';
 import { MAX_CATEGORY_LENGTH, normalizeCategory } from '@/lib/intentions';
 import { format } from 'date-fns';
 import { CalendarIcon, XIcon } from 'lucide-react';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 
 export type IntentionFormProps = {
   enableDueDate?: boolean;
@@ -31,6 +31,14 @@ export function IntentionForm({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const textRef = useRef<HTMLInputElement>(null);
+  const refocusRef = useRef(false);
+
+  useEffect(() => {
+    if (!pending && refocusRef.current) {
+      refocusRef.current = false;
+      textRef.current?.focus();
+    }
+  }, [pending]);
 
   function focusText(at: 'start' | 'end') {
     requestAnimationFrame(() => {
@@ -88,6 +96,7 @@ export function IntentionForm({
     if (!text.trim()) return;
     const full = (category ? `${category}: ${text}` : text).trim();
     const d = dueDate.trim() || null;
+    refocusRef.current = true;
     startTransition(async () => {
       const res = await createIntentionAction({ text: full, due_date: d });
       if (res?.data?.ok) {
