@@ -227,12 +227,17 @@ interface EntryFormProps {
   defaultDate?: string;
 }
 
-const DRAFT_KEY = 'journal_entry_draft';
+const DRAFT_KEY_PREFIX = 'journal_entry_draft:';
+const draftKey = (date: string) => `${DRAFT_KEY_PREFIX}${date}`;
 
 export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: EntryFormProps) {
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True once this mount's autosave effect has run once. Guards against the
+  // autosave effect deleting a just-restored draft before the restore re-render
+  // commits (both effects run on the same mount, restore's dispatch is async).
+  const hydratedRef = useRef(false);
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [isGeneratingEmotions, setIsGeneratingEmotions] = useState(false);
@@ -280,23 +285,22 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   }
 
   function handleClear() {
+    localStorage.removeItem(draftKey(state.entryDate));
     dispatch({ type: 'RESET', todayStr });
-    localStorage.removeItem(DRAFT_KEY);
     setConfirmClearOpen(false);
   }
 
-  // Restore draft on mount (new entries only).
+  // Restore draft on mount (new entries only), scoped to the selected day.
   // Single dispatch keeps the state update atomic — no separate setState needed.
   useEffect(() => {
     if (isEdit) return;
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(draftKey(state.entryDate));
       if (!raw) return;
       const draftSchema = z.object({
         text: z.string().optional(),
         mood: z.number().nullable().optional(),
         energy: z.number().nullable().optional(),
-        date: z.string().optional(),
         tags: z.string().array().optional(),
         emotions: z.string().array().optional(),
         qaPairs: z
@@ -312,19 +316,17 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         !d.text &&
         d.mood == null &&
         d.energy == null &&
-        !d.date &&
         !d.tags?.length &&
         !d.emotions?.length &&
         !d.qaPairs?.length
       )
         return;
-      if (d.savedAt && Date.now() - d.savedAt > 24 * 60 * 60 * 1000) return;
       dispatch({
         type: 'RESTORE_DRAFT',
         text: d.text ?? '',
         moodScore: d.mood ?? undefined,
         energyScore: d.energy ?? undefined,
-        date: d.date,
+        date: undefined,
         tags: d.tags?.length ? d.tags : undefined,
         emotions: d.emotions?.length ? d.emotions : undefined,
         qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
@@ -332,29 +334,39 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     } catch {
       /* ignore malformed draft */
     }
-  }, [isEdit]);
+  }, [isEdit, state.entryDate]);
 
-  // Auto-save draft to localStorage (new entries only, debounced 2s)
+  // Auto-save draft to localStorage (new entries only, debounced 2s), scoped to the day.
   useEffect(() => {
     if (isEdit) return;
+    // Skip the first run of this mount: the restore effect's dispatch hasn't
+    // committed yet, so state still looks empty. Acting now would delete the
+    // draft restore is about to load.
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      return;
+    }
+    const key = draftKey(state.entryDate);
     const hasContent =
       state.textValue ||
       state.moodScore !== undefined ||
       state.energyScore !== undefined ||
-      state.entryDate !== todayStr ||
       state.tags.length > 0 ||
       state.emotions.length > 0 ||
       state.qaPairs.length > 0;
-    if (!hasContent) return;
+    if (!hasContent) {
+      // Day cleared of content — drop any stale draft so it reopens clean.
+      localStorage.removeItem(key);
+      return;
+    }
     if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     draftSaveRef.current = setTimeout(() => {
       localStorage.setItem(
-        DRAFT_KEY,
+        key,
         JSON.stringify({
           text: state.textValue,
           mood: state.moodScore ?? null,
           energy: state.energyScore ?? null,
-          date: state.entryDate,
           tags: state.tags,
           emotions: state.emotions,
           qaPairs: state.qaPairs,
@@ -365,7 +377,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.emotions, state.qaPairs, isEdit, todayStr]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.emotions, state.qaPairs, isEdit]);
 
   async function handleGenerateEmotions() {
     setIsGeneratingEmotions(true);
@@ -598,8 +610,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       if (data.ok && data.offline) {
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
+          localStorage.removeItem(draftKey(state.entryDate));
           resetForm();
-          localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
         }
@@ -607,8 +619,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
       } else if (data.ok) {
         router.refresh();
         if (!isEdit) {
+          localStorage.removeItem(draftKey(state.entryDate));
           resetForm();
-          localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
         }
@@ -631,8 +643,8 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
         }
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
+          localStorage.removeItem(draftKey(state.entryDate));
           resetForm();
-          localStorage.removeItem(DRAFT_KEY);
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
         }
