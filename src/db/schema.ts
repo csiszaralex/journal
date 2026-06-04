@@ -182,22 +182,27 @@ export const intentions = sqliteTable(
   "intentions",
   {
     id: text("id").primaryKey(),
-    entry_id: text("entry_id").references((): AnySQLiteColumn => entries.id),
     text: text("text").notNull(),
+    category: text("category"),
     due_date: text("due_date"),
     status: text("status").notNull().default("open"),
     completed_at: integer("completed_at"),
-    completed_in_entry_id: text("completed_in_entry_id").references(
-      (): AnySQLiteColumn => entries.id
-    ),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
   },
   (t) => [
     index("intentions_status_idx").on(t.status),
     index("intentions_due_date_idx").on(t.due_date),
-    index("intentions_entry_id_idx").on(t.entry_id),
+    index("intentions_category_idx").on(t.category),
   ]
+);
+
+export const intentionCategoryColors = sqliteTable(
+  "intention_category_colors",
+  {
+    name: text("name").primaryKey(),
+    color: text("color").notNull(),
+  }
 );
 
 export const appSettings = sqliteTable("app_settings", {
