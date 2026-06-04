@@ -1,7 +1,6 @@
 'use client';
 
 import { useTransition } from 'react';
-import Link from 'next/link';
 import { MoreHorizontalIcon, Undo2Icon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -18,19 +17,18 @@ import {
   deleteIntentionAction,
 } from '@/actions/intentions';
 import type { Intention } from '@/db/queries/intentions';
+import { CategoryChip } from './CategoryChip';
 
 export type IntentionRowProps = {
   intention: Intention;
   todayISO: string;
-  hasTodayEntry: boolean;
-  showSourceLink?: boolean;
+  categoryColors?: Record<string, string>;
 };
 
 export function IntentionRow({
   intention,
   todayISO,
-  hasTodayEntry,
-  showSourceLink = true,
+  categoryColors,
 }: IntentionRowProps) {
   const [pending, startTransition] = useTransition();
   const isOpen = intention.status === 'open';
@@ -42,10 +40,7 @@ export function IntentionRow({
   function onToggle(checked: boolean) {
     if (!isOpen || !checked) return;
     startTransition(async () => {
-      await completeIntentionAction({
-        id: intention.id,
-        link_to_today_entry: hasTodayEntry,
-      });
+      await completeIntentionAction({ id: intention.id });
     });
   }
 
@@ -65,6 +60,13 @@ export function IntentionRow({
               : 'text-sm text-muted-foreground line-through'
           }
         >
+          {intention.category && (
+            <CategoryChip
+              name={intention.category}
+              colors={categoryColors}
+              className="mr-1.5 align-middle"
+            />
+          )}
           {intention.text}
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
@@ -73,14 +75,6 @@ export function IntentionRow({
               {intention.due_date}
               {overdueDays > 0 && ` · ${overdueDays} napja lejárt`}
             </span>
-          )}
-          {showSourceLink && intention.entry_id && (
-            <Link
-              href={`/entry/${intention.entry_id}`}
-              className="hover:underline"
-            >
-              forrás
-            </Link>
           )}
         </div>
       </div>

@@ -6,8 +6,6 @@ import { format } from "date-fns";
 import { HistoryIcon } from "lucide-react";
 import { getEntry } from "@/db/queries/entries";
 import { EntryForm } from "@/components/journal/EntryForm";
-import { EntryIntentionsSection } from "@/components/journal/EntryIntentionsSection";
-import { todayInAppTZ } from "@/lib/date";
 
 export default async function EntryDetailPage({
   params,
@@ -17,9 +15,6 @@ export default async function EntryDetailPage({
   const { id } = await params;
   const entry = getEntry(id);
   if (!entry || entry.deleted_at) notFound();
-
-  const todayISO = todayInAppTZ();
-  const isTodayEntry = entry.version.entry_date === todayISO;
 
   return (
     <>
@@ -47,8 +42,6 @@ export default async function EntryDetailPage({
       <div className="rounded-xl border bg-card p-4">
         <EntryForm entry={entry} />
       </div>
-
-      <EntryIntentionsSection entry_id={id} isTodayEntry={isTodayEntry} />
     </>
   );
 }

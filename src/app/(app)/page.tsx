@@ -61,10 +61,8 @@ export default async function TodayPage({
         />
       </div>
 
-      {/* Today's open intentions — only on today's view */}
-      {isToday && (
-        <TodayIntentionsSection hasTodayEntry={existingEntry !== null} />
-      )}
+      {/* Today's open intentions — always shown at the bottom */}
+      <TodayIntentionsSection />
     </>
   );
 }

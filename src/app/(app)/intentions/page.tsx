@@ -1,15 +1,13 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { IntentionForm } from '@/components/journal/IntentionForm';
-import {
-  IntentionList,
-  groupOpenIntentions,
-} from '@/components/journal/IntentionList';
+import { IntentionsFilter } from '@/components/journal/IntentionsFilter';
 import { IntentionRow } from '@/components/journal/IntentionRow';
 import {
+  getCategoryColorMap,
   listAllOpenIntentions,
+  listDistinctCategories,
   listRecentlyClosed,
 } from '@/db/queries/intentions';
-import { getTodayEntryId } from '@/db/queries/entries';
 import { todayInAppTZ } from '@/lib/date';
 
 export const dynamic = 'force-dynamic';
@@ -18,22 +16,24 @@ export default async function IntentionsPage() {
   const todayISO = todayInAppTZ();
   const open = listAllOpenIntentions(todayISO);
   const closed = listRecentlyClosed(30);
-  const hasTodayEntry = getTodayEntryId(todayISO) !== null;
+  const categories = listDistinctCategories();
+  const categoryColors = getCategoryColorMap();
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 space-y-6">
       <h1 className="text-2xl font-semibold">Szándékok</h1>
-      <IntentionForm entry_id={null} />
+      <IntentionForm categoryColors={categoryColors} />
       <Tabs defaultValue="open">
         <TabsList>
           <TabsTrigger value="open">Nyitott ({open.length})</TabsTrigger>
           <TabsTrigger value="done">Kész</TabsTrigger>
         </TabsList>
         <TabsContent value="open" className="mt-4">
-          <IntentionList
-            groups={groupOpenIntentions(open, todayISO)}
+          <IntentionsFilter
+            items={open}
             todayISO={todayISO}
-            hasTodayEntry={hasTodayEntry}
+            categories={categories}
+            categoryColors={categoryColors}
             emptyText="Nincs nyitott szándék."
           />
         </TabsContent>
@@ -49,8 +49,7 @@ export default async function IntentionsPage() {
                   key={it.id}
                   intention={it}
                   todayISO={todayISO}
-                  hasTodayEntry={hasTodayEntry}
-                  showSourceLink
+                  categoryColors={categoryColors}
                 />
               ))}
             </div>
