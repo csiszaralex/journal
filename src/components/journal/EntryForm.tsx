@@ -547,6 +547,15 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
     }
   }
 
+  // Ctrl/Cmd+Enter from any field in the form triggers a save. Lives on the
+  // <form> so it catches keystrokes bubbling up from the textarea and answer fields.
+  function handleFormKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.requestSubmit();
+    }
+  }
+
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrors([]);
@@ -667,7 +676,7 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   }
 
   return (
-    <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
+    <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className='flex flex-col gap-4'>
       {/* Header: label + version + template picker + date picker */}
       <div className='flex items-center justify-between gap-2'>
         <div className='flex items-center gap-1.5'>
