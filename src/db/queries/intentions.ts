@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
-import { intentions } from "../schema";
+import { intentions, intentionCategoryColors } from "../schema";
+import { parseCategory } from "@/lib/intentions";
 
 export type IntentionStatus = "open" | "done" | "dropped";
 export type Intention = typeof intentions.$inferSelect;
@@ -9,18 +10,17 @@ export type Intention = typeof intentions.$inferSelect;
 export function createIntention(input: {
   text: string;
   due_date?: string | null;
-  entry_id?: string | null;
 }): Intention {
   const id = createId();
   const now = Date.now();
+  const { category, text } = parseCategory(input.text);
   const row: Intention = {
     id,
-    entry_id: input.entry_id ?? null,
-    text: input.text,
+    text,
+    category,
     due_date: input.due_date ?? null,
     status: "open",
     completed_at: null,
-    completed_in_entry_id: null,
     created_at: now,
     updated_at: now,
   };
@@ -34,7 +34,11 @@ export function updateIntention(input: {
   due_date?: string | null;
 }): void {
   const patch: Record<string, unknown> = { updated_at: Date.now() };
-  if (input.text !== undefined) patch.text = input.text;
+  if (input.text !== undefined) {
+    const { category, text } = parseCategory(input.text);
+    patch.text = text;
+    patch.category = category;
+  }
   if (input.due_date !== undefined) patch.due_date = input.due_date;
   db.update(intentions)
     .set(patch)
@@ -42,19 +46,15 @@ export function updateIntention(input: {
     .run();
 }
 
-export function completeIntention(input: {
-  id: string;
-  completed_in_entry_id?: string | null;
-}): void {
+export function completeIntention(id: string): void {
   const now = Date.now();
   db.update(intentions)
     .set({
       status: "done",
       completed_at: now,
-      completed_in_entry_id: input.completed_in_entry_id ?? null,
       updated_at: now,
     })
-    .where(eq(intentions.id, input.id))
+    .where(eq(intentions.id, id))
     .run();
 }
 
@@ -72,7 +72,6 @@ export function reopenIntention(id: string): void {
     .set({
       status: "open",
       completed_at: null,
-      completed_in_entry_id: null,
       updated_at: now,
     })
     .where(eq(intentions.id, id))
@@ -135,11 +134,50 @@ export function listRecentlyClosed(days: number): Intention[] {
     .all();
 }
 
-export function listIntentionsForEntry(entry_id: string): Intention[] {
-  return db
-    .select()
+export function listDistinctCategories(): string[] {
+  return distinctCategories(true);
+}
+
+/** All categories ever used (any status) — for the settings color editor. */
+export function listAllDistinctCategories(): string[] {
+  return distinctCategories(false);
+}
+
+function distinctCategories(openOnly: boolean): string[] {
+  const where = openOnly
+    ? and(eq(intentions.status, "open"), isNotNull(intentions.category))
+    : isNotNull(intentions.category);
+  const rows = db
+    .selectDistinct({ category: intentions.category })
     .from(intentions)
-    .where(eq(intentions.entry_id, entry_id))
-    .orderBy(asc(intentions.created_at))
+    .where(where)
+    .orderBy(asc(intentions.category))
     .all();
+  return rows
+    .map((r) => r.category)
+    .filter((c): c is string => c !== null);
+}
+
+/** Map of category name → user-chosen color override (no defaults included). */
+export function getCategoryColorMap(): Record<string, string> {
+  const rows = db.select().from(intentionCategoryColors).all();
+  const map: Record<string, string> = {};
+  for (const r of rows) map[r.name] = r.color;
+  return map;
+}
+
+export function setCategoryColor(name: string, color: string): void {
+  db.insert(intentionCategoryColors)
+    .values({ name, color })
+    .onConflictDoUpdate({
+      target: intentionCategoryColors.name,
+      set: { color },
+    })
+    .run();
+}
+
+export function deleteCategoryColor(name: string): void {
+  db.delete(intentionCategoryColors)
+    .where(eq(intentionCategoryColors.name, name))
+    .run();
 }

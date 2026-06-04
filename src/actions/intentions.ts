@@ -1,26 +1,32 @@
 'use server';
 
 import { logAudit } from '@/db/queries/audit';
-import { getTodayEntryId } from '@/db/queries/entries';
 import {
   completeIntention,
   createIntention,
+  deleteCategoryColor,
   deleteIntention,
   dropIntention,
   reopenIntention,
+  setCategoryColor,
   updateIntention,
 } from '@/db/queries/intentions';
-import { todayInAppTZ } from '@/lib/date';
+import { HEX_COLOR_REGEX } from '@/lib/color';
 import { authActionClient } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-function revalidateAll(entry_id?: string | null) {
+function revalidateAll() {
   revalidatePath('/');
   revalidatePath('/intentions');
-  if (entry_id) revalidatePath(`/entry/${entry_id}`);
+}
+
+function revalidateColors() {
+  revalidatePath('/');
+  revalidatePath('/intentions');
+  revalidatePath('/settings/categories');
 }
 
 export const createIntentionAction = authActionClient
@@ -28,16 +34,14 @@ export const createIntentionAction = authActionClient
     z.object({
       text: z.string().min(1).max(500),
       due_date: z.string().regex(ISO_DATE).optional().nullable(),
-      entry_id: z.string().min(1).optional().nullable(),
     }),
   )
   .action(async ({ parsedInput }) => {
     const created = createIntention({
       text: parsedInput.text,
       due_date: parsedInput.due_date ?? null,
-      entry_id: parsedInput.entry_id ?? null,
     });
-    revalidateAll(parsedInput.entry_id ?? null);
+    revalidateAll();
     logAudit('intention.create', { id: created.id });
     return { ok: true as const, id: created.id };
   });
@@ -58,22 +62,12 @@ export const updateIntentionAction = authActionClient
   });
 
 export const completeIntentionAction = authActionClient
-  .inputSchema(
-    z.object({
-      id: z.string().min(1),
-      link_to_today_entry: z.boolean().optional(),
-    }),
-  )
+  .inputSchema(z.object({ id: z.string().min(1) }))
   .action(async ({ parsedInput }) => {
-    let completed_in_entry_id: string | null = null;
-    if (parsedInput.link_to_today_entry) {
-      const today = todayInAppTZ();
-      completed_in_entry_id = getTodayEntryId(today);
-    }
-    completeIntention({ id: parsedInput.id, completed_in_entry_id });
-    revalidateAll(completed_in_entry_id);
+    completeIntention(parsedInput.id);
+    revalidateAll();
     logAudit('intention.complete', { id: parsedInput.id });
-    return { ok: true as const, linked_entry_id: completed_in_entry_id };
+    return { ok: true as const };
   });
 
 export const dropIntentionAction = authActionClient
@@ -100,6 +94,29 @@ export const deleteIntentionAction = authActionClient
     deleteIntention(parsedInput.id);
     revalidateAll();
     logAudit('intention.delete', { id: parsedInput.id });
+    return { ok: true as const };
+  });
+
+export const setCategoryColorAction = authActionClient
+  .inputSchema(
+    z.object({
+      name: z.string().min(1).max(30),
+      color: z.string().regex(HEX_COLOR_REGEX, 'Invalid hex color'),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    setCategoryColor(parsedInput.name, parsedInput.color);
+    revalidateColors();
+    logAudit('intention.category_color.set', { name: parsedInput.name });
+    return { ok: true as const };
+  });
+
+export const resetCategoryColorAction = authActionClient
+  .inputSchema(z.object({ name: z.string().min(1).max(30) }))
+  .action(async ({ parsedInput }) => {
+    deleteCategoryColor(parsedInput.name);
+    revalidateColors();
+    logAudit('intention.category_color.reset', { name: parsedInput.name });
     return { ok: true as const };
   });
 
