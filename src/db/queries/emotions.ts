@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { emotions, entries, entryVersionEmotions } from "../schema";
 import { randomTagColor } from "@/lib/color";
+import { foldAccents } from "@/lib/text";
 
 export class EmotionNameConflictError extends Error {
   constructor(public existingDisplayName: string) {
@@ -40,16 +41,16 @@ export function getOrCreateEmotion(displayName: string) {
 }
 
 export function suggestEmotions(prefix: string, limit = 10) {
-  const normalized = prefix.trim().toLowerCase();
-  if (!normalized) return getPopularEmotions(limit);
+  const needle = foldAccents(prefix.trim().toLowerCase());
+  if (!needle) return getPopularEmotions(limit);
 
   return db
     .select()
     .from(emotions)
-    .where(like(emotions.name, `%${normalized}%`))
     .orderBy(desc(emotions.usage_count))
-    .limit(limit)
-    .all();
+    .all()
+    .filter((e) => foldAccents(e.name).includes(needle))
+    .slice(0, limit);
 }
 
 /**

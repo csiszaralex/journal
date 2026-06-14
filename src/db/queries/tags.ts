@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { entries, entryVersionTags, tags } from "../schema";
 import { randomTagColor } from "@/lib/color";
+import { foldAccents } from "@/lib/text";
 
 export class TagNameConflictError extends Error {
   constructor(public existingDisplayName: string) {
@@ -40,16 +41,16 @@ export function getOrCreateTag(displayName: string) {
 }
 
 export function suggestTags(prefix: string, limit = 10) {
-  const normalized = prefix.trim().toLowerCase();
-  if (!normalized) return getPopularTags(limit);
+  const needle = foldAccents(prefix.trim().toLowerCase());
+  if (!needle) return getPopularTags(limit);
 
   return db
     .select()
     .from(tags)
-    .where(like(tags.name, `%${normalized}%`))
     .orderBy(desc(tags.usage_count))
-    .limit(limit)
-    .all();
+    .all()
+    .filter((t) => foldAccents(t.name).includes(needle))
+    .slice(0, limit);
 }
 
 /**

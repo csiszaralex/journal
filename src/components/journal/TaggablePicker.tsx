@@ -29,7 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEFAULT_TAG_COLOR, getContrastTextColor } from "@/lib/color";
 
@@ -199,22 +198,7 @@ export function TaggablePicker({
   const hasExactMatch = suggestions.some(
     (s) => s.display_name.toLowerCase() === trimmed.toLowerCase()
   );
-
-  // Enter commits the typed value: add the existing item if one matches,
-  // otherwise create it — so you never have to mouse over to the "Create" button.
-  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== "Enter") return;
-    const value = search.trim();
-    if (!value) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const exact = suggestions.find(
-      (s) => s.display_name.toLowerCase() === value.toLowerCase()
-    );
-    const name = exact ? exact.display_name : value;
-    if (!selected.includes(name)) toggle(name);
-    setSearch("");
-  }
+  const showCreate = trimmed.length > 0 && !hasExactMatch;
 
   const chips = selected.length > 0 && (
     <div className="flex flex-wrap gap-1">
@@ -283,30 +267,12 @@ export function TaggablePicker({
               placeholder={searchPlaceholder}
               value={search}
               onValueChange={setSearch}
-              onKeyDown={handleInputKeyDown}
             />
             <CommandList>
               {suggestions.length === 0 && !trimmed && (
                 <CommandEmpty>{emptyMessage}</CommandEmpty>
               )}
-              {trimmed && !hasExactMatch && suggestions.length === 0 && (
-                <CommandEmpty>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-auto w-full justify-start px-1 py-0.5 text-sm font-normal"
-                    onClick={() => {
-                      toggle(trimmed);
-                      setSearch("");
-                      setOpen(false);
-                    }}
-                  >
-                    <PlusIcon className="size-3.5" />
-                    Create &quot;{trimmed}&quot;
-                  </Button>
-                </CommandEmpty>
-              )}
-              {suggestions.length > 0 && (
+              {(suggestions.length > 0 || showCreate) && (
                 <CommandGroup>
                   {suggestions.map((item) => (
                     <CommandItem
@@ -327,7 +293,7 @@ export function TaggablePicker({
                       {item.display_name}
                     </CommandItem>
                   ))}
-                  {trimmed && !hasExactMatch && (
+                  {showCreate && (
                     <CommandItem
                       value={`__create__${trimmed}`}
                       onSelect={() => {
