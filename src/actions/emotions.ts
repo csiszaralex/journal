@@ -4,6 +4,7 @@ import { logAudit } from '@/db/queries/audit';
 import {
   deleteEmotion,
   EmotionNameConflictError,
+  getEmotionsByNames,
   suggestEmotions,
   updateEmotion,
 } from '@/db/queries/emotions';
@@ -17,6 +18,10 @@ type UpdateEmotionResult = { ok: true } | { ok: false; error: string };
 export const suggestEmotionsAction = authActionClient
   .inputSchema(z.object({ prefix: z.string() }))
   .action(async ({ parsedInput }) => suggestEmotions(parsedInput.prefix, 10));
+
+export const lookupEmotionsAction = authActionClient
+  .inputSchema(z.object({ names: z.string().array() }))
+  .action(async ({ parsedInput }) => getEmotionsByNames(parsedInput.names));
 
 export const updateEmotionAction = authActionClient
   .inputSchema(

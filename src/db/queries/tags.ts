@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { entries, entryVersionTags, tags } from "../schema";
@@ -50,6 +50,19 @@ export function suggestTags(prefix: string, limit = 10) {
     .orderBy(desc(tags.usage_count))
     .limit(limit)
     .all();
+}
+
+/**
+ * Look up several tags at once by their (display) names — used to resolve
+ * colors for items restored from a draft in a single round trip, since Next.js
+ * runs server actions sequentially and per-item calls add up.
+ */
+export function getTagsByNames(displayNames: string[]) {
+  const names = Array.from(
+    new Set(displayNames.map((n) => n.trim().toLowerCase()).filter(Boolean)),
+  );
+  if (names.length === 0) return [];
+  return db.select().from(tags).where(inArray(tags.name, names)).all();
 }
 
 export function getPopularTags(limit = 20) {

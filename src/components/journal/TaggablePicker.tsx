@@ -50,6 +50,9 @@ interface TaggablePickerProps {
   suggestAction: (input: { prefix: string }) => Promise<
     { data?: TaggableItem[]; serverError?: string; validationErrors?: unknown } | undefined
   >;
+  lookupAction: (input: { names: string[] }) => Promise<
+    { data?: TaggableItem[]; serverError?: string; validationErrors?: unknown } | undefined
+  >;
   triggerLabel: string;
   TriggerIcon: ComponentType<{ className?: string }>;
   searchPlaceholder?: string;
@@ -65,6 +68,7 @@ export function TaggablePicker({
   initialEmojis,
   onValueChange,
   suggestAction,
+  lookupAction,
   triggerLabel,
   TriggerIcon,
   searchPlaceholder = "Search or create…",
@@ -82,6 +86,7 @@ export function TaggablePicker({
     () => initialEmojis ?? {},
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resolvedRef = useRef<Set<string>>(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -136,6 +141,26 @@ export function TaggablePicker({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [search, suggestAction, mergeMetadata]);
+
+  // Resolve colors/emojis for selected items we have no metadata for yet —
+  // e.g. a draft restored from localStorage whose items aren't in the popular
+  // suggestions. Resolved in a single batched request — Next.js runs server
+  // actions sequentially, so one call per item made the non-popular chips color
+  // a beat after the popular ones; one call colors them all together.
+  // No cancellation guard on purpose: merging is idempotent, and a guard would
+  // let StrictMode's mount→unmount→mount cancel the only in-flight fetch (the
+  // remount skips re-fetching via resolvedRef), leaving those chips stuck gray.
+  useEffect(() => {
+    const missing = selected.filter(
+      (nm) => !(nm in colorByName) && !resolvedRef.current.has(nm.toLowerCase()),
+    );
+    if (missing.length === 0) return;
+    missing.forEach((nm) => resolvedRef.current.add(nm.toLowerCase()));
+    lookupAction({ names: missing }).then((result) => {
+      const items = result?.data ?? [];
+      if (items.length) mergeMetadata(items);
+    });
+  }, [selected, colorByName, lookupAction, mergeMetadata]);
 
   const toggle = useCallback(
     (displayName: string) => {

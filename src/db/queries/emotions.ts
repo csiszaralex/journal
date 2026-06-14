@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { emotions, entries, entryVersionEmotions } from "../schema";
@@ -50,6 +50,19 @@ export function suggestEmotions(prefix: string, limit = 10) {
     .orderBy(desc(emotions.usage_count))
     .limit(limit)
     .all();
+}
+
+/**
+ * Look up several emotions at once by their (display) names — used to resolve
+ * colors/emojis for items restored from a draft in a single round trip, since
+ * Next.js runs server actions sequentially and per-item calls add up.
+ */
+export function getEmotionsByNames(displayNames: string[]) {
+  const names = Array.from(
+    new Set(displayNames.map((n) => n.trim().toLowerCase()).filter(Boolean)),
+  );
+  if (names.length === 0) return [];
+  return db.select().from(emotions).where(inArray(emotions.name, names)).all();
 }
 
 export function getPopularEmotions(limit = 20) {

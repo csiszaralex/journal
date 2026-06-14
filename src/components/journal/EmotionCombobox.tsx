@@ -1,7 +1,7 @@
 "use client";
 
 import { SmileIcon } from "lucide-react";
-import { suggestEmotionsAction } from "@/actions/emotions";
+import { lookupEmotionsAction, suggestEmotionsAction } from "@/actions/emotions";
 import { TaggablePicker } from "./TaggablePicker";
 
 interface EmotionComboboxProps {
@@ -27,6 +27,7 @@ export function EmotionCombobox({
       initialEmojis={initialEmojis}
       onValueChange={onValueChange}
       suggestAction={suggestEmotionsAction}
+      lookupAction={lookupEmotionsAction}
       triggerLabel="Add emotion"
       TriggerIcon={SmileIcon}
       emptyMessage="No emotions yet."

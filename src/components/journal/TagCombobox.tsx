@@ -1,7 +1,7 @@
 "use client";
 
 import { TagIcon } from "lucide-react";
-import { suggestTagsAction } from "@/actions/tags";
+import { lookupTagsAction, suggestTagsAction } from "@/actions/tags";
 import { TaggablePicker } from "./TaggablePicker";
 
 interface TagComboboxProps {
@@ -19,6 +19,7 @@ export function TagCombobox({ name, defaultValue, initialColors, onValueChange }
       initialColors={initialColors}
       onValueChange={onValueChange}
       suggestAction={suggestTagsAction}
+      lookupAction={lookupTagsAction}
       triggerLabel="Add tag"
       TriggerIcon={TagIcon}
       emptyMessage="No tags yet."
