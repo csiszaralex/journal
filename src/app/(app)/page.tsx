@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { format } from "date-fns";
-import { getEntryByDate, getStreakInfo } from "@/db/queries/entries";
+import { endOfMonth, format, startOfMonth } from "date-fns";
+import { getEntryByDate, getEntryDates, getStreakInfo } from "@/db/queries/entries";
 import { listTemplates } from "@/db/queries/templates";
 import { EntryForm } from "@/components/journal/EntryForm";
 import { TodayIntentionsSection } from "@/components/journal/TodayIntentionsSection";
@@ -20,6 +20,11 @@ export default async function TodayPage({
   const selectedDate = dateParam ?? today;
   const isToday = selectedDate === today;
   const existingEntry = getEntryByDate(selectedDate);
+  const monthDate = new Date(selectedDate + "T00:00:00");
+  const initialEntryDates = getEntryDates(
+    format(startOfMonth(monthDate), "yyyy-MM-dd"),
+    format(endOfMonth(monthDate), "yyyy-MM-dd"),
+  );
   const templates = listTemplates();
   const { streak, wroteToday } = getStreakInfo();
 
@@ -58,6 +63,7 @@ export default async function TodayPage({
           entry={existingEntry ?? undefined}
           templates={templates}
           defaultDate={selectedDate}
+          initialEntryDates={initialEntryDates}
         />
       </div>
 

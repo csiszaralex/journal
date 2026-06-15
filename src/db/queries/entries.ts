@@ -801,6 +801,26 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
   }));
 }
 
+/**
+ * Distinct dates (yyyy-MM-dd) that have a non-deleted entry within [from, to].
+ * Lighter than getCalendarData — used to mark "filled" days in the form's date picker.
+ */
+export function getEntryDates(from: string, to: string): string[] {
+  const rows = db
+    .selectDistinct({ entry_date: entryVersions.entry_date })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        gte(entryVersions.entry_date, from),
+        lte(entryVersions.entry_date, to),
+      ),
+    )
+    .all();
+  return rows.map((r) => r.entry_date);
+}
+
 export function getTodayEntryId(todayISO: string): string | null {
   return getEntryByDate(todayISO)?.id ?? null;
 }

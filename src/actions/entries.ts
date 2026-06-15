@@ -3,14 +3,17 @@
 import { logAudit } from '@/db/queries/audit';
 import {
   createEntry,
+  getEntryDates,
   rollbackToVersion,
   softDeleteEntry,
   updateEntry,
 } from '@/db/queries/entries';
 import { requireUserId } from '@/lib/auth';
 import { resolveEmotionIds, resolveTagIds } from '@/lib/entry-utils';
+import { authActionClient } from '@/lib/safe-action';
 import { entryInputSchema } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -94,4 +97,17 @@ export async function rollbackVersionAction(entryId: string, versionNumber: numb
   revalidatePath(`/entry/${validId}`);
   revalidatePath(`/entry/${validId}/history`);
 }
+
+/**
+ * Returns the dates (yyyy-MM-dd) that have a saved entry within the given month
+ * ("YYYY-MM"). Used by the entry form's date picker to mark filled days.
+ */
+export const getEntryDatesAction = authActionClient
+  .inputSchema(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }))
+  .action(async ({ parsedInput }) => {
+    const monthDate = new Date(parsedInput.month + '-01T00:00:00');
+    const from = format(startOfMonth(monthDate), 'yyyy-MM-dd');
+    const to = format(endOfMonth(monthDate), 'yyyy-MM-dd');
+    return getEntryDates(from, to);
+  });
 

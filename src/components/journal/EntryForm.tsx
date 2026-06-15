@@ -33,6 +33,7 @@ import { TemplateSelector } from './TemplateSelector';
 import { EntryQuestions, type QaPair } from './EntryQuestions';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 import { suggestEmotionsAction } from '@/actions/emotions';
+import { getEntryDatesAction } from '@/actions/entries';
 
 
 const SCORE_COLORS: Record<number, string> = {
@@ -225,12 +226,19 @@ interface EntryFormProps {
   onSuccess?: () => void;
   templates?: EntryTemplate[];
   defaultDate?: string;
+  initialEntryDates?: string[];
 }
 
 const DRAFT_KEY_PREFIX = 'journal_entry_draft:';
 const draftKey = (date: string) => `${DRAFT_KEY_PREFIX}${date}`;
 
-export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: EntryFormProps) {
+export function EntryForm({
+  entry,
+  onSuccess,
+  templates = [],
+  defaultDate,
+  initialEntryDates = [],
+}: EntryFormProps) {
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,6 +252,35 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
   const [errors, setErrors] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  // Dates (yyyy-MM-dd) known to have a saved entry, cached per month ("YYYY-MM").
+  // Seeded with the selected month (preloaded server-side); other months are
+  // fetched lazily as the date picker is paged.
+  const initialMonthKey = (entry?.version.entry_date ?? defaultDate ?? todayStr).slice(0, 7);
+  const [entryDatesByMonth, setEntryDatesByMonth] = useState<Record<string, Set<string>>>(
+    () => ({ [initialMonthKey]: new Set(initialEntryDates) }),
+  );
+  const loadingMonthsRef = useRef<Set<string>>(new Set());
+
+  async function ensureMonthLoaded(month: Date) {
+    const key = format(month, 'yyyy-MM');
+    if (entryDatesByMonth[key] || loadingMonthsRef.current.has(key)) return;
+    loadingMonthsRef.current.add(key);
+    try {
+      const res = await getEntryDatesAction({ month: key });
+      const dates = res?.data ?? [];
+      setEntryDatesByMonth((prev) => ({ ...prev, [key]: new Set(dates) }));
+    } finally {
+      loadingMonthsRef.current.delete(key);
+    }
+  }
+
+  // A day is "empty" only once its month is loaded and it has no entry — so days
+  // in not-yet-loaded months don't flash dimmed before data arrives.
+  const isEmptyDay = (date: Date) => {
+    const set = entryDatesByMonth[format(date, 'yyyy-MM')];
+    return set ? !set.has(format(date, 'yyyy-MM-dd')) : false;
+  };
 
   const initialTagColors = Object.fromEntries(
     (entry?.version.tags ?? []).map((t) => [t.display_name, t.color]),
@@ -721,6 +758,9 @@ export function EntryForm({ entry, onSuccess, templates = [], defaultDate }: Ent
                 mode='single'
                 selected={calendarDate}
                 defaultMonth={calendarDate}
+                onMonthChange={ensureMonthLoaded}
+                modifiers={{ empty: isEmptyDay }}
+                modifiersClassNames={{ empty: '[&_button]:text-muted-foreground/50' }}
                 onSelect={(day) => {
                   if (day) {
                     const dateStr = format(day, 'yyyy-MM-dd');
