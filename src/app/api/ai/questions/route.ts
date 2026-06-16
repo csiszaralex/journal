@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { logAudit } from '@/db/queries/audit';
 import { listEntries } from '@/db/queries/entries';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
+import { getAiHistoryDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 import { auth } from '@/lib/auth';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -129,12 +130,14 @@ export async function POST(req: NextRequest) {
   // Today's date in the app's timezone (so "today" matches user's calendar day).
   const todayStr = formatInTimeZone(new Date(), 'Europe/Budapest', 'yyyy-MM-dd');
 
-  // Pull a bit more than 3 entries so we can filter out today + empty-text ones.
-  const recent = listEntries({ page_size: 10 });
+  // How many prior entries to feed the AI (configurable in Settings).
+  const historyDays = getAiHistoryDays();
+  // Over-fetch so today + empty-text entries can be filtered out before slicing.
+  const recent = listEntries({ page_size: historyDays + 7 });
   const priorDays = recent
     .filter((e) => e.version.entry_date !== todayStr)
     .filter((e) => e.version.text.trim().length > 0)
-    .slice(0, 3)
+    .slice(0, historyDays)
     // Show oldest → newest in the prompt for natural reading order.
     .reverse()
     .map((e) => ({
