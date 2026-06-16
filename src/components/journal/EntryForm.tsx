@@ -86,6 +86,7 @@ type FormAction =
   | { type: 'QA_REQUEST_SUCCESS'; questions: string[] }
   | { type: 'QA_REQUEST_ERROR'; error: string }
   | { type: 'QA_ANSWER_CHANGE'; index: number; value: string }
+  | { type: 'QA_QUESTION_CHANGE'; index: number; value: string }
   | { type: 'QA_REPLACE_ONE_START'; index: number }
   | { type: 'QA_REPLACE_ONE_SUCCESS'; index: number; question: string }
   | { type: 'QA_REPLACE_ONE_ERROR'; error: string }
@@ -181,6 +182,13 @@ function formReducer(state: FormState, action: FormAction): FormState {
         ...state,
         qaPairs: state.qaPairs.map((p, i) =>
           i === action.index ? { ...p, answer: action.value } : p,
+        ),
+      };
+    case 'QA_QUESTION_CHANGE':
+      return {
+        ...state,
+        qaPairs: state.qaPairs.map((p, i) =>
+          i === action.index ? { ...p, question: action.value } : p,
         ),
       };
     case 'QA_REPLACE_ONE_START':
@@ -808,6 +816,9 @@ export function EntryForm({
         onAppendOne={handleAppendOne}
         onAnswerChange={(index, value) =>
           dispatch({ type: 'QA_ANSWER_CHANGE', index, value })
+        }
+        onQuestionChange={(index, value) =>
+          dispatch({ type: 'QA_QUESTION_CHANGE', index, value })
         }
         onDeleteOne={(index) => dispatch({ type: 'QA_DELETE_ONE', index })}
       />

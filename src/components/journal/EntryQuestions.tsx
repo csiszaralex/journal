@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { CircleMinus, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { CircleMinus, Pencil, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ type EntryQuestionsProps = {
   onRegenerateOne: (index: number) => void;
   onAppendOne: () => void;
   onAnswerChange: (index: number, value: string) => void;
+  onQuestionChange: (index: number, value: string) => void;
   onDeleteOne: (index: number) => void;
 };
 
@@ -43,10 +44,32 @@ export function EntryQuestions({
   onRegenerateOne,
   onAppendOne,
   onAnswerChange,
+  onQuestionChange,
   onDeleteOne,
 }: EntryQuestionsProps) {
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
   const busy = loading || appending || loadingIndex !== null;
+
+  function startEditing(index: number, question: string) {
+    setDraft(question);
+    setEditingIndex(index);
+  }
+
+  function commitEditing() {
+    if (editingIndex === null) return;
+    const trimmed = draft.trim();
+    // Keep the original question if the user cleared it — no empty questions.
+    if (trimmed.length > 0) {
+      onQuestionChange(editingIndex, trimmed);
+    }
+    setEditingIndex(null);
+  }
+
+  function cancelEditing() {
+    setEditingIndex(null);
+  }
   // Full-set loading skeletons (initial fetch or "Más kérdéseket")
   if (loading) {
     return (
@@ -104,9 +127,42 @@ export function EntryQuestions({
         }
         return (
           <div key={idx} className='flex flex-col gap-1.5'>
+            {editingIndex === idx ? (
+              <Textarea
+                autoFocus
+                rows={2}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commitEditing}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    commitEditing();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEditing();
+                  }
+                }}
+                maxLength={500}
+                placeholder='Kérdés szövege…'
+                className='resize-y text-sm'
+              />
+            ) : (
             <div className='flex items-start justify-between gap-2'>
               <p className='text-sm text-muted-foreground'>{pair.question}</p>
               <div className='flex shrink-0 gap-0.5'>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon-xs'
+                  onClick={() => startEditing(idx, pair.question)}
+                  disabled={busy}
+                  title='Kérdés szerkesztése'
+                  aria-label='Kérdés szerkesztése'
+                  className='text-muted-foreground/60'
+                >
+                  <Pencil className='size-3' />
+                </Button>
                 <Button
                   type='button'
                   variant='ghost'
@@ -139,6 +195,7 @@ export function EntryQuestions({
                 </Button>
               </div>
             </div>
+            )}
             <Textarea
               rows={2}
               value={pair.answer}
