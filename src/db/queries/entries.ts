@@ -25,6 +25,8 @@ export type EmotionSummary = {
   emoji: string | null;
 };
 
+export type EntryKind = 'daily' | 'summary';
+
 export type EntryWithVersion = {
   id: string;
   created_at: number;
@@ -38,6 +40,8 @@ export type EntryWithVersion = {
     text: string;
     mood_score: number | null;
     energy_score: number | null;
+    kind: EntryKind;
+    period_start: string | null;
     edited_at: number;
     tags: TagSummary[];
     emotions: EmotionSummary[];
@@ -293,6 +297,8 @@ export function getEntry(id: string): EntryWithVersion | null {
       v_text: entryVersions.text,
       v_mood_score: entryVersions.mood_score,
       v_energy_score: entryVersions.energy_score,
+      v_kind: entryVersions.kind,
+      v_period_start: entryVersions.period_start,
       v_edited_at: entryVersions.edited_at,
     })
     .from(entries)
@@ -315,6 +321,8 @@ export function getEntry(id: string): EntryWithVersion | null {
       text: row.v_text,
       mood_score: row.v_mood_score,
       energy_score: row.v_energy_score,
+      kind: row.v_kind as EntryKind,
+      period_start: row.v_period_start,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
       emotions: getEntryEmotions(row.v_id),
@@ -366,6 +374,8 @@ export function listEntries(filters: ListEntriesFilters = {}) {
       v_text: entryVersions.text,
       v_mood_score: entryVersions.mood_score,
       v_energy_score: entryVersions.energy_score,
+      v_kind: entryVersions.kind,
+      v_period_start: entryVersions.period_start,
       v_edited_at: entryVersions.edited_at,
     })
     .from(entries)
@@ -403,6 +413,8 @@ export function listEntries(filters: ListEntriesFilters = {}) {
       text: row.v_text,
       mood_score: row.v_mood_score,
       energy_score: row.v_energy_score,
+      kind: row.v_kind as EntryKind,
+      period_start: row.v_period_start,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
       emotions: getEntryEmotions(row.v_id),
@@ -428,6 +440,8 @@ export function searchEntries(query: string, limit = 20) {
     v_text: z.string(),
     v_mood_score: z.number().nullable(),
     v_energy_score: z.number().nullable(),
+    v_kind: z.string(),
+    v_period_start: z.string().nullable(),
     v_edited_at: z.number(),
   });
 
@@ -445,6 +459,8 @@ export function searchEntries(query: string, limit = 20) {
           ev.text        AS v_text,
           ev.mood_score  AS v_mood_score,
           ev.energy_score AS v_energy_score,
+          ev.kind          AS v_kind,
+          ev.period_start  AS v_period_start,
           ev.edited_at   AS v_edited_at
         FROM entries_fts
         JOIN entry_fts_data fd ON fd.id = entries_fts.rowid
@@ -472,6 +488,8 @@ export function searchEntries(query: string, limit = 20) {
       text: row.v_text,
       mood_score: row.v_mood_score,
       energy_score: row.v_energy_score,
+      kind: row.v_kind as EntryKind,
+      period_start: row.v_period_start,
       edited_at: row.v_edited_at,
       tags: getEntryTags(row.v_id),
       emotions: getEntryEmotions(row.v_id),
