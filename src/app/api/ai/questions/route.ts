@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { logAudit } from '@/db/queries/audit';
 import { listEntries } from '@/db/queries/entries';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
-import { getAiHistoryDays } from '@/db/queries/settings';
+import { getAiHistoryDays, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 import { auth } from '@/lib/auth';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -14,6 +14,10 @@ const requestSchema = z.object({
   todayText: z.string().max(4000).optional(),
   count: z.number().int().min(1).max(5).optional(),
   existingQuestions: z.array(z.string().min(1).max(500)).max(10).optional(),
+  referenceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 const SYSTEM_PROMPT = `You are an assistant for a daily reflective journal. The user is currently writing today's entry and wants follow-up questions that help them describe today more accurately and notice things they might otherwise gloss over.
@@ -40,7 +44,21 @@ Return your questions ONLY via the \`submit_questions\` tool. Do not produce any
 const RATE_LIMIT_MS = 5000;
 const lastCallByUser = new Map<string, number>();
 
+function daysBetween(fromISO: string, toISO: string): number {
+  const from = new Date(fromISO + 'T00:00:00');
+  const to = new Date(toISO + 'T00:00:00');
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
+function ageLabel(entryDate: string, referenceDate: string): string {
+  const days = daysBetween(entryDate, referenceDate);
+  if (days <= 0) return 'same day';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+}
+
 function buildUserMessage(
+  referenceDate: string,
   priorDays: {
     entry_date: string;
     text: string;
@@ -51,6 +69,7 @@ function buildUserMessage(
   todayText: string | undefined,
   existingQuestions: string[] | undefined,
   count: number,
+  gapThreshold: number,
 ): string {
   const priorSection =
     priorDays.length === 0
@@ -64,7 +83,7 @@ function buildUserMessage(
                 ? '\n\nQ&A from this day:\n' +
                   d.qaPairs.map((p) => `- Q: ${p.question}\n  A: ${p.answer}`).join('\n')
                 : '';
-            return `### ${d.entry_date} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
+            return `### ${d.entry_date} — ${ageLabel(d.entry_date, referenceDate)} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
           })
           .join('\n\n');
 
@@ -75,7 +94,20 @@ function buildUserMessage(
       ? `\n\n## Questions already shown to the user (do NOT duplicate or paraphrase any of these):\n${existingQuestions.map((q) => `- ${q}`).join('\n')}`
       : '';
 
-  return `## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
+  const newestPriorDate = priorDays.length > 0 ? priorDays[priorDays.length - 1].entry_date : null;
+  const gapDays = newestPriorDate ? daysBetween(newestPriorDate, referenceDate) : null;
+
+  const gapSection =
+    gapDays !== null && gapDays >= gapThreshold
+      ? `\n\n## Important — the user has been away\nThe most recent entry above is ${gapDays} days old. Do NOT ask about day-to-day continuations as if they just happened. Ask what became of the threads left open back then, and what filled the silence since. Anchor each question in a specific detail from those older entries, but phrase it across the elapsed time.`
+      : '';
+
+  const noHistorySection =
+    priorDays.length === 0
+      ? `\n\n## Important — no prior entries\nThis is the user's first entry, so rule 1 cannot be satisfied from past entries. Use the user context block above instead (bio and known facts), and ask orienting questions about today. Still no generic filler like "How are you feeling?".`
+      : '';
+
+  return `## Today: ${referenceDate}\n\n## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}${gapSection}${noHistorySection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
 }
 
 function buildProfileContext(
@@ -127,15 +159,19 @@ export async function POST(req: NextRequest) {
     questions: z.array(z.string().min(1)).length(count),
   });
 
-  // Today's date in the app's timezone (so "today" matches user's calendar day).
-  const todayStr = formatInTimeZone(new Date(), 'Europe/Budapest', 'yyyy-MM-dd');
+  // The date being written — not necessarily today, since the form supports
+  // backdating. Everything (filtering, ages, gap detection) is relative to it.
+  const appToday = formatInTimeZone(new Date(), 'Europe/Budapest', 'yyyy-MM-dd');
+  const referenceDate = parsed.data.referenceDate ?? appToday;
 
   // How many prior entries to feed the AI (configurable in Settings).
   const historyDays = getAiHistoryDays();
-  // Over-fetch so today + empty-text entries can be filtered out before slicing.
-  const recent = listEntries({ page_size: historyDays + 7 });
+  // The gap threshold that also drives the home-page banner (single knob).
+  const gapThreshold = getSummaryGapDays();
+  // Over-fetch so the reference day + empty-text entries can be filtered out before slicing.
+  const recent = listEntries({ to_date: referenceDate, page_size: historyDays + 7 });
   const priorDays = recent
-    .filter((e) => e.version.entry_date !== todayStr)
+    .filter((e) => e.version.entry_date !== referenceDate)
     .filter((e) => e.version.text.trim().length > 0)
     .slice(0, historyDays)
     // Show oldest → newest in the prompt for natural reading order.
@@ -154,7 +190,14 @@ export async function POST(req: NextRequest) {
   const profileQa = listProfileQa();
   const profileContext = buildProfileContext(bio, profileQa);
 
-  const baseUserMessage = buildUserMessage(priorDays, todayText, existingQuestions, count);
+  const baseUserMessage = buildUserMessage(
+    referenceDate,
+    priorDays,
+    todayText,
+    existingQuestions,
+    count,
+    gapThreshold,
+  );
   const userMessage = profileContext ? `${profileContext}\n\n${baseUserMessage}` : baseUserMessage;
 
   // Update rate-limit timestamp BEFORE the API call so two near-simultaneous

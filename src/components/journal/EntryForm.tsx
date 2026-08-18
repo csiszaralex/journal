@@ -481,6 +481,7 @@ export function EntryForm({
         body: JSON.stringify({
           todayText: trimmed || undefined,
           existingQuestions: opts?.existingQuestions,
+          referenceDate: state.entryDate,
         }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -534,6 +535,7 @@ export function EntryForm({
           todayText: trimmed || undefined,
           count: 1,
           existingQuestions,
+          referenceDate: state.entryDate,
         }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -569,6 +571,7 @@ export function EntryForm({
           todayText: trimmed || undefined,
           count: 1,
           existingQuestions,
+          referenceDate: state.entryDate,
         }),
       });
       const data = (await res.json().catch(() => null)) as
