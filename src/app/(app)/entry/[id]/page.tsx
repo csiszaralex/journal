@@ -40,7 +40,7 @@ export default async function EntryDetailPage({
       </div>
 
       <div className="rounded-xl border bg-card p-4">
-        <EntryForm entry={entry} />
+        <EntryForm entry={entry} kind={entry.version.kind} />
       </div>
     </>
   );

@@ -15,7 +15,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
-import type { EntryWithVersion } from '@/db/queries/entries';
+import type { EntryKind, EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
@@ -31,6 +31,7 @@ import { TagCombobox } from './TagCombobox';
 import { EmotionCombobox } from './EmotionCombobox';
 import { TemplateSelector } from './TemplateSelector';
 import { EntryQuestions, type QaPair } from './EntryQuestions';
+import { SummaryPeriodField } from './SummaryPeriodField';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 import { suggestEmotionsAction } from '@/actions/emotions';
 import { getEntryDatesAction } from '@/actions/entries';
@@ -48,6 +49,8 @@ const SCORE_COLORS: Record<number, string> = {
 // (RESET, APPLY_TEMPLATE, RESTORE_DRAFT) — avoids a separate setState call in effects.
 type FormState = {
   entryDate: string;
+  // Summary entries span periodStart..entryDate; unused (but still tracked) for daily.
+  periodStart: string;
   textValue: string;
   moodScore: number | undefined;
   energyScore: number | undefined;
@@ -64,6 +67,7 @@ type FormState = {
 
 type FormAction =
   | { type: 'SET_DATE'; date: string }
+  | { type: 'SET_PERIOD'; from: string; to: string }
   | { type: 'SET_TEXT'; text: string }
   | { type: 'SET_MOOD'; score: number | undefined }
   | { type: 'SET_ENERGY'; score: number | undefined }
@@ -78,6 +82,7 @@ type FormAction =
       moodScore: number | undefined;
       energyScore: number | undefined;
       date: string | undefined;
+      periodStart: string | undefined;
       tags: string[] | undefined;
       emotions: string[] | undefined;
       qaPairs: QaPair[] | undefined;
@@ -100,6 +105,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
     case 'SET_DATE':
       return { ...state, entryDate: action.date };
+    case 'SET_PERIOD':
+      return { ...state, periodStart: action.from, entryDate: action.to };
     case 'SET_TEXT':
       return { ...state, textValue: action.text };
     case 'SET_MOOD':
@@ -123,6 +130,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'RESET':
       return {
         entryDate: action.todayStr,
+        // Collapse the period onto the reset date so periodStart <= entryDate holds.
+        periodStart: action.todayStr,
         textValue: '',
         moodScore: undefined,
         energyScore: undefined,
@@ -159,6 +168,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
         moodScore: action.moodScore,
         energyScore: action.energyScore,
         entryDate: action.date ?? state.entryDate,
+        periodStart: action.periodStart ?? state.periodStart,
         tags: action.tags ?? state.tags,
         tagKey: action.tags?.length ? state.tagKey + 1 : state.tagKey,
         emotions: action.emotions ?? state.emotions,
@@ -235,10 +245,16 @@ interface EntryFormProps {
   templates?: EntryTemplate[];
   defaultDate?: string;
   initialEntryDates?: string[];
+  kind?: EntryKind;
+  defaultPeriodStart?: string;
 }
 
 const DRAFT_KEY_PREFIX = 'journal_entry_draft:';
-const draftKey = (date: string) => `${DRAFT_KEY_PREFIX}${date}`;
+// Summary drafts get their own namespace: a summary can end on a day that also
+// has a daily entry, and the two must not overwrite each other's autosave.
+// The daily branch keeps the original key format so pre-existing drafts still load.
+const draftKey = (kind: EntryKind, date: string) =>
+  kind === 'summary' ? `${DRAFT_KEY_PREFIX}summary:${date}` : `${DRAFT_KEY_PREFIX}${date}`;
 
 export function EntryForm({
   entry,
@@ -246,7 +262,10 @@ export function EntryForm({
   templates = [],
   defaultDate,
   initialEntryDates = [],
+  kind = 'daily',
+  defaultPeriodStart,
 }: EntryFormProps) {
+  const isSummary = kind === 'summary';
   const isEdit = !!entry;
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -307,6 +326,12 @@ export function EntryForm({
 
   const [state, dispatch] = useReducer(formReducer, {
     entryDate: entry?.version.entry_date ?? defaultDate ?? todayStr,
+    periodStart:
+      entry?.version.period_start ??
+      defaultPeriodStart ??
+      entry?.version.entry_date ??
+      defaultDate ??
+      todayStr,
     textValue: entry?.version.text ?? '',
     moodScore: entry?.version.mood_score ?? undefined,
     energyScore: entry?.version.energy_score ?? undefined,
@@ -330,7 +355,7 @@ export function EntryForm({
   }
 
   function handleClear() {
-    localStorage.removeItem(draftKey(state.entryDate));
+    localStorage.removeItem(draftKey(kind, state.entryDate));
     dispatch({ type: 'RESET', todayStr });
     setConfirmClearOpen(false);
   }
@@ -340,7 +365,7 @@ export function EntryForm({
   useEffect(() => {
     if (isEdit) return;
     try {
-      const raw = localStorage.getItem(draftKey(state.entryDate));
+      const raw = localStorage.getItem(draftKey(kind, state.entryDate));
       if (!raw) return;
       const draftSchema = z.object({
         text: z.string().optional(),
@@ -351,6 +376,10 @@ export function EntryForm({
         qaPairs: z
           .object({ question: z.string(), answer: z.string() })
           .array()
+          .optional(),
+        periodStart: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional(),
         savedAt: z.number().optional(),
       });
@@ -366,12 +395,21 @@ export function EntryForm({
         !d.qaPairs?.length
       )
         return;
+      // A hand-moved period start belongs to the draft's text, so restore it with
+      // the text. Only in summary mode (daily entries have no period), and only if
+      // it still precedes the end date — a stale start later than entryDate would
+      // rebuild an invalid range that the save path rejects.
+      const restoredPeriodStart =
+        isSummary && d.periodStart && d.periodStart <= state.entryDate
+          ? d.periodStart
+          : undefined;
       dispatch({
         type: 'RESTORE_DRAFT',
         text: d.text ?? '',
         moodScore: d.mood ?? undefined,
         energyScore: d.energy ?? undefined,
         date: undefined,
+        periodStart: restoredPeriodStart,
         tags: d.tags?.length ? d.tags : undefined,
         emotions: d.emotions?.length ? d.emotions : undefined,
         qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
@@ -379,7 +417,7 @@ export function EntryForm({
     } catch {
       /* ignore malformed draft */
     }
-  }, [isEdit, state.entryDate]);
+  }, [isEdit, kind, isSummary, state.entryDate]);
 
   // Auto-save draft to localStorage (new entries only, debounced 2s), scoped to the day.
   useEffect(() => {
@@ -391,7 +429,7 @@ export function EntryForm({
       hydratedRef.current = true;
       return;
     }
-    const key = draftKey(state.entryDate);
+    const key = draftKey(kind, state.entryDate);
     const hasContent =
       state.textValue ||
       state.moodScore !== undefined ||
@@ -415,6 +453,10 @@ export function EntryForm({
           tags: state.tags,
           emotions: state.emotions,
           qaPairs: state.qaPairs,
+          // Persisted only for summaries: the key is derived from the end date, so
+          // without this a reload would re-derive the start and pair the restored
+          // text with a period the user never picked.
+          periodStart: isSummary ? state.periodStart : undefined,
           savedAt: Date.now(),
         }),
       );
@@ -422,7 +464,7 @@ export function EntryForm({
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.tags, state.emotions, state.qaPairs, isEdit]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.periodStart, state.tags, state.emotions, state.qaPairs, isEdit, kind, isSummary]);
 
   async function handleGenerateEmotions() {
     setIsGeneratingEmotions(true);
@@ -482,6 +524,8 @@ export function EntryForm({
           todayText: trimmed || undefined,
           existingQuestions: opts?.existingQuestions,
           referenceDate: state.entryDate,
+          mode: kind,
+          periodStart: isSummary ? state.periodStart : undefined,
         }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -536,6 +580,8 @@ export function EntryForm({
           count: 1,
           existingQuestions,
           referenceDate: state.entryDate,
+          mode: kind,
+          periodStart: isSummary ? state.periodStart : undefined,
         }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -572,6 +618,8 @@ export function EntryForm({
           count: 1,
           existingQuestions,
           referenceDate: state.entryDate,
+          mode: kind,
+          periodStart: isSummary ? state.periodStart : undefined,
         }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -615,6 +663,10 @@ export function EntryForm({
       energy_score: state.energyScore,
       tags: JSON.stringify(state.tags),
       emotions: JSON.stringify(state.emotions),
+      // Always sent explicitly: an omitted `kind` resolves to 'daily' server-side,
+      // which would reject a payload that carries a period_start.
+      kind,
+      period_start: isSummary ? state.periodStart : null,
     };
 
     const filledQaPairs = state.qaPairs
@@ -667,7 +719,7 @@ export function EntryForm({
       if (data.ok && data.offline) {
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          localStorage.removeItem(draftKey(state.entryDate));
+          localStorage.removeItem(draftKey(kind, state.entryDate));
           resetForm();
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
@@ -676,7 +728,7 @@ export function EntryForm({
       } else if (data.ok) {
         router.refresh();
         if (!isEdit) {
-          localStorage.removeItem(draftKey(state.entryDate));
+          localStorage.removeItem(draftKey(kind, state.entryDate));
           resetForm();
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
@@ -700,7 +752,7 @@ export function EntryForm({
         }
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          localStorage.removeItem(draftKey(state.entryDate));
+          localStorage.removeItem(draftKey(kind, state.entryDate));
           resetForm();
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
@@ -716,6 +768,9 @@ export function EntryForm({
 
   const calendarDate = new Date(state.entryDate + 'T00:00:00');
 
+  // In summary mode the mood/energy scores describe the whole period, not one day.
+  const scoreLabelSuffix = isSummary ? ' (az időszak egészére)' : '';
+
   // Shift the entry date by ±1 day. Navigates the same way picking a day in the
   // calendar does, so the server loads any existing entry for the new date.
   function shiftDate(days: number) {
@@ -729,7 +784,13 @@ export function EntryForm({
       <div className='flex items-center justify-between gap-2'>
         <div className='flex items-center gap-1.5'>
           <span className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-            {isEdit ? 'Edit entry' : 'New entry'}
+            {isSummary
+              ? isEdit
+                ? 'Összefoglaló szerkesztése'
+                : 'Új összefoglaló'
+              : isEdit
+                ? 'Edit entry'
+                : 'New entry'}
           </span>
           {isEdit && entry && (
             <Link
@@ -747,52 +808,62 @@ export function EntryForm({
             />
           )}
         </div>
-        <div className='flex items-center gap-0.5'>
-          <button
-            type='button'
-            onClick={() => shiftDate(-1)}
-            aria-label='Előző nap'
-            className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-          >
-            <ChevronLeftIcon className='size-4' />
-          </button>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger
+        {isSummary ? (
+          // A summary's range is form state, not a route — so no ±1-day navigation here.
+          <SummaryPeriodField
+            from={state.periodStart}
+            to={state.entryDate}
+            onChange={({ from, to }) => dispatch({ type: 'SET_PERIOD', from, to })}
+            disabled={isPending}
+          />
+        ) : (
+          <div className='flex items-center gap-0.5'>
+            <button
               type='button'
-              className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+              onClick={() => shiftDate(-1)}
+              aria-label='Előző nap'
+              className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
             >
-              <CalendarIcon className='size-3' />
-              {state.entryDate}
-            </PopoverTrigger>
-            <PopoverContent className='w-auto p-0' align='end'>
-              <Calendar
-                mode='single'
-                selected={calendarDate}
-                defaultMonth={calendarDate}
-                onMonthChange={ensureMonthLoaded}
-                modifiers={{ empty: isEmptyDay }}
-                modifiersClassNames={{ empty: '[&_button]:text-muted-foreground/50' }}
-                onSelect={(day) => {
-                  if (day) {
-                    const dateStr = format(day, 'yyyy-MM-dd');
-                    setCalendarOpen(false);
-                    // Navigate to the chosen day so the server can load any existing
-                    // entry for that date into the form (or render an empty new-entry form).
-                    router.push(`/?date=${dateStr}`);
-                  }
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-          <button
-            type='button'
-            onClick={() => shiftDate(1)}
-            aria-label='Következő nap'
-            className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-          >
-            <ChevronRightIcon className='size-4' />
-          </button>
-        </div>
+              <ChevronLeftIcon className='size-4' />
+            </button>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger
+                type='button'
+                className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+              >
+                <CalendarIcon className='size-3' />
+                {state.entryDate}
+              </PopoverTrigger>
+              <PopoverContent className='w-auto p-0' align='end'>
+                <Calendar
+                  mode='single'
+                  selected={calendarDate}
+                  defaultMonth={calendarDate}
+                  onMonthChange={ensureMonthLoaded}
+                  modifiers={{ empty: isEmptyDay }}
+                  modifiersClassNames={{ empty: '[&_button]:text-muted-foreground/50' }}
+                  onSelect={(day) => {
+                    if (day) {
+                      const dateStr = format(day, 'yyyy-MM-dd');
+                      setCalendarOpen(false);
+                      // Navigate to the chosen day so the server can load any existing
+                      // entry for that date into the form (or render an empty new-entry form).
+                      router.push(`/?date=${dateStr}`);
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <button
+              type='button'
+              onClick={() => shiftDate(1)}
+              aria-label='Következő nap'
+              className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+            >
+              <ChevronRightIcon className='size-4' />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Textarea */}
@@ -828,7 +899,11 @@ export function EntryForm({
 
       {/* Mood */}
       <div className='flex items-center gap-3'>
-        <Label className='w-14 shrink-0 text-xs text-muted-foreground'>Mood</Label>
+        <Label
+          className={cn('shrink-0 text-xs text-muted-foreground', isSummary ? 'w-40' : 'w-14')}
+        >
+          {`Mood${scoreLabelSuffix}`}
+        </Label>
         <div className='flex gap-1.5'>
           {[1, 2, 3, 4, 5].map((s) => (
             <button
@@ -852,7 +927,11 @@ export function EntryForm({
 
       {/* Energy */}
       <div className='flex items-center gap-3'>
-        <Label className='w-14 shrink-0 text-xs text-muted-foreground'>Energy</Label>
+        <Label
+          className={cn('shrink-0 text-xs text-muted-foreground', isSummary ? 'w-40' : 'w-14')}
+        >
+          {`Energy${scoreLabelSuffix}`}
+        </Label>
         <div className='flex gap-1.5'>
           {[1, 2, 3, 4, 5].map((s) => (
             <button
