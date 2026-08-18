@@ -39,11 +39,16 @@ export const entryVersions = sqliteTable(
     energy_score: integer("energy_score"),
     edited_at: integer("edited_at").notNull(),
     client_id: text("client_id").unique(),
+    // 'daily' = one calendar day (entry_date). 'summary' = a range recap:
+    // period_start .. entry_date, written after a break in journaling.
+    kind: text("kind").notNull().default("daily"),
+    period_start: text("period_start"),
   },
   (t) => [
     unique("entry_version_unique").on(t.entry_id, t.version_number),
     index("entry_versions_entry_id_idx").on(t.entry_id),
     index("entry_versions_entry_date_idx").on(t.entry_date),
+    index("entry_versions_kind_idx").on(t.kind),
   ]
 );
 
