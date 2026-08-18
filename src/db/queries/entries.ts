@@ -149,7 +149,13 @@ export function getEntryByDate(dateISO: string): EntryWithVersion | null {
     .select({ id: entries.id })
     .from(entries)
     .innerJoin(entryVersions, eq(entryVersions.id, entries.current_version_id))
-    .where(and(isNull(entries.deleted_at), eq(entryVersions.entry_date, dateISO)))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        eq(entryVersions.entry_date, dateISO),
+        eq(entryVersions.kind, 'daily'),
+      ),
+    )
     .get();
   return row ? getEntry(row.id) : null;
 }
@@ -555,6 +561,7 @@ export function getDailyStats(from: string, to: string): DailyStat[] {
         WHERE e.deleted_at IS NULL
           AND ev.entry_date >= ${from}
           AND ev.entry_date <= ${to}
+          AND ev.kind = 'daily'
         GROUP BY ev.entry_date
         ORDER BY ev.entry_date ASC
       `,
@@ -594,6 +601,7 @@ export function getStreakInfo(): StreakInfo {
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
           AND ev.entry_date <= ${todayForQuery}
+          AND ev.kind = 'daily'
         ORDER BY ev.entry_date DESC
       `,
   );
@@ -639,6 +647,7 @@ export function getLongestStreak(): number {
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
+          AND ev.kind = 'daily'
         ORDER BY ev.entry_date ASC
       `,
   );
@@ -682,7 +691,14 @@ export function getOverallStats(): OverallStats {
   const from30 = thirtyDaysAgo.toISOString().slice(0, 10);
 
   const totalSchema = z.object({ cnt: z.number() });
-  const totalsRaw = db.get(sql`SELECT COUNT(*) AS cnt FROM entries WHERE deleted_at IS NULL`);
+  const totalsRaw = db.get(
+    sql`
+        SELECT COUNT(*) AS cnt
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL AND ev.kind = 'daily'
+      `,
+  );
   const totals = totalSchema.optional().parse(totalsRaw ?? undefined);
 
   const avgsSchema = z.object({
@@ -696,7 +712,7 @@ export function getOverallStats(): OverallStats {
           AVG(ev.energy_score) AS avg_energy
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
-        WHERE e.deleted_at IS NULL AND ev.entry_date >= ${from30}
+        WHERE e.deleted_at IS NULL AND ev.entry_date >= ${from30} AND ev.kind = 'daily'
       `,
   );
   const avgs = avgsSchema.optional().parse(avgsRaw ?? undefined);
@@ -723,7 +739,7 @@ export function getFirstEntryDate(): string | null {
         SELECT MIN(ev.entry_date) AS first_date
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
-        WHERE e.deleted_at IS NULL
+        WHERE e.deleted_at IS NULL AND ev.kind = 'daily'
       `,
   );
   const row = firstDateSchema.optional().parse(rawRow ?? undefined);
@@ -750,6 +766,7 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
         isNull(entries.deleted_at),
         gte(entryVersions.entry_date, from),
         lte(entryVersions.entry_date, to),
+        eq(entryVersions.kind, 'daily'),
       ),
     )
     .all();
@@ -768,6 +785,7 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
         isNull(entries.deleted_at),
         gte(entryVersions.entry_date, from),
         lte(entryVersions.entry_date, to),
+        eq(entryVersions.kind, 'daily'),
         isNotNull(emotions.emoji),
         ne(emotions.emoji, ''),
       ),
@@ -789,6 +807,7 @@ export function getCalendarData(from: string, to: string): CalendarDot[] {
         isNull(entries.deleted_at),
         gte(entryVersions.entry_date, from),
         lte(entryVersions.entry_date, to),
+        eq(entryVersions.kind, 'daily'),
         isNotNull(emotions.color),
         ne(emotions.color, ''),
       ),
@@ -833,6 +852,7 @@ export function getEntryDates(from: string, to: string): string[] {
         isNull(entries.deleted_at),
         gte(entryVersions.entry_date, from),
         lte(entryVersions.entry_date, to),
+        eq(entryVersions.kind, 'daily'),
       ),
     )
     .all();
