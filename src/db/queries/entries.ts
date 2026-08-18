@@ -655,6 +655,35 @@ export function getStreakInfo(): StreakInfo {
   return { streak, wroteToday };
 }
 
+export type GapInfo = { lastDailyDate: string | null; gapDays: number };
+
+/**
+ * Days elapsed since the most recent daily entry (0 if the user wrote today).
+ * Summaries are ignored: writing one must not make the gap look closed.
+ */
+export function getGapInfo(): GapInfo {
+  const todayStr = localDateStr(new Date());
+  const rowSchema = z.object({ last_date: z.string().nullable() });
+  const rawRow = db.get(
+    sql`
+        SELECT MAX(ev.entry_date) AS last_date
+        FROM entries e
+        INNER JOIN entry_versions ev ON e.current_version_id = ev.id
+        WHERE e.deleted_at IS NULL
+          AND ev.kind = 'daily'
+          AND ev.entry_date <= ${todayStr}
+      `,
+  );
+  const row = rowSchema.optional().parse(rawRow ?? undefined);
+  const lastDailyDate = row?.last_date ?? null;
+  if (!lastDailyDate) return { lastDailyDate: null, gapDays: 0 };
+
+  const last = new Date(lastDailyDate + 'T00:00:00');
+  const today = new Date(todayStr + 'T00:00:00');
+  const gapDays = Math.round((today.getTime() - last.getTime()) / 86400000);
+  return { lastDailyDate, gapDays };
+}
+
 export function getLongestStreak(): number {
   const dateRowSchema = z.object({ entry_date: z.string() });
   const rawRows = db.all(
