@@ -2,10 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { logAudit } from '@/db/queries/audit';
 import { listEntries } from '@/db/queries/entries';
+import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryDays, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 import { auth } from '@/lib/auth';
+import { SUMMARY_HISTORY_ENTRIES } from '@/lib/summary-config';
+import { format, subDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -15,6 +18,11 @@ const requestSchema = z.object({
   count: z.number().int().min(1).max(5).optional(),
   existingQuestions: z.array(z.string().min(1).max(500)).max(10).optional(),
   referenceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  mode: z.enum(['daily', 'summary']).optional(),
+  periodStart: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
@@ -70,6 +78,11 @@ function buildUserMessage(
   existingQuestions: string[] | undefined,
   count: number,
   gapThreshold: number,
+  summary: {
+    periodStart: string;
+    periodEnd: string;
+    intentions: { text: string; status: string; due_date: string | null }[];
+  } | null,
 ): string {
   const priorSection =
     priorDays.length === 0
@@ -97,17 +110,36 @@ function buildUserMessage(
   const newestPriorDate = priorDays.length > 0 ? priorDays[priorDays.length - 1].entry_date : null;
   const gapDays = newestPriorDate ? daysBetween(newestPriorDate, referenceDate) : null;
 
+  // The summary block already carries the "user has been away" framing, so
+  // the two must never render together — they would contradict each other in tone.
   const gapSection =
-    gapDays !== null && gapDays >= gapThreshold
+    !summary && gapDays !== null && gapDays >= gapThreshold
       ? `\n\n## Important — the user has been away\nThe most recent entry above is ${gapDays} days old. Do NOT ask about day-to-day continuations as if they just happened. Ask what became of the threads left open back then, and what filled the silence since. Anchor each question in a specific detail from those older entries, but phrase it across the elapsed time.`
       : '';
 
+  // The summary block covers the no-history case with its own instruction
+  // below, and the two must never render together — "ask orienting questions
+  // about today" directly contradicts "never ask about today".
   const noHistorySection =
-    priorDays.length === 0
+    !summary && priorDays.length === 0
       ? `\n\n## Important — no prior entries\nThis is the user's first entry, so rule 1 cannot be satisfied from past entries. Use the user context block above instead (bio and known facts), and ask orienting questions about today. Still no generic filler like "How are you feeling?".`
       : '';
 
-  return `## Today: ${referenceDate}\n\n## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}${gapSection}${noHistorySection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
+  const summarySection = summary
+    ? `\n\n## What the user is writing now\nThis is NOT a single day. The user is writing one recap covering ${summary.periodStart} to ${summary.periodEnd} (${daysBetween(summary.periodStart, summary.periodEnd) + 1} days), a period they did not journal at all. The entries above are from BEFORE that period.\n\nAsk about the period as a whole: what became of the threads left open before it, what changed across it, what stands out in hindsight. Never ask about "today" — there is no single day here.${
+        summary.intentions.length > 0
+          ? `\n\nIntentions that were live during this period — good material for "what came of it?" questions:\n${summary.intentions
+              .map((i) => `- ${i.text} (status: ${i.status}${i.due_date ? `, due: ${i.due_date}` : ''})`)
+              .join('\n')}`
+          : ''
+      }${
+        priorDays.length === 0
+          ? `\n\nThere are no earlier entries to draw on here, so rule 1 cannot be satisfied from history. Use the user context block above instead (bio and known facts), and ask about the period itself. Still no generic filler.`
+          : ''
+      }`
+    : '';
+
+  return `## Today: ${referenceDate}\n\n## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}${gapSection}${noHistorySection}${summarySection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
 }
 
 function buildProfileContext(
@@ -152,6 +184,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
+  const mode = parsed.data.mode ?? 'daily';
+  if (mode === 'summary' && !parsed.data.periodStart) {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
   const { todayText, existingQuestions } = parsed.data;
   const count = parsed.data.count ?? 3;
 
@@ -168,12 +204,22 @@ export async function POST(req: NextRequest) {
   const historyDays = getAiHistoryDays();
   // The gap threshold that also drives the home-page banner (single knob).
   const gapThreshold = getSummaryGapDays();
+  const periodStart = parsed.data.periodStart;
   // Over-fetch so the reference day + empty-text entries can be filtered out before slicing.
-  const recent = listEntries({ to_date: referenceDate, page_size: historyDays + 7 });
+  // In summary mode the period itself is empty by definition, so the window
+  // comes from the entries strictly BEFORE periodStart, not around referenceDate.
+  const recent =
+    mode === 'summary' && periodStart
+      ? listEntries({
+          to_date: format(subDays(new Date(periodStart + 'T00:00:00'), 1), 'yyyy-MM-dd'),
+          page_size: SUMMARY_HISTORY_ENTRIES + 7,
+        })
+      : listEntries({ to_date: referenceDate, page_size: historyDays + 7 });
+  const windowSize = mode === 'summary' ? SUMMARY_HISTORY_ENTRIES : historyDays;
   const priorDays = recent
     .filter((e) => e.version.entry_date !== referenceDate)
     .filter((e) => e.version.text.trim().length > 0)
-    .slice(0, historyDays)
+    .slice(0, windowSize)
     // Show oldest → newest in the prompt for natural reading order.
     .reverse()
     .map((e) => ({
@@ -190,6 +236,19 @@ export async function POST(req: NextRequest) {
   const profileQa = listProfileQa();
   const profileContext = buildProfileContext(bio, profileQa);
 
+  const summaryContext =
+    mode === 'summary' && periodStart
+      ? {
+          periodStart,
+          periodEnd: referenceDate,
+          intentions: listIntentionsForPeriod(periodStart, referenceDate).map((i) => ({
+            text: i.text,
+            status: i.status,
+            due_date: i.due_date,
+          })),
+        }
+      : null;
+
   const baseUserMessage = buildUserMessage(
     referenceDate,
     priorDays,
@@ -197,6 +256,7 @@ export async function POST(req: NextRequest) {
     existingQuestions,
     count,
     gapThreshold,
+    summaryContext,
   );
   const userMessage = profileContext ? `${profileContext}\n\n${baseUserMessage}` : baseUserMessage;
 
@@ -241,7 +301,7 @@ export async function POST(req: NextRequest) {
     const toolUse = message.content.find((b) => b.type === 'tool_use');
     if (!toolUse) {
       console.error('[ai/questions] no tool_use block in response');
-      logAudit('ai.questions', { model: QUESTIONS_MODEL, success: false, error: 'no_tool_use' });
+      logAudit('ai.questions', { model: QUESTIONS_MODEL, mode, success: false, error: 'no_tool_use' });
       return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
     }
 
@@ -250,6 +310,7 @@ export async function POST(req: NextRequest) {
       console.error('[ai/questions] tool_use input failed validation', validated.error);
       logAudit('ai.questions', {
         model: QUESTIONS_MODEL,
+        mode,
         success: false,
         error: 'validation_failed',
       });
@@ -258,6 +319,7 @@ export async function POST(req: NextRequest) {
 
     logAudit('ai.questions', {
       model: QUESTIONS_MODEL,
+      mode,
       input_tokens: message.usage.input_tokens,
       output_tokens: message.usage.output_tokens,
       count,
@@ -266,7 +328,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ questions: validated.data.questions });
   } catch (err) {
     console.error('[ai/questions]', err);
-    logAudit('ai.questions', { model: QUESTIONS_MODEL, success: false, error: 'exception' });
+    logAudit('ai.questions', { model: QUESTIONS_MODEL, mode, success: false, error: 'exception' });
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

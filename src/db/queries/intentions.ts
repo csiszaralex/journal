@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { intentions, intentionCategoryColors } from "../schema";
@@ -180,4 +180,23 @@ export function deleteCategoryColor(name: string): void {
   db.delete(intentionCategoryColors)
     .where(eq(intentionCategoryColors.name, name))
     .run();
+}
+
+/**
+ * Intentions relevant to a summary period: everything due inside it (any
+ * status), plus anything still open that was already overdue when it began.
+ */
+export function listIntentionsForPeriod(from: string, to: string): Intention[] {
+  return db
+    .select()
+    .from(intentions)
+    .where(
+      or(
+        and(gte(intentions.due_date, from), lte(intentions.due_date, to)),
+        and(eq(intentions.status, "open"), lt(intentions.due_date, from)),
+      ),
+    )
+    .orderBy(intentions.due_date)
+    .limit(20)
+    .all();
 }
