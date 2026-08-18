@@ -7,14 +7,20 @@ import { AiHistoryDaysCard } from '@/components/settings/AiHistoryDaysCard';
 import { InstallAppCollapsible } from '@/components/settings/InstallAppCollapsible';
 import { KeyboardShortcutsCollapsible } from '@/components/settings/KeyboardShortcutsCollapsible';
 import { SettingsCard } from '@/components/settings/SettingsCard';
+import { SummaryGapDaysCard } from '@/components/settings/SummaryGapDaysCard';
 import { ThemeCard } from '@/components/settings/ThemeCard';
-import { getAiHistoryDays, getRegistrationEnabled } from '@/db/queries/settings';
+import {
+  getAiHistoryDays,
+  getRegistrationEnabled,
+  getSummaryGapDays,
+} from '@/db/queries/settings';
 import { listTemplates } from '@/db/queries/templates';
 
 export default function SettingsPage() {
   const templates = listTemplates();
   const registrationEnabled = getRegistrationEnabled();
   const aiHistoryDays = getAiHistoryDays();
+  const summaryGapDays = getSummaryGapDays();
 
   return (
     <div className='mx-auto max-w-2xl space-y-10 px-4 py-8'>
@@ -38,6 +44,7 @@ export default function SettingsPage() {
       <section className='space-y-3'>
         <h2 className='text-sm font-medium'>AI</h2>
         <AiHistoryDaysCard value={aiHistoryDays} />
+        <SummaryGapDaysCard value={summaryGapDays} />
       </section>
 
       <section className='space-y-3'>
