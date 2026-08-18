@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createEntry, updateEntry, softDeleteEntry, DuplicateDateError } from "@/db/queries/entries";
 import { logAudit } from "@/db/queries/audit";
-import { entryInputSchema } from "@/lib/validation";
+import { entryInputObjectSchema, refineEntryPeriod } from "@/lib/validation";
 import { resolveEmotionIds, resolveTagIds } from "@/lib/entry-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -24,15 +24,16 @@ const qaPairsSchema = z
 const syncRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("createEntry"),
-    payload: entryInputSchema.extend({ qa_pairs: qaPairsSchema }),
+    payload: entryInputObjectSchema
+      .extend({ qa_pairs: qaPairsSchema })
+      .superRefine(refineEntryPeriod),
     clientId: z.string().optional(),
   }),
   z.object({
     action: z.literal("updateEntry"),
-    payload: entryInputSchema.extend({
-      entry_id: z.string(),
-      qa_pairs: qaPairsSchema,
-    }),
+    payload: entryInputObjectSchema
+      .extend({ entry_id: z.string(), qa_pairs: qaPairsSchema })
+      .superRefine(refineEntryPeriod),
     clientId: z.string().optional(),
   }),
   z.object({
@@ -66,7 +67,8 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === "createEntry") {
-      const { text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs } = payload;
+      const { text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs, kind, period_start } =
+        payload;
       const tag_ids = resolveTagIds(tags);
       const emotion_ids = resolveEmotionIds(emotions);
       try {
@@ -79,6 +81,8 @@ export async function POST(req: NextRequest) {
           emotion_ids,
           client_id: clientId,
           qa_pairs,
+          kind,
+          period_start,
         });
         logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
         revalidatePath("/");
@@ -96,6 +100,8 @@ export async function POST(req: NextRequest) {
           tag_ids,
           emotion_ids,
           qa_pairs,
+          kind,
+          period_start,
         });
         if (!updated) {
           return NextResponse.json({ ok: false, error: "Entry not found", noRetry: true }, { status: 404 });
@@ -109,7 +115,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "updateEntry") {
-      const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs } = payload;
+      const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs, kind, period_start } =
+        payload;
       const updated = updateEntry(entry_id, {
         entry_date,
         text,
@@ -118,6 +125,8 @@ export async function POST(req: NextRequest) {
         tag_ids: resolveTagIds(tags),
         emotion_ids: resolveEmotionIds(emotions),
         qa_pairs,
+        kind,
+        period_start,
       });
       if (!updated) {
         return NextResponse.json({ ok: false, error: "Entry not found", noRetry: true }, { status: 404 });

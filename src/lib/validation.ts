@@ -14,7 +14,7 @@ export const entryVersionInsertSchema = createInsertSchema(entryVersions, {
   energy_score: scoreField,
 });
 
-export const entryInputSchema = entryVersionInsertSchema
+const entryInputObject = entryVersionInsertSchema
   .pick({
     entry_date: true,
     text: true,
@@ -24,7 +24,52 @@ export const entryInputSchema = entryVersionInsertSchema
   .extend({
     tags: z.string().default('[]'),
     emotions: z.string().default('[]'),
+    kind: z.enum(['daily', 'summary']).optional(),
+    period_start: z.preprocess(
+      (v) => (v === '' || v === null ? undefined : v),
+      z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+        .optional(),
+    ),
   });
+
+/**
+ * A summary spans period_start..entry_date; a daily entry has no period.
+ * Shared so the sync route can re-apply it after .extend().
+ */
+export function refineEntryPeriod(
+  val: { kind?: 'daily' | 'summary'; entry_date: string; period_start?: string },
+  ctx: z.RefinementCtx,
+): void {
+  const kind = val.kind ?? 'daily';
+  if (kind === 'summary') {
+    if (!val.period_start) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['period_start'],
+        message: 'Az összefoglalóhoz kezdő dátum kell',
+      });
+      return;
+    }
+    if (val.period_start > val.entry_date) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['period_start'],
+        message: 'A kezdő dátum nem lehet későbbi a záró dátumnál',
+      });
+    }
+  } else if (val.period_start) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['period_start'],
+      message: 'Napi bejegyzésnek nincs időszaka',
+    });
+  }
+}
+
+export const entryInputObjectSchema = entryInputObject;
+export const entryInputSchema = entryInputObject.superRefine(refineEntryPeriod);
 
 export type EntryInput = z.infer<typeof entryInputSchema>;
 

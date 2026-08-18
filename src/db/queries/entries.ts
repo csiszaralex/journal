@@ -58,6 +58,8 @@ export type CreateEntryInput = {
   emotion_ids?: string[];
   client_id?: string;
   qa_pairs?: QAPairInput[];
+  kind?: EntryKind;
+  period_start?: string | null;
 };
 
 export type UpdateEntryInput = {
@@ -68,6 +70,8 @@ export type UpdateEntryInput = {
   tag_ids?: string[];
   emotion_ids?: string[];
   qa_pairs?: QAPairInput[];
+  kind?: EntryKind;
+  period_start?: string | null;
 };
 
 export type ListEntriesFilters = {
@@ -181,9 +185,14 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
     if (existing) return getEntry(existing.entry_id)!;
   }
 
-  // One active entry per day. Caller (sync route) must catch and route to updateEntry.
-  const dupe = getEntryByDate(input.entry_date);
-  if (dupe) throw new DuplicateDateError(dupe.id, input.entry_date);
+  // One active *daily* entry per day. Summaries are exempt: a recap ending on a
+  // day that already has a daily entry is normal. Caller (sync route) must catch
+  // and route to updateEntry.
+  const kind: EntryKind = input.kind ?? 'daily';
+  if (kind === 'daily') {
+    const dupe = getEntryByDate(input.entry_date);
+    if (dupe) throw new DuplicateDateError(dupe.id, input.entry_date);
+  }
 
   const entryId = createId();
   const versionId = createId();
@@ -204,6 +213,8 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
         text: input.text ?? '',
         mood_score: input.mood_score ?? null,
         energy_score: input.energy_score ?? null,
+        kind,
+        period_start: kind === 'summary' ? (input.period_start ?? null) : null,
         edited_at: now,
         client_id: input.client_id ?? null,
       })
@@ -259,6 +270,11 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
         text: input.text ?? cv.text,
         mood_score: input.mood_score !== undefined ? input.mood_score : cv.mood_score,
         energy_score: input.energy_score !== undefined ? input.energy_score : cv.energy_score,
+        kind: input.kind ?? cv.kind,
+        period_start:
+          (input.kind ?? cv.kind) === 'summary'
+            ? (input.period_start ?? cv.period_start)
+            : null,
         edited_at: now,
       })
       .run();
