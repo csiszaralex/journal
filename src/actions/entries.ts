@@ -11,7 +11,7 @@ import {
 import { requireUserId } from '@/lib/auth';
 import { resolveEmotionIds, resolveTagIds } from '@/lib/entry-utils';
 import { authActionClient } from '@/lib/safe-action';
-import { entryInputSchema } from '@/lib/validation';
+import { entryInputObjectSchema, entryInputSchema, refineEntryPeriod } from '@/lib/validation';
 import { parseWithZod } from '@conform-to/zod/v4';
 import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { revalidatePath } from 'next/cache';
@@ -22,7 +22,8 @@ export async function createEntryAction(_: unknown, formData: FormData) {
   const submission = parseWithZod(formData, { schema: entryInputSchema });
   if (submission.status !== 'success') return submission.reply();
 
-  const { text, mood_score, energy_score, entry_date, tags, emotions } = submission.value;
+  const { text, mood_score, energy_score, entry_date, tags, emotions, kind, period_start } =
+    submission.value;
 
   const safeParseJsonArray = (s: string) => {
     try {
@@ -49,6 +50,8 @@ export async function createEntryAction(_: unknown, formData: FormData) {
     energy_score,
     tag_ids: resolveTagIds(tags),
     emotion_ids: resolveEmotionIds(emotions),
+    kind,
+    period_start,
   });
   logAudit('entry.create', { entry_id: created.id, entry_date });
 
@@ -58,11 +61,14 @@ export async function createEntryAction(_: unknown, formData: FormData) {
 
 export async function updateEntryAction(_: unknown, formData: FormData) {
   await requireUserId();
-  const updateSchema = entryInputSchema.extend({ entry_id: z.string().min(1, 'Entry not found') });
+  const updateSchema = entryInputObjectSchema
+    .extend({ entry_id: z.string().min(1, 'Entry not found') })
+    .superRefine(refineEntryPeriod);
   const submission = parseWithZod(formData, { schema: updateSchema });
   if (submission.status !== 'success') return submission.reply();
 
-  const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions } = submission.value;
+  const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, kind, period_start } =
+    submission.value;
   const updated = updateEntry(entry_id, {
     entry_date,
     text,
@@ -70,6 +76,8 @@ export async function updateEntryAction(_: unknown, formData: FormData) {
     energy_score,
     tag_ids: resolveTagIds(tags),
     emotion_ids: resolveEmotionIds(emotions),
+    kind,
+    period_start,
   });
   logAudit('entry.update', { entry_id: entry_id, version: updated?.version.version_number });
 
