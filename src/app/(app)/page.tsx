@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { getEntryByDate, getEntryDates, getStreakInfo } from "@/db/queries/entries";
+import { getEntryByDate, getEntryDates, getGapInfo, getStreakInfo } from "@/db/queries/entries";
+import { getSummaryGapDays } from "@/db/queries/settings";
 import { listTemplates } from "@/db/queries/templates";
 import { EntryForm } from "@/components/journal/EntryForm";
+import { GapBanner } from "@/components/journal/GapBanner";
 import { TodayIntentionsSection } from "@/components/journal/TodayIntentionsSection";
 import { FlameIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,9 @@ export default async function TodayPage({
   );
   const templates = listTemplates();
   const { streak, wroteToday } = getStreakInfo();
+  const { lastDailyDate, gapDays } = getGapInfo();
+  const gapThreshold = getSummaryGapDays();
+  const showGapBanner = isToday && lastDailyDate !== null && gapDays >= gapThreshold;
 
   const headerDate = new Date(selectedDate + "T00:00:00");
 
@@ -54,6 +59,8 @@ export default async function TodayPage({
           </div>
         )}
       </div>
+
+      {showGapBanner && <GapBanner lastDailyDate={lastDailyDate} gapDays={gapDays} />}
 
       {/* Entry form: edits existing day-entry or creates a new one.
           Keyed by date so switching days remounts the form with fresh state. */}
