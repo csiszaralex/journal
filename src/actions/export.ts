@@ -47,6 +47,9 @@ export const exportMarkdownAction = authActionClient.action(async () => {
     const frontmatter = [
       "---",
       `date: ${current.entry_date}`,
+      ...(current.kind === "summary" && current.period_start
+        ? [`kind: summary`, `period: ${current.period_start}..${current.entry_date}`]
+        : []),
       current.mood_score != null ? `mood: ${current.mood_score}` : null,
       current.energy_score != null ? `energy: ${current.energy_score}` : null,
       tagNames.length > 0 ? `tags: [${tagNames.map((t) => `"${t}"`).join(", ")}]` : null,

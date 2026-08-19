@@ -31,6 +31,7 @@ interface EntryCardProps {
 
 export function EntryCard({ entry, today }: EntryCardProps) {
   const v = entry.version;
+  const isSummary = v.kind === 'summary';
   // Backdated = entry_date is before the day the entry was originally created.
   // Entries written before 6am count toward the previous day — at that hour
   // you're likely still up from the night before, not starting a new day.
@@ -38,7 +39,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
   const effectiveCreatedAt =
     createdAt.getHours() < 6 ? subDays(createdAt, 1) : createdAt;
   const createdDateStr = format(effectiveCreatedAt, 'yyyy-MM-dd');
-  const isBackdated = v.entry_date < createdDateStr;
+  const isBackdated = !isSummary && v.entry_date < createdDateStr;
   const isScheduled = v.entry_date > today;
   const preview = v.text.slice(0, 300);
   const isTruncated = v.text.length > 300;
@@ -54,8 +55,18 @@ export function EntryCard({ entry, today }: EntryCardProps) {
             href={`/entry/${entry.id}`}
             className="text-sm font-medium hover:underline"
           >
-            {format(new Date(v.entry_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
+            {isSummary && v.period_start
+              ? `${format(new Date(v.period_start + 'T00:00:00'), 'MMM d')} – ${format(
+                  new Date(v.entry_date + 'T00:00:00'),
+                  'MMM d, yyyy',
+                )}`
+              : format(new Date(v.entry_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
           </Link>
+          {isSummary && (
+            <Badge variant='outline' className='h-4 px-1.5 py-0 text-[10px]'>
+              Összefoglaló
+            </Badge>
+          )}
           {isBackdated && (
             <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px]">
               Backdated

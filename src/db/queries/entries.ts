@@ -908,3 +908,35 @@ export function getTodayEntryId(todayISO: string): string | null {
   return getEntryByDate(todayISO)?.id ?? null;
 }
 
+export type SummaryRange = { id: string; period_start: string; entry_date: string };
+
+/**
+ * Every summary overlapping [from, to] — a summary starting before the window
+ * (or ending after it) still counts, so a calendar band spanning a month
+ * boundary renders correctly.
+ */
+export function getSummaryRanges(from: string, to: string): SummaryRange[] {
+  const rows = db
+    .select({
+      id: entries.id,
+      period_start: entryVersions.period_start,
+      entry_date: entryVersions.entry_date,
+    })
+    .from(entries)
+    .innerJoin(entryVersions, eq(entries.current_version_id, entryVersions.id))
+    .where(
+      and(
+        isNull(entries.deleted_at),
+        eq(entryVersions.kind, 'summary'),
+        isNotNull(entryVersions.period_start),
+        lte(entryVersions.period_start, to),
+        gte(entryVersions.entry_date, from),
+      ),
+    )
+    .all();
+
+  return rows
+    .filter((r): r is SummaryRange => r.period_start !== null)
+    .sort((a, b) => a.period_start.localeCompare(b.period_start));
+}
+

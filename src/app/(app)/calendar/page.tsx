@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { EntryCard } from '@/components/journal/EntryCard';
 import { MonthSwipe } from '@/components/journal/MonthSwipe';
 import { Button } from '@/components/ui/button';
-import { getCalendarData, listEntries } from '@/db/queries/entries';
+import { getCalendarData, getSummaryRanges, listEntries } from '@/db/queries/entries';
 import { cn } from '@/lib/utils';
 import {
   addMonths,
@@ -59,6 +59,23 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
       emojis: d.emojis,
       emotionColors: d.emotionColors,
     });
+  }
+
+  // Faint band under the days a summary covers. Ranges can start before or end
+  // after the visible month, so clamp to the month before expanding.
+  const summaryDates = new Set<string>();
+  for (const r of getSummaryRanges(
+    format(monthStart, 'yyyy-MM-dd'),
+    format(monthEnd, 'yyyy-MM-dd'),
+  )) {
+    const start = new Date(r.period_start + 'T00:00:00');
+    const end = new Date(r.entry_date + 'T00:00:00');
+    for (const d of eachDayOfInterval({
+      start: start < monthStart ? monthStart : start,
+      end: end > monthEnd ? monthEnd : end,
+    })) {
+      summaryDates.add(format(d, 'yyyy-MM-dd'));
+    }
   }
 
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -139,6 +156,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                   isSelected && !moodBg && 'bg-muted',
                   isSelected && 'ring-2 ring-inset ring-primary/60',
                   !isSelected && isToday && 'ring-1 ring-inset ring-primary/50',
+                  summaryDates.has(dateStr) && 'border-b-2 border-amber-400/50',
                 )}
               >
                 {/* Day number */}
