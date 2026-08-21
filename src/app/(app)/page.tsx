@@ -1,8 +1,19 @@
 export const dynamic = "force-dynamic";
 
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { getEntryByDate, getEntryDates, getGapInfo, getStreakInfo } from "@/db/queries/entries";
+import {
+  getEntryByDate,
+  getEntryDates,
+  getGapInfo,
+  getStreakInfo,
+  getSummaryRanges,
+} from "@/db/queries/entries";
 import { getSummaryGapDays } from "@/db/queries/settings";
+import {
+  firstUncoveredDay,
+  getDefaultSummaryPeriod,
+  inclusiveDayCount,
+} from "@/lib/summary-config";
 import { listTemplates } from "@/db/queries/templates";
 import { EntryForm } from "@/components/journal/EntryForm";
 import { GapBanner } from "@/components/journal/GapBanner";
@@ -31,7 +42,27 @@ export default async function TodayPage({
   const { streak, wroteToday } = getStreakInfo();
   const { lastDailyDate, gapDays } = getGapInfo();
   const gapThreshold = getSummaryGapDays();
-  const showGapBanner = isToday && lastDailyDate !== null && gapDays >= gapThreshold;
+  // getGapInfo stays daily-only — it is the honest "days since you last wrote".
+  // Only the *offer* is gated on coverage: the banner asks for a recap of the
+  // silence, so once a summary covers that silence there is nothing left to
+  // offer. A partially covered gap is still offered, starting at the first day
+  // no summary covers.
+  const gapPeriod =
+    isToday && lastDailyDate !== null && gapDays >= gapThreshold
+      ? getDefaultSummaryPeriod(lastDailyDate)
+      : null;
+  const uncoveredFrom = gapPeriod
+    ? firstUncoveredDay(
+        gapPeriod.from,
+        gapPeriod.to,
+        getSummaryRanges(gapPeriod.from, gapPeriod.to),
+      )
+    : null;
+  // The banner counts the silence it is actually offering to recap. With nothing
+  // covered, uncoveredFrom is the day after the last daily entry, so this is
+  // exactly gapDays; once a summary covers the head of the gap, it counts from
+  // where that recap left off and matches the range in the link.
+  const uncoveredDays = uncoveredFrom ? inclusiveDayCount(uncoveredFrom, today) : 0;
 
   const headerDate = new Date(selectedDate + "T00:00:00");
 
@@ -60,7 +91,9 @@ export default async function TodayPage({
         )}
       </div>
 
-      {showGapBanner && <GapBanner lastDailyDate={lastDailyDate} gapDays={gapDays} />}
+      {gapPeriod && uncoveredFrom && (
+        <GapBanner from={uncoveredFrom} to={gapPeriod.to} gapDays={uncoveredDays} />
+      )}
 
       {/* Entry form: edits existing day-entry or creates a new one.
           Keyed by date so switching days remounts the form with fresh state. */}

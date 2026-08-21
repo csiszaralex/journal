@@ -273,6 +273,11 @@ export function EntryForm({
   // autosave effect deleting a just-restored draft before the restore re-render
   // commits (both effects run on the same mount, restore's dispatch is async).
   const hydratedRef = useRef(false);
+  // True once the draft restore has run for this mount. Restore is a mount-time
+  // action, not a reaction to the end date: in summary mode entryDate is edited
+  // in place, and re-running would overwrite what the user is typing now with
+  // the draft saved under the date they just came back to.
+  const restoredRef = useRef(false);
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [isGeneratingEmotions, setIsGeneratingEmotions] = useState(false);
@@ -354,8 +359,18 @@ export function EntryForm({
     dispatch({ type: 'RESET', todayStr });
   }
 
-  function handleClear() {
+  // Drop the draft for the current key and cancel any autosave still pending —
+  // a debounced write landing afterwards would resurrect what was just discarded.
+  function discardDraft() {
+    if (draftSaveRef.current) {
+      clearTimeout(draftSaveRef.current);
+      draftSaveRef.current = null;
+    }
     localStorage.removeItem(draftKey(kind, state.entryDate));
+  }
+
+  function handleClear() {
+    discardDraft();
     dispatch({ type: 'RESET', todayStr });
     setConfirmClearOpen(false);
   }
@@ -364,6 +379,11 @@ export function EntryForm({
   // Single dispatch keeps the state update atomic — no separate setState needed.
   useEffect(() => {
     if (isEdit) return;
+    // Once per mount only. In daily mode the date changes by navigation, which
+    // remounts anyway; in summary mode it changes in place, and a second run
+    // would restore a stale draft over the text being written.
+    if (restoredRef.current) return;
+    restoredRef.current = true;
     try {
       const raw = localStorage.getItem(draftKey(kind, state.entryDate));
       if (!raw) return;
@@ -714,12 +734,13 @@ export function EntryForm({
         ok: boolean;
         offline?: boolean;
         error?: string;
+        id?: string;
       };
 
       if (data.ok && data.offline) {
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          localStorage.removeItem(draftKey(kind, state.entryDate));
+          discardDraft();
           resetForm();
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
@@ -728,8 +749,17 @@ export function EntryForm({
       } else if (data.ok) {
         router.refresh();
         if (!isEdit) {
-          localStorage.removeItem(draftKey(kind, state.entryDate));
-          resetForm();
+          discardDraft();
+          // A new summary is written on its own route, so resetting would leave
+          // a blank today→today form with no sign the save worked. Land on the
+          // saved entry instead. Daily entries stay put: the home page re-keys
+          // the form on the saved entry's id.
+          if (isSummary && data.id) {
+            toast('Összefoglaló mentve');
+            router.push(`/entry/${data.id}`);
+          } else {
+            resetForm();
+          }
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });
         }
@@ -752,7 +782,7 @@ export function EntryForm({
         }
         toast('Saved offline — will sync when connected', { duration: 4000 });
         if (!isEdit) {
-          localStorage.removeItem(draftKey(kind, state.entryDate));
+          discardDraft();
           resetForm();
         } else {
           dispatch({ type: 'REFRESH_PICKERS' });

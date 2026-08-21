@@ -31,7 +31,10 @@ function hasEntryToday(dateStr: string): boolean {
     .where(
       and(
         isNull(schema.entries.deleted_at),
-        eq(schema.entryVersions.entry_date, dateStr)
+        eq(schema.entryVersions.entry_date, dateStr),
+        // Daily entries only: a summary whose period happens to end today is a
+        // recap of a gap, not today's journaling — the reminder is still due.
+        eq(schema.entryVersions.kind, "daily")
       )
     )
     .limit(1)

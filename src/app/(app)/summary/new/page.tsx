@@ -3,27 +3,18 @@ export const dynamic = 'force-dynamic';
 import { EntryForm } from '@/components/journal/EntryForm';
 import { getGapInfo } from '@/db/queries/entries';
 import { listTemplates } from '@/db/queries/templates';
-import { addDays, format, subDays } from 'date-fns';
+import { getDefaultSummaryPeriod } from '@/lib/summary-config';
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
 export default async function NewSummaryPage({ searchParams }: { searchParams: SearchParams }) {
   const { from, to } = await searchParams;
   const { lastDailyDate } = getGapInfo();
-  const today = new Date();
 
-  // Default range: the day after the last daily entry through yesterday —
-  // the silence itself. Today stays free for a normal entry.
-  const defaultTo = format(subDays(today, 1), 'yyyy-MM-dd');
-  const derivedFrom = lastDailyDate
-    ? format(addDays(new Date(lastDailyDate + 'T00:00:00'), 1), 'yyyy-MM-dd')
-    : format(subDays(today, 7), 'yyyy-MM-dd');
-  // The two ends are derived independently, so a recent last-daily-entry can push
-  // the start past the end (last entry today -> tomorrow > yesterday). That range
-  // fails validation on save with a message the user cannot act on, so clamp it to
-  // a single day. Only the derived default is clamped — an explicit ?from= is the
-  // caller's business.
-  const defaultFrom = derivedFrom > defaultTo ? defaultTo : derivedFrom;
+  // Same rule (and the same clamp) the gap banner offers, so arriving here from
+  // the banner or by hand lands on the same period. Only the derived default is
+  // clamped — an explicit ?from= is the caller's business.
+  const { from: defaultFrom, to: defaultTo } = getDefaultSummaryPeriod(lastDailyDate);
 
   return (
     <>

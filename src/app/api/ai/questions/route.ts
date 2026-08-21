@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { logAudit } from '@/db/queries/audit';
-import { listEntries } from '@/db/queries/entries';
+import { listEntries, type EntryKind } from '@/db/queries/entries';
 import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryDays, getSummaryGapDays } from '@/db/queries/settings';
@@ -65,15 +65,35 @@ function ageLabel(entryDate: string, referenceDate: string): string {
   return `${days} days ago`;
 }
 
+type PriorDay = {
+  entry_date: string;
+  kind: EntryKind;
+  period_start: string | null;
+  text: string;
+  tagNames: string[];
+  emotionNames: string[];
+  qaPairs: { question: string; answer: string }[];
+};
+
+/**
+ * The dated header of one prior entry. A summary is a range, not a day —
+ * rendering it as `### 2026-08-18 — yesterday` would present a 48-day recap as
+ * a single day, exactly the confusion this feature exists to remove. Summaries
+ * are labelled, never filtered out: the recap IS the record of the gap.
+ * The daily form is unchanged.
+ */
+function entryHeading(d: Pick<PriorDay, 'entry_date' | 'kind' | 'period_start'>, referenceDate: string): string {
+  if (d.kind === 'summary' && d.period_start) {
+    const spanDays = daysBetween(d.period_start, d.entry_date) + 1;
+    // Aged by the END date: that is when the period closed.
+    return `${d.period_start} – ${d.entry_date} — recap of ${spanDays} days, ending ${ageLabel(d.entry_date, referenceDate)}`;
+  }
+  return `${d.entry_date} — ${ageLabel(d.entry_date, referenceDate)}`;
+}
+
 function buildUserMessage(
   referenceDate: string,
-  priorDays: {
-    entry_date: string;
-    text: string;
-    tagNames: string[];
-    emotionNames: string[];
-    qaPairs: { question: string; answer: string }[];
-  }[],
+  priorDays: PriorDay[],
   todayText: string | undefined,
   existingQuestions: string[] | undefined,
   count: number,
@@ -96,7 +116,7 @@ function buildUserMessage(
                 ? '\n\nQ&A from this day:\n' +
                   d.qaPairs.map((p) => `- Q: ${p.question}\n  A: ${p.answer}`).join('\n')
                 : '';
-            return `### ${d.entry_date} — ${ageLabel(d.entry_date, referenceDate)} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
+            return `### ${entryHeading(d, referenceDate)} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
           })
           .join('\n\n');
 
@@ -224,6 +244,9 @@ export async function POST(req: NextRequest) {
     .reverse()
     .map((e) => ({
       entry_date: e.version.entry_date,
+      // Carried so the prompt can render a summary as the range it is.
+      kind: e.version.kind,
+      period_start: e.version.period_start,
       text: e.version.text,
       tagNames: e.version.tags.map((t) => t.display_name),
       emotionNames: e.version.emotions.map((em) => em.display_name),
