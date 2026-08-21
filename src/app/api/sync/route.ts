@@ -86,7 +86,12 @@ export async function POST(req: NextRequest) {
         });
         logAudit("entry.create", { entry_id: created.id, entry_date, via: "sync" });
         revalidatePath("/");
-        dismissNotificationsForDate(entry_date).catch(() => {});
+        // Only a daily entry means "written for this day" — a summary ending
+        // today must not dismiss today's reminder. The saved kind is authoritative:
+        // an omitted `kind` defaults to daily on create and inherits on update.
+        if (created.version.kind === "daily") {
+          dismissNotificationsForDate(entry_date).catch(() => {});
+        }
         return NextResponse.json({ ok: true, id: created.id });
       } catch (err) {
         if (!(err instanceof DuplicateDateError)) throw err;
@@ -109,7 +114,9 @@ export async function POST(req: NextRequest) {
         logAudit("entry.update", { entry_id: err.entryId, version: updated.version.version_number, via: "sync", from: "createEntry" });
         revalidatePath("/");
         revalidatePath(`/entry/${err.entryId}`);
-        dismissNotificationsForDate(entry_date).catch(() => {});
+        if (updated.version.kind === "daily") {
+          dismissNotificationsForDate(entry_date).catch(() => {});
+        }
         return NextResponse.json({ ok: true, id: err.entryId });
       }
     }
@@ -134,7 +141,9 @@ export async function POST(req: NextRequest) {
       logAudit("entry.update", { entry_id, version: updated.version.version_number, via: "sync" });
       revalidatePath("/");
       revalidatePath(`/entry/${entry_id}`);
-      dismissNotificationsForDate(entry_date).catch(() => {});
+      if (updated.version.kind === "daily") {
+        dismissNotificationsForDate(entry_date).catch(() => {});
+      }
       return NextResponse.json({ ok: true, id: entry_id });
     }
 

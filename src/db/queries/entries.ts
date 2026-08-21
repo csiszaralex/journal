@@ -174,6 +174,19 @@ export class DuplicateDateError extends Error {
   }
 }
 
+/**
+ * A summary with no period_start is a black hole: excluded from the daily
+ * metrics by its kind, and invisible to getSummaryRanges because that requires
+ * a non-null period_start. The zod layer (refineEntryPeriod) blocks it over
+ * HTTP; this is the query layer's half of the same invariant.
+ */
+export class MissingPeriodStartError extends Error {
+  constructor(public readonly entryDate: string) {
+    super(`Summary entry ending ${entryDate} has no period_start`);
+    this.name = 'MissingPeriodStartError';
+  }
+}
+
 export function createEntry(input: CreateEntryInput): EntryWithVersion {
   // Deduplicate: if a version with this client_id already exists, return it.
   if (input.client_id) {
@@ -192,6 +205,8 @@ export function createEntry(input: CreateEntryInput): EntryWithVersion {
   if (kind === 'daily') {
     const dupe = getEntryByDate(input.entry_date);
     if (dupe) throw new DuplicateDateError(dupe.id, input.entry_date);
+  } else if (!input.period_start) {
+    throw new MissingPeriodStartError(input.entry_date);
   }
 
   const entryId = createId();
@@ -260,21 +275,28 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
   const now = Date.now();
   const cv = current.version;
 
+  // Both fields inherit from the current version when not supplied, mirroring
+  // entry_date. Resolved up front so the invariant can be checked before writing.
+  const nextKind: EntryKind = input.kind ?? cv.kind;
+  const nextEntryDate = input.entry_date ?? cv.entry_date;
+  const nextPeriodStart =
+    nextKind === 'summary' ? (input.period_start ?? cv.period_start) : null;
+  if (nextKind === 'summary' && !nextPeriodStart) {
+    throw new MissingPeriodStartError(nextEntryDate);
+  }
+
   db.transaction((tx) => {
     tx.insert(entryVersions)
       .values({
         id: versionId,
         entry_id: id,
         version_number: cv.version_number + 1,
-        entry_date: input.entry_date ?? cv.entry_date,
+        entry_date: nextEntryDate,
         text: input.text ?? cv.text,
         mood_score: input.mood_score !== undefined ? input.mood_score : cv.mood_score,
         energy_score: input.energy_score !== undefined ? input.energy_score : cv.energy_score,
-        kind: input.kind ?? cv.kind,
-        period_start:
-          (input.kind ?? cv.kind) === 'summary'
-            ? (input.period_start ?? cv.period_start)
-            : null,
+        kind: nextKind,
+        period_start: nextPeriodStart,
         edited_at: now,
       })
       .run();
