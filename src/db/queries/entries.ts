@@ -284,6 +284,16 @@ export function updateEntry(id: string, input: UpdateEntryInput): EntryWithVersi
   if (nextKind === 'summary' && !nextPeriodStart) {
     throw new MissingPeriodStartError(nextEntryDate);
   }
+  // Turning a summary into a daily entry brings it under the one-active-daily-
+  // entry-per-day rule that createEntry enforces, and nothing else checks it on
+  // this path: a second active daily entry for the date would break the single-row
+  // assumption getEntryByDate's .get() rests on. getEntryByDate matches daily
+  // current versions only, so the row it returns is never this entry (whose
+  // current version is a summary).
+  if (nextKind === 'daily' && cv.kind === 'summary') {
+    const dupe = getEntryByDate(nextEntryDate);
+    if (dupe) throw new DuplicateDateError(dupe.id, nextEntryDate);
+  }
 
   db.transaction((tx) => {
     tx.insert(entryVersions)

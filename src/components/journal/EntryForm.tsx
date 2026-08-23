@@ -252,9 +252,19 @@ interface EntryFormProps {
 const DRAFT_KEY_PREFIX = 'journal_entry_draft:';
 // Summary drafts get their own namespace: a summary can end on a day that also
 // has a daily entry, and the two must not overwrite each other's autosave.
+//
+// That namespace holds ONE fixed key rather than one per end date. A new
+// summary's end date is form state that moves in place while the user trims the
+// range, so a date-derived key would leave the draft written under the previous
+// end date orphaned in storage — to be resurrected later into an unrelated form
+// (and to drag its stale period start along with it). Only one unsaved new
+// summary can exist at a time, since it lives on its own route, so a single key
+// holds it and the period travels inside the payload instead of in the key.
+//
 // The daily branch keeps the original key format so pre-existing drafts still load.
+const SUMMARY_DRAFT_KEY = `${DRAFT_KEY_PREFIX}summary:new`;
 const draftKey = (kind: EntryKind, date: string) =>
-  kind === 'summary' ? `${DRAFT_KEY_PREFIX}summary:${date}` : `${DRAFT_KEY_PREFIX}${date}`;
+  kind === 'summary' ? SUMMARY_DRAFT_KEY : `${DRAFT_KEY_PREFIX}${date}`;
 
 export function EntryForm({
   entry,
@@ -284,6 +294,10 @@ export function EntryForm({
   const [errors, setErrors] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  // Set only after a NEW SUMMARY is queued offline: it stays on screen instead of
+  // resetting, so this is what tells the user the save landed — and stops a second
+  // submit from queueing a duplicate recap of the same period.
+  const [offlineQueued, setOfflineQueued] = useState(false);
 
   // Dates (yyyy-MM-dd) known to have a saved entry, cached per month ("YYYY-MM").
   // Seeded with the selected month (preloaded server-side); other months are
@@ -372,10 +386,40 @@ export function EntryForm({
   function handleClear() {
     discardDraft();
     dispatch({ type: 'RESET', todayStr });
+    setOfflineQueued(false);
     setConfirmClearOpen(false);
   }
 
-  // Restore draft on mount (new entries only), scoped to the selected day.
+  // Both offline paths land here: the one the service worker reports back
+  // (data.offline) and the catch fallback that queues the request itself.
+  //
+  // A queued summary has no server id, so the online redirect to /entry/{id} is
+  // unavailable — but resetting would produce exactly what that redirect exists to
+  // avoid: a blank today→today form with no sign the save worked. The composed
+  // text and range stay on screen instead, marked as queued. Daily entries and
+  // edits keep their previous behaviour verbatim.
+  function handleOfflineSaved() {
+    if (isEdit) {
+      toast('Saved offline — will sync when connected', { duration: 4000 });
+      dispatch({ type: 'REFRESH_PICKERS' });
+    } else if (isSummary) {
+      toast('Az összefoglaló sorban áll — szinkronizálunk, amint újra online vagy', {
+        duration: 4000,
+      });
+      // The recap is queued, so the draft has done its job; dropping it also keeps
+      // the next visit to /summary/new from restoring text that is already saved.
+      discardDraft();
+      setOfflineQueued(true);
+    } else {
+      toast('Saved offline — will sync when connected', { duration: 4000 });
+      discardDraft();
+      resetForm();
+    }
+    onSuccess?.();
+  }
+
+  // Restore draft on mount (new entries only) — scoped to the selected day for a
+  // daily entry, to the single unsaved-summary slot for a summary.
   // Single dispatch keeps the state update atomic — no separate setState needed.
   useEffect(() => {
     if (isEdit) return;
@@ -401,6 +445,10 @@ export function EntryForm({
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional(),
+        entryDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         savedAt: z.number().optional(),
       });
       const parsed = draftSchema.safeParse(JSON.parse(raw));
@@ -415,21 +463,23 @@ export function EntryForm({
         !d.qaPairs?.length
       )
         return;
-      // A hand-moved period start belongs to the draft's text, so restore it with
-      // the text. Only in summary mode (daily entries have no period), and only if
-      // it still precedes the end date — a stale start later than entryDate would
-      // rebuild an invalid range that the save path rejects.
-      const restoredPeriodStart =
-        isSummary && d.periodStart && d.periodStart <= state.entryDate
-          ? d.periodStart
-          : undefined;
+      // The period the draft's text was written for. Summary drafts live under a
+      // fixed key, so neither end can be re-derived from it — both travel in the
+      // payload and are restored together or not at all. Pairing a stale start
+      // with the end this form happened to open on would rebuild a range the user
+      // never chose, and could invert it into one the save path rejects.
+      // Daily entries have no period and keep their date from the route.
+      const draftRange =
+        isSummary && d.periodStart && d.entryDate && d.periodStart <= d.entryDate
+          ? { from: d.periodStart, to: d.entryDate }
+          : null;
       dispatch({
         type: 'RESTORE_DRAFT',
         text: d.text ?? '',
         moodScore: d.mood ?? undefined,
         energyScore: d.energy ?? undefined,
-        date: undefined,
-        periodStart: restoredPeriodStart,
+        date: draftRange?.to,
+        periodStart: draftRange?.from,
         tags: d.tags?.length ? d.tags : undefined,
         emotions: d.emotions?.length ? d.emotions : undefined,
         qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
@@ -439,7 +489,9 @@ export function EntryForm({
     }
   }, [isEdit, kind, isSummary, state.entryDate]);
 
-  // Auto-save draft to localStorage (new entries only, debounced 2s), scoped to the day.
+  // Auto-save draft to localStorage (new entries only, debounced 2s). The key is
+  // the day for a daily entry and the fixed summary slot for a summary, so editing
+  // the range can no longer strand a draft under a key nothing clears.
   useEffect(() => {
     if (isEdit) return;
     // Skip the first run of this mount: the restore effect's dispatch hasn't
@@ -473,10 +525,13 @@ export function EntryForm({
           tags: state.tags,
           emotions: state.emotions,
           qaPairs: state.qaPairs,
-          // Persisted only for summaries: the key is derived from the end date, so
-          // without this a reload would re-derive the start and pair the restored
-          // text with a period the user never picked.
+          // Persisted only for summaries: their key is fixed, so both ends of the
+          // period have to travel with the text — otherwise a reload would pair the
+          // restored text with a period the user never picked. Both stay undefined
+          // for daily drafts, so JSON.stringify omits them and the stored daily
+          // payload is unchanged.
           periodStart: isSummary ? state.periodStart : undefined,
+          entryDate: isSummary ? state.entryDate : undefined,
           savedAt: Date.now(),
         }),
       );
@@ -738,14 +793,7 @@ export function EntryForm({
       };
 
       if (data.ok && data.offline) {
-        toast('Saved offline — will sync when connected', { duration: 4000 });
-        if (!isEdit) {
-          discardDraft();
-          resetForm();
-        } else {
-          dispatch({ type: 'REFRESH_PICKERS' });
-        }
-        onSuccess?.();
+        handleOfflineSaved();
       } else if (data.ok) {
         router.refresh();
         if (!isEdit) {
@@ -780,14 +828,7 @@ export function EntryForm({
         } catch {
           /* ignore storage errors */
         }
-        toast('Saved offline — will sync when connected', { duration: 4000 });
-        if (!isEdit) {
-          discardDraft();
-          resetForm();
-        } else {
-          dispatch({ type: 'REFRESH_PICKERS' });
-        }
-        onSuccess?.();
+        handleOfflineSaved();
       } else {
         setErrors(['Network error. Please try again.']);
       }
@@ -1025,6 +1066,11 @@ export function EntryForm({
       <div className='flex items-center justify-between gap-2'>
         {errors.length > 0 ? (
           <p className='text-xs text-destructive'>{errors[0]}</p>
+        ) : offlineQueued ? (
+          // Only reachable for a new summary saved offline — see handleOfflineSaved.
+          <p className='text-xs text-muted-foreground'>
+            Az összefoglaló sorban áll, és szinkronizálódik, amint újra online leszel.
+          </p>
         ) : (
           <span />
         )}
@@ -1052,7 +1098,7 @@ export function EntryForm({
               </DialogContent>
             </Dialog>
           )}
-          <Button type='submit' disabled={isPending} size='sm'>
+          <Button type='submit' disabled={isPending || offlineQueued} size='sm'>
             {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add entry'}
           </Button>
         </div>

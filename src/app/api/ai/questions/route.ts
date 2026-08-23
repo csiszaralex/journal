@@ -237,7 +237,12 @@ export async function POST(req: NextRequest) {
       : listEntries({ to_date: referenceDate, page_size: historyDays + 7 });
   const windowSize = mode === 'summary' ? SUMMARY_HISTORY_ENTRIES : historyDays;
   const priorDays = recent
-    .filter((e) => e.version.entry_date !== referenceDate)
+    // Drop the entry currently being written — a DAILY one shares its date with
+    // the reference date. A summary ending on that date is a different entry
+    // covering a whole range, and it is the most relevant context there is when
+    // the user backfills the last day of a gap it recaps, so it stays (labelled
+    // as a range by entryHeading, the way this route treats every summary).
+    .filter((e) => e.version.kind === 'summary' || e.version.entry_date !== referenceDate)
     .filter((e) => e.version.text.trim().length > 0)
     .slice(0, windowSize)
     // Show oldest → newest in the prompt for natural reading order.

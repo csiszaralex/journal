@@ -3,7 +3,13 @@ export const dynamic = 'force-dynamic';
 import { EntryCard } from '@/components/journal/EntryCard';
 import { MonthSwipe } from '@/components/journal/MonthSwipe';
 import { Button } from '@/components/ui/button';
-import { getCalendarData, getSummaryRanges, listEntries } from '@/db/queries/entries';
+import {
+  getCalendarData,
+  getEntry,
+  getSummaryRanges,
+  listEntries,
+  type EntryWithVersion,
+} from '@/db/queries/entries';
 import { cn } from '@/lib/utils';
 import {
   addMonths,
@@ -61,13 +67,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
     });
   }
 
-  // Faint band under the days a summary covers. Ranges can start before or end
-  // after the visible month, so clamp to the month before expanding.
-  const summaryDates = new Set<string>();
-  for (const r of getSummaryRanges(
+  // Every summary overlapping this month — drives both the faint band under the
+  // days a summary covers and the selected-day panel below.
+  const summaryRanges = getSummaryRanges(
     format(monthStart, 'yyyy-MM-dd'),
     format(monthEnd, 'yyyy-MM-dd'),
-  )) {
+  );
+
+  // Ranges can start before or end after the visible month, so clamp to the
+  // month before expanding.
+  const summaryDates = new Set<string>();
+  for (const r of summaryRanges) {
     const start = new Date(r.period_start + 'T00:00:00');
     const end = new Date(r.entry_date + 'T00:00:00');
     for (const d of eachDayOfInterval({
@@ -86,6 +96,24 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   const dayEntries = selectedDay
     ? listEntries({ from_date: selectedDay, to_date: selectedDay, page_size: 50 })
     : [];
+
+  // listEntries matches a summary only on its entry_date (the range's last day),
+  // so every other banded day would open an empty panel under the band with no
+  // route to the recap. Add the summaries whose period covers the selected day —
+  // the band's own source of truth — skipping the one already listed when the day
+  // is the range's end. Daily entries keep their position and order.
+  const coveringSummaries: EntryWithVersion[] = selectedDay
+    ? summaryRanges
+        .filter(
+          (r) =>
+            r.period_start <= selectedDay &&
+            selectedDay <= r.entry_date &&
+            !dayEntries.some((e) => e.id === r.id),
+        )
+        .map((r) => getEntry(r.id))
+        .filter((e): e is EntryWithVersion => e !== null)
+    : [];
+  const panelEntries = [...dayEntries, ...coveringSummaries];
 
   return (
     <>
@@ -235,10 +263,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             </Link>
           </div>
 
-          {dayEntries.length === 0 ? (
+          {panelEntries.length === 0 ? (
             <p className='py-2 text-sm text-muted-foreground/60'>No entries for this day.</p>
           ) : (
-            dayEntries.map((entry) => <EntryCard key={entry.id} entry={entry} today={today} />)
+            panelEntries.map((entry) => <EntryCard key={entry.id} entry={entry} today={today} />)
           )}
         </div>
       )}
