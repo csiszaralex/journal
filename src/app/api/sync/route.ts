@@ -124,17 +124,29 @@ export async function POST(req: NextRequest) {
     if (action === "updateEntry") {
       const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, qa_pairs, kind, period_start } =
         payload;
-      const updated = updateEntry(entry_id, {
-        entry_date,
-        text,
-        mood_score,
-        energy_score,
-        tag_ids: resolveTagIds(tags),
-        emotion_ids: resolveEmotionIds(emotions),
-        qa_pairs,
-        kind,
-        period_start,
-      });
+      let updated: ReturnType<typeof updateEntry>;
+      try {
+        updated = updateEntry(entry_id, {
+          entry_date,
+          text,
+          mood_score,
+          energy_score,
+          tag_ids: resolveTagIds(tags),
+          emotion_ids: resolveEmotionIds(emotions),
+          qa_pairs,
+          kind,
+          period_start,
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateDateError)) throw err;
+        // Turning a summary into a daily entry on a date that already has one.
+        // Unlike the createEntry path there is nothing to recover to — merging two
+        // distinct entries is not this route's call — so report it and don't retry.
+        return NextResponse.json(
+          { ok: false, error: "An active entry already exists for this date", noRetry: true },
+          { status: 409 },
+        );
+      }
       if (!updated) {
         return NextResponse.json({ ok: false, error: "Entry not found", noRetry: true }, { status: 404 });
       }
