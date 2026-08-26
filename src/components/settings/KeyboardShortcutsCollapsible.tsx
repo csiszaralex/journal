@@ -38,7 +38,19 @@ export function KeyboardShortcutsCollapsible() {
           <kbd className='rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs'>
             t
           </kbd>{' '}
-          Stats. Shortcuts are disabled when typing in a field.
+          Stats ·{' '}
+          <kbd className='rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs'>
+            d
+          </kbd>{' '}
+          Devices ·{' '}
+          <kbd className='rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs'>
+            p
+          </kbd>{' '}
+          Settings. In the entry form,{' '}
+          <kbd className='rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs'>
+            Ctrl/⌘ + Enter
+          </kbd>{' '}
+          saves. Shortcuts are disabled when typing in a field.
         </p>
       </CollapsibleContent>
     </Collapsible>
