@@ -116,7 +116,8 @@ function buildUserMessage(
                 ? '\n\nQ&A from this day:\n' +
                   d.qaPairs.map((p) => `- Q: ${p.question}\n  A: ${p.answer}`).join('\n')
                 : '';
-            return `### ${entryHeading(d, referenceDate)} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${d.text}${qaSection}`;
+            const body = d.text.trim().length > 0 ? d.text : '(no free text — only the Q&A below)';
+            return `### ${entryHeading(d, referenceDate)} (tags: ${tagLabels} | emotions: ${emotionLabels})\n${body}${qaSection}`;
           })
           .join('\n\n');
 
@@ -225,7 +226,8 @@ export async function POST(req: NextRequest) {
   // The gap threshold that also drives the home-page banner (single knob).
   const gapThreshold = getSummaryGapDays();
   const periodStart = parsed.data.periodStart;
-  // Over-fetch so the reference day + empty-text entries can be filtered out before slicing.
+  // Over-fetch so the reference day + entries with nothing written can be filtered
+  // out before slicing.
   // In summary mode the period itself is empty by definition, so the window
   // comes from the entries strictly BEFORE periodStart, not around referenceDate.
   const recent =
@@ -243,7 +245,14 @@ export async function POST(req: NextRequest) {
     // the user backfills the last day of a gap it recaps, so it stays (labelled
     // as a range by entryHeading, the way this route treats every summary).
     .filter((e) => e.version.kind === 'summary' || e.version.entry_date !== referenceDate)
-    .filter((e) => e.version.text.trim().length > 0)
+    // A day is worth showing if the user wrote anything at all — free text or an
+    // answer to an earlier question. Dropping answer-only days would hide exactly
+    // the material these prompts produced.
+    .filter(
+      (e) =>
+        e.version.text.trim().length > 0 ||
+        e.version.qa_pairs.some((p) => p.answer.trim().length > 0),
+    )
     .slice(0, windowSize)
     // Show oldest → newest in the prompt for natural reading order.
     .reverse()
