@@ -40,15 +40,42 @@ export function getOrCreateEmotion(displayName: string) {
   return db.select().from(emotions).where(eq(emotions.id, id)).get()!;
 }
 
+/**
+ * Live usage count: distinct non-deleted entries whose *current* version links
+ * the emotion. There is no stored counter on `emotions`; every "popular"/usage
+ * ordering goes through this expression.
+ */
+const liveUsageCount = sql<number>`COUNT(DISTINCT CASE WHEN ${entries.deleted_at} IS NULL THEN ${entries.id} END)`;
+
+/** Base select: every emotion row (same shape as `select().from(emotions)`) with a live `usage_count`. */
+function emotionsWithUsage() {
+  return db
+    .select({
+      id: emotions.id,
+      name: emotions.name,
+      display_name: emotions.display_name,
+      color: emotions.color,
+      emoji: emotions.emoji,
+      created_at: emotions.created_at,
+      usage_count: liveUsageCount,
+    })
+    .from(emotions)
+    .leftJoin(entryVersionEmotions, eq(entryVersionEmotions.emotion_id, emotions.id))
+    .leftJoin(entries, eq(entries.current_version_id, entryVersionEmotions.version_id))
+    .groupBy(emotions.id);
+}
+
+/** All emotions (or the top `limit`) ordered by live usage desc, then name asc. */
+export function listEmotionsByUsage(limit?: number) {
+  const query = emotionsWithUsage().orderBy(desc(liveUsageCount), asc(emotions.name));
+  return (limit === undefined ? query : query.limit(limit)).all();
+}
+
 export function suggestEmotions(prefix: string, limit = 10) {
   const needle = foldAccents(prefix.trim().toLowerCase());
   if (!needle) return getPopularEmotions(limit);
 
-  return db
-    .select()
-    .from(emotions)
-    .orderBy(desc(emotions.usage_count))
-    .all()
+  return listEmotionsByUsage()
     .filter((e) => foldAccents(e.name).includes(needle))
     .slice(0, limit);
 }
@@ -67,31 +94,11 @@ export function getEmotionsByNames(displayNames: string[]) {
 }
 
 export function getPopularEmotions(limit = 20) {
-  return db
-    .select()
-    .from(emotions)
-    .orderBy(desc(emotions.usage_count))
-    .limit(limit)
-    .all();
+  return listEmotionsByUsage(limit);
 }
 
 export function listAllEmotions() {
-  return db
-    .select({
-      id: emotions.id,
-      name: emotions.name,
-      display_name: emotions.display_name,
-      color: emotions.color,
-      emoji: emotions.emoji,
-      created_at: emotions.created_at,
-      usage_count: sql<number>`COUNT(DISTINCT CASE WHEN ${entries.deleted_at} IS NULL THEN ${entries.id} END)`,
-    })
-    .from(emotions)
-    .leftJoin(entryVersionEmotions, eq(entryVersionEmotions.emotion_id, emotions.id))
-    .leftJoin(entries, eq(entries.current_version_id, entryVersionEmotions.version_id))
-    .groupBy(emotions.id)
-    .orderBy(asc(emotions.name))
-    .all();
+  return emotionsWithUsage().orderBy(asc(emotions.name)).all();
 }
 
 export function updateEmotion(input: {

@@ -60,12 +60,8 @@ export const tags = sqliteTable(
     display_name: text("display_name").notNull(),
     color: text("color").notNull().default("#9ca3af"),
     created_at: integer("created_at").notNull(),
-    usage_count: integer("usage_count").notNull().default(0),
   },
-  (t) => [
-    index("tags_name_idx").on(t.name),
-    index("tags_usage_count_idx").on(t.usage_count),
-  ]
+  (t) => [index("tags_name_idx").on(t.name)]
 );
 
 export const entryVersionTags = sqliteTable(
@@ -93,12 +89,8 @@ export const emotions = sqliteTable(
     color: text("color").notNull().default("#9ca3af"),
     emoji: text("emoji"),
     created_at: integer("created_at").notNull(),
-    usage_count: integer("usage_count").notNull().default(0),
   },
-  (t) => [
-    index("emotions_name_idx").on(t.name),
-    index("emotions_usage_count_idx").on(t.usage_count),
-  ]
+  (t) => [index("emotions_name_idx").on(t.name)]
 );
 
 export const entryVersionEmotions = sqliteTable(

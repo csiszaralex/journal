@@ -40,15 +40,41 @@ export function getOrCreateTag(displayName: string) {
   return db.select().from(tags).where(eq(tags.id, id)).get()!;
 }
 
+/**
+ * Live usage count: distinct non-deleted entries whose *current* version links
+ * the tag. There is no stored counter on `tags`; every "popular"/usage ordering
+ * goes through this expression.
+ */
+const liveUsageCount = sql<number>`COUNT(DISTINCT CASE WHEN ${entries.deleted_at} IS NULL THEN ${entries.id} END)`;
+
+/** Base select: every tag row (same shape as `select().from(tags)`) with a live `usage_count`. */
+function tagsWithUsage() {
+  return db
+    .select({
+      id: tags.id,
+      name: tags.name,
+      display_name: tags.display_name,
+      color: tags.color,
+      created_at: tags.created_at,
+      usage_count: liveUsageCount,
+    })
+    .from(tags)
+    .leftJoin(entryVersionTags, eq(entryVersionTags.tag_id, tags.id))
+    .leftJoin(entries, eq(entries.current_version_id, entryVersionTags.version_id))
+    .groupBy(tags.id);
+}
+
+/** All tags (or the top `limit`) ordered by live usage desc, then name asc. */
+export function listTagsByUsage(limit?: number) {
+  const query = tagsWithUsage().orderBy(desc(liveUsageCount), asc(tags.name));
+  return (limit === undefined ? query : query.limit(limit)).all();
+}
+
 export function suggestTags(prefix: string, limit = 10) {
   const needle = foldAccents(prefix.trim().toLowerCase());
   if (!needle) return getPopularTags(limit);
 
-  return db
-    .select()
-    .from(tags)
-    .orderBy(desc(tags.usage_count))
-    .all()
+  return listTagsByUsage()
     .filter((t) => foldAccents(t.name).includes(needle))
     .slice(0, limit);
 }
@@ -67,30 +93,11 @@ export function getTagsByNames(displayNames: string[]) {
 }
 
 export function getPopularTags(limit = 20) {
-  return db
-    .select()
-    .from(tags)
-    .orderBy(desc(tags.usage_count))
-    .limit(limit)
-    .all();
+  return listTagsByUsage(limit);
 }
 
 export function listAllTags() {
-  return db
-    .select({
-      id: tags.id,
-      name: tags.name,
-      display_name: tags.display_name,
-      color: tags.color,
-      created_at: tags.created_at,
-      usage_count: sql<number>`COUNT(DISTINCT CASE WHEN ${entries.deleted_at} IS NULL THEN ${entries.id} END)`,
-    })
-    .from(tags)
-    .leftJoin(entryVersionTags, eq(entryVersionTags.tag_id, tags.id))
-    .leftJoin(entries, eq(entries.current_version_id, entryVersionTags.version_id))
-    .groupBy(tags.id)
-    .orderBy(asc(tags.name))
-    .all();
+  return tagsWithUsage().orderBy(asc(tags.name)).all();
 }
 
 export function updateTag(input: {

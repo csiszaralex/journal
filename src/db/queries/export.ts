@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "../client";
 import {
   emotions,
@@ -10,6 +10,8 @@ import {
   pushSubscriptions,
   auditLog,
 } from "../schema";
+import { listEmotionsByUsage } from "./emotions";
+import { listTagsByUsage } from "./tags";
 
 export function getAllEntriesForExport() {
   const allEntries = db
@@ -62,20 +64,14 @@ export function getAllEntriesForExport() {
   });
 }
 
+// Both return the full row shape plus a live-computed `usage_count` (there is
+// no stored counter), ordered by usage desc, then name asc.
 export function getAllTagsForExport() {
-  return db
-    .select()
-    .from(tags)
-    .orderBy(desc(tags.usage_count))
-    .all();
+  return listTagsByUsage();
 }
 
 export function getAllEmotionsForExport() {
-  return db
-    .select()
-    .from(emotions)
-    .orderBy(desc(emotions.usage_count))
-    .all();
+  return listEmotionsByUsage();
 }
 
 export function getPushSubscriptionsForExport() {
