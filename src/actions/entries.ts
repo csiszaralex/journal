@@ -1,90 +1,16 @@
 'use server';
 
 import { logAudit } from '@/db/queries/audit';
-import {
-  createEntry,
-  getEntryDates,
-  rollbackToVersion,
-  softDeleteEntry,
-  updateEntry,
-} from '@/db/queries/entries';
+import { getEntryDates, rollbackToVersion, softDeleteEntry } from '@/db/queries/entries';
 import { requireUserId } from '@/lib/auth';
-import { resolveEmotionIds, resolveTagIds } from '@/lib/entry-utils';
 import { authActionClient } from '@/lib/safe-action';
-import { entryInputObjectSchema, entryInputSchema, refineEntryPeriod } from '@/lib/validation';
-import { parseWithZod } from '@conform-to/zod/v4';
 import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-export async function createEntryAction(_: unknown, formData: FormData) {
-  await requireUserId();
-  const submission = parseWithZod(formData, { schema: entryInputSchema });
-  if (submission.status !== 'success') return submission.reply();
-
-  const { text, mood_score, energy_score, entry_date, tags, emotions, kind, period_start } =
-    submission.value;
-
-  const safeParseJsonArray = (s: string) => {
-    try {
-      const v = JSON.parse(s || '[]');
-      return Array.isArray(v) ? v : [];
-    } catch {
-      return [];
-    }
-  };
-  const parsedTags = safeParseJsonArray(tags);
-  const parsedEmotions = safeParseJsonArray(emotions);
-  const isEmpty =
-    !text &&
-    mood_score == null &&
-    energy_score == null &&
-    parsedTags.length === 0 &&
-    parsedEmotions.length === 0;
-  if (isEmpty) return submission.reply({ resetForm: true });
-
-  const created = createEntry({
-    entry_date,
-    text,
-    mood_score,
-    energy_score,
-    tag_ids: resolveTagIds(tags),
-    emotion_ids: resolveEmotionIds(emotions),
-    kind,
-    period_start,
-  });
-  logAudit('entry.create', { entry_id: created.id, entry_date });
-
-  revalidatePath('/');
-  return submission.reply({ resetForm: true });
-}
-
-export async function updateEntryAction(_: unknown, formData: FormData) {
-  await requireUserId();
-  const updateSchema = entryInputObjectSchema
-    .extend({ entry_id: z.string().min(1, 'Entry not found') })
-    .superRefine(refineEntryPeriod);
-  const submission = parseWithZod(formData, { schema: updateSchema });
-  if (submission.status !== 'success') return submission.reply();
-
-  const { entry_id, text, mood_score, energy_score, entry_date, tags, emotions, kind, period_start } =
-    submission.value;
-  const updated = updateEntry(entry_id, {
-    entry_date,
-    text,
-    mood_score,
-    energy_score,
-    tag_ids: resolveTagIds(tags),
-    emotion_ids: resolveEmotionIds(emotions),
-    kind,
-    period_start,
-  });
-  logAudit('entry.update', { entry_id: entry_id, version: updated?.version.version_number });
-
-  revalidatePath('/');
-  revalidatePath(`/entry/${entry_id}`);
-  return submission.reply();
-}
+// Entry writes go through POST /api/sync (see EntryForm), which the service
+// worker can also replay offline. The actions below cover what the form does
+// not: deletion, rollback, and the date-picker lookup.
 
 const idSchema = z.string().min(1);
 
