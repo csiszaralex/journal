@@ -760,7 +760,8 @@ export function EntryForm({
       payload.mood_score == null &&
       payload.energy_score == null &&
       state.tags.length === 0 &&
-      state.emotions.length === 0;
+      state.emotions.length === 0 &&
+      filledQaPairs.length === 0;
     if (isEmpty && !isEdit) {
       resetForm();
       return;
