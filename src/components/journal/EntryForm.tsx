@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { format, addDays } from 'date-fns';
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, HistoryIcon, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useReducer, useEffect, useRef, useState } from 'react';
+import { useCallback, useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createId } from '@paralleldrive/cuid2';
@@ -63,6 +63,11 @@ type FormState = {
   qaLoadingIndex: number | null;
   qaAppending: boolean;
   qaError: string | null;
+  // An edit draft found on mount and offered in the banner, waiting for the user to
+  // accept or dismiss it. Lives in the reducer so applying it clears the offer in
+  // the same atomic update that rewrites the form (see RESTORE_DRAFT). Always null
+  // for new entries, which adopt their draft silently instead of asking.
+  pendingDraft: DraftPayload | null;
 };
 
 type FormAction =
@@ -99,6 +104,8 @@ type FormAction =
   | { type: 'QA_APPEND_ONE_SUCCESS'; question: string }
   | { type: 'QA_APPEND_ONE_ERROR'; error: string }
   | { type: 'QA_DELETE_ONE'; index: number }
+  | { type: 'DRAFT_OFFERED'; draft: DraftPayload }
+  | { type: 'DRAFT_DISMISSED' }
   | { type: 'REFRESH_PICKERS' };
 
 function formReducer(state: FormState, action: FormAction): FormState {
@@ -144,6 +151,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
         qaLoadingIndex: null,
         qaAppending: false,
         qaError: null,
+        // Unreachable in edit mode (RESET only runs for new entries), but a reset
+        // form has nothing left that a draft offer could belong to.
+        pendingDraft: null,
       };
     case 'APPLY_TEMPLATE':
       return {
@@ -170,11 +180,24 @@ function formReducer(state: FormState, action: FormAction): FormState {
         entryDate: action.date ?? state.entryDate,
         periodStart: action.periodStart ?? state.periodStart,
         tags: action.tags ?? state.tags,
-        tagKey: action.tags?.length ? state.tagKey + 1 : state.tagKey,
+        // Remount the picker for ANY list the draft supplies, including an empty
+        // one — which only an edit draft can carry (the user removed every tag).
+        // The pickers keep their selection internally, so without a new key they
+        // would go on showing chips the restored state no longer has. New-entry
+        // restores pass undefined for an empty list, so nothing changes for them.
+        tagKey: action.tags ? state.tagKey + 1 : state.tagKey,
         emotions: action.emotions ?? state.emotions,
-        emotionKey: action.emotions?.length ? state.emotionKey + 1 : state.emotionKey,
+        emotionKey: action.emotions ? state.emotionKey + 1 : state.emotionKey,
         qaPairs: action.qaPairs ?? state.qaPairs,
+        // Applying the draft answers the banner's question, so the offer goes away
+        // in the same update that rewrites the form — no second render in between
+        // where the banner still points at a draft that is already on screen.
+        pendingDraft: null,
       };
+    case 'DRAFT_OFFERED':
+      return { ...state, pendingDraft: action.draft };
+    case 'DRAFT_DISMISSED':
+      return { ...state, pendingDraft: null };
     case 'QA_REQUEST_START':
       return { ...state, qaLoading: true, qaLoadingIndex: null, qaError: null };
     case 'QA_REQUEST_SUCCESS':
@@ -265,6 +288,139 @@ const DRAFT_KEY_PREFIX = 'journal_entry_draft:';
 const SUMMARY_DRAFT_KEY = `${DRAFT_KEY_PREFIX}summary:new`;
 const draftKey = (kind: EntryKind, date: string) =>
   kind === 'summary' ? SUMMARY_DRAFT_KEY : `${DRAFT_KEY_PREFIX}${date}`;
+// Edits get a third namespace, keyed by entry id. An entry's date is not enough:
+// the daily draft for that same date belongs to a DIFFERENT (unsaved) entry, and a
+// summary edit must not land in the single unsaved-summary slot either. The id also
+// keeps the key stable while the form is open — nothing about it is form state.
+const editDraftKey = (entryId: string) => `${DRAFT_KEY_PREFIX}entry:${entryId}`;
+
+// The stored draft shape, shared by every mode — the autosave effect writes exactly
+// this and the restore path validates against it. Every field stays optional so
+// payloads written by earlier versions of this form still parse; baseVersion in
+// particular is only ever written for edit drafts.
+const draftSchema = z.object({
+  text: z.string().optional(),
+  mood: z.number().nullable().optional(),
+  energy: z.number().nullable().optional(),
+  tags: z.string().array().optional(),
+  emotions: z.string().array().optional(),
+  qaPairs: z
+    .object({ question: z.string(), answer: z.string() })
+    .array()
+    .optional(),
+  periodStart: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  entryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  baseVersion: z.number().optional(),
+  savedAt: z.number().optional(),
+});
+type DraftPayload = z.infer<typeof draftSchema>;
+
+// The period the draft's text was written for. Summary drafts live under a fixed
+// key, so neither end can be re-derived from it — both travel in the payload and
+// are restored together or not at all. Pairing a stale start with the end this form
+// happened to open on would rebuild a range the user never chose, and could invert
+// it into one the save path rejects. Daily entries have no period and keep their
+// date from the route.
+function draftPeriod(d: DraftPayload, isSummary: boolean) {
+  return isSummary && d.periodStart && d.entryDate && d.periodStart <= d.entryDate
+    ? { from: d.periodStart, to: d.entryDate }
+    : null;
+}
+
+// The comparable content of an entry — everything the form can change that the
+// server actually stores. Used to answer one question in three places: "does this
+// differ from what is saved?", asked of the live form state, of a stored draft, and
+// of what a save has just sent.
+type EntrySnapshot = {
+  text: string;
+  mood: number | null;
+  energy: number | null;
+  tags: string[];
+  emotions: string[];
+  qaPairs: { question: string; answer: string }[];
+  // Summaries only. A daily entry has no period, and its date cannot change from
+  // the form — the date controls navigate to the other day instead of moving this
+  // entry — so there is nothing to compare for one.
+  period: { from: string; to: string } | null;
+};
+
+// Answers are trimmed on their way to the server and blank ones are dropped there
+// (see handleSubmit), so only answered questions can differ from what is saved.
+// Generating questions and leaving them unanswered is therefore not an unsaved
+// change: it must not arm the unload prompt or strand a draft the next visit would
+// ask about. Unanswered questions still travel in the draft payload, so restoring a
+// draft written for some other reason brings them back with it.
+const answeredPairs = (pairs: { question: string; answer: string }[]) =>
+  pairs
+    .map((p) => ({ question: p.question, answer: p.answer.trim() }))
+    .filter((p) => p.answer.length > 0);
+
+function versionSnapshot(version: EntryWithVersion['version']): EntrySnapshot {
+  return {
+    text: version.text,
+    mood: version.mood_score,
+    energy: version.energy_score,
+    tags: version.tags.map((t) => t.display_name),
+    emotions: version.emotions.map((e) => e.display_name),
+    qaPairs: answeredPairs(version.qa_pairs),
+    period:
+      version.kind === 'summary' && version.period_start
+        ? { from: version.period_start, to: version.entry_date }
+        : null,
+  };
+}
+
+function stateSnapshot(state: FormState, isSummary: boolean): EntrySnapshot {
+  return {
+    text: state.textValue,
+    mood: state.moodScore ?? null,
+    energy: state.energyScore ?? null,
+    tags: state.tags,
+    emotions: state.emotions,
+    qaPairs: answeredPairs(state.qaPairs),
+    period: isSummary ? { from: state.periodStart, to: state.entryDate } : null,
+  };
+}
+
+function draftSnapshot(d: DraftPayload, isSummary: boolean): EntrySnapshot {
+  return {
+    text: d.text ?? '',
+    mood: d.mood ?? null,
+    energy: d.energy ?? null,
+    tags: d.tags ?? [],
+    emotions: d.emotions ?? [],
+    qaPairs: answeredPairs(d.qaPairs ?? []),
+    period: draftPeriod(d, isSummary),
+  };
+}
+
+// Ordered comparison, deliberately: the form's initial state is built from these
+// arrays in their stored order, so a reordered tag/emotion/question list is a real
+// edit (the pickers support dragging) and deserves a draft.
+function snapshotsEqual(a: EntrySnapshot, b: EntrySnapshot): boolean {
+  return (
+    a.text === b.text &&
+    a.mood === b.mood &&
+    a.energy === b.energy &&
+    // Both null for a daily entry, so this collapses to true there.
+    a.period?.from === b.period?.from &&
+    a.period?.to === b.period?.to &&
+    a.tags.length === b.tags.length &&
+    a.tags.every((t, i) => t === b.tags[i]) &&
+    a.emotions.length === b.emotions.length &&
+    a.emotions.every((e, i) => e === b.emotions[i]) &&
+    a.qaPairs.length === b.qaPairs.length &&
+    a.qaPairs.every(
+      (p, i) => p.question === b.qaPairs[i].question && p.answer === b.qaPairs[i].answer,
+    )
+  );
+}
 
 export function EntryForm({
   entry,
@@ -367,7 +523,38 @@ export function EntryForm({
     qaLoadingIndex: null,
     qaAppending: false,
     qaError: null,
+    pendingDraft: null,
   });
+
+  // What the entry prop says the server holds, recomputed when a refresh delivers a
+  // new version. Null for new entries — they have nothing to be dirty against.
+  const loadedSnapshot = useMemo(() => (entry ? versionSnapshot(entry.version) : null), [entry]);
+
+  // What a successful save has just sent, tagged with the version the form was
+  // showing when it went out. router.refresh() only delivers the new version a
+  // moment later, and until it lands the form would still be compared against the
+  // OLD one — looking dirty, arming the unload warning and autosaving a draft for
+  // changes that are already saved. The tag makes this self-expiring: as soon as the
+  // prop moves past that version number the real snapshot takes over again, so a
+  // newer version arriving from anywhere else is never masked.
+  const [justSaved, setJustSaved] = useState<{
+    afterVersion: number;
+    snapshot: EntrySnapshot;
+  } | null>(null);
+  const savedSnapshot =
+    entry && justSaved && justSaved.afterVersion === entry.version.version_number
+      ? justSaved.snapshot
+      : loadedSnapshot;
+
+  // Note there is no "has content" test here: emptying a saved entry's text is a
+  // legitimate edit worth keeping a draft for, and content that matches the entry
+  // is worth nothing. Only difference matters.
+  const isDirty = !!savedSnapshot && !snapshotsEqual(stateSnapshot(state, isSummary), savedSnapshot);
+
+  // The single source of truth for which key this form owns. The save effect, the
+  // restore path, discardDraft and handleClear all go through it, so the edit and
+  // new-entry modes can never read, overwrite or clear each other's draft.
+  const currentDraftKey = entry ? editDraftKey(entry.id) : draftKey(kind, state.entryDate);
 
   function resetForm() {
     dispatch({ type: 'RESET', todayStr });
@@ -380,7 +567,7 @@ export function EntryForm({
       clearTimeout(draftSaveRef.current);
       draftSaveRef.current = null;
     }
-    localStorage.removeItem(draftKey(kind, state.entryDate));
+    localStorage.removeItem(currentDraftKey);
   }
 
   function handleClear() {
@@ -401,6 +588,10 @@ export function EntryForm({
   function handleOfflineSaved() {
     if (isEdit) {
       toast('Saved offline — will sync when connected', { duration: 4000 });
+      // The draft stays deliberately: the update is only QUEUED, not persisted, and
+      // the entry on the server is still the old version. Until the queue drains,
+      // that draft is the only copy of these edits — and since the form still
+      // differs from the saved entry, autosave keeps it current on its own.
       dispatch({ type: 'REFRESH_PICKERS' });
     } else if (isSummary) {
       toast('Az összefoglaló sorban áll — szinkronizálunk, amint újra online vagy', {
@@ -418,42 +609,75 @@ export function EntryForm({
     onSuccess?.();
   }
 
-  // Restore draft on mount (new entries only) — scoped to the selected day for a
-  // daily entry, to the single unsaved-summary slot for a summary.
-  // Single dispatch keeps the state update atomic — no separate setState needed.
+  // Apply a stored draft to the form. Both modes go through the one RESTORE_DRAFT
+  // action; only the trigger differs — automatic on mount for a new entry, the
+  // banner's button for an edit.
+  const applyDraft = useCallback(
+    (d: DraftPayload) => {
+      const range = draftPeriod(d, isSummary);
+      dispatch({
+        type: 'RESTORE_DRAFT',
+        text: d.text ?? '',
+        moodScore: d.mood ?? undefined,
+        energyScore: d.energy ?? undefined,
+        date: range?.to,
+        periodStart: range?.from,
+        // An edit draft says exactly which lists it holds, empty ones included: the
+        // user may have deleted every tag, and `?? state.tags` would quietly put
+        // them back. A new-entry draft has nothing to undo, so an empty list stays
+        // undefined there and the reducer keeps the current (also empty) value.
+        tags: isEdit ? (d.tags ?? []) : d.tags?.length ? d.tags : undefined,
+        emotions: isEdit ? (d.emotions ?? []) : d.emotions?.length ? d.emotions : undefined,
+        qaPairs: isEdit ? (d.qaPairs ?? []) : d.qaPairs?.length ? d.qaPairs : undefined,
+      });
+    },
+    [isEdit, isSummary],
+  );
+
+  // Take the draft the banner is offering. Its content is read from state, not from
+  // localStorage: autosave may have overwritten the key in the meantime with the
+  // edits made while the banner was up, and what was offered is what must be applied.
+  function handleRestoreDraft() {
+    if (state.pendingDraft) applyDraft(state.pendingDraft);
+  }
+
+  function handleDismissDraft() {
+    discardDraft();
+    dispatch({ type: 'DRAFT_DISMISSED' });
+  }
+
+  // Handle the stored draft on mount.
+  //
+  // New entry: adopt it silently — scoped to the selected day for a daily entry, to
+  // the single unsaved-summary slot for a summary. A single dispatch keeps the state
+  // update atomic.
+  //
+  // Edit: never adopt it silently. The saved entry is what the user is looking at,
+  // so replacing it with older text unasked would read as data loss. The draft is
+  // only OFFERED, via the banner, and applied when the user says so.
   useEffect(() => {
-    if (isEdit) return;
     // Once per mount only. In daily mode the date changes by navigation, which
     // remounts anyway; in summary mode it changes in place, and a second run
     // would restore a stale draft over the text being written.
     if (restoredRef.current) return;
     restoredRef.current = true;
     try {
-      const raw = localStorage.getItem(draftKey(kind, state.entryDate));
+      const raw = localStorage.getItem(currentDraftKey);
       if (!raw) return;
-      const draftSchema = z.object({
-        text: z.string().optional(),
-        mood: z.number().nullable().optional(),
-        energy: z.number().nullable().optional(),
-        tags: z.string().array().optional(),
-        emotions: z.string().array().optional(),
-        qaPairs: z
-          .object({ question: z.string(), answer: z.string() })
-          .array()
-          .optional(),
-        periodStart: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .optional(),
-        entryDate: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .optional(),
-        savedAt: z.number().optional(),
-      });
       const parsed = draftSchema.safeParse(JSON.parse(raw));
       if (!parsed.success) return;
       const d = parsed.data;
+      if (isEdit) {
+        // A draft that matches the entry as saved has nothing to recover — it is
+        // what a write that raced the save left behind. Drop it rather than asking
+        // the user about a no-op change.
+        if (savedSnapshot && snapshotsEqual(draftSnapshot(d, isSummary), savedSnapshot)) {
+          localStorage.removeItem(currentDraftKey);
+          return;
+        }
+        dispatch({ type: 'DRAFT_OFFERED', draft: d });
+        return;
+      }
       if (
         !d.text &&
         d.mood == null &&
@@ -463,56 +687,54 @@ export function EntryForm({
         !d.qaPairs?.length
       )
         return;
-      // The period the draft's text was written for. Summary drafts live under a
-      // fixed key, so neither end can be re-derived from it — both travel in the
-      // payload and are restored together or not at all. Pairing a stale start
-      // with the end this form happened to open on would rebuild a range the user
-      // never chose, and could invert it into one the save path rejects.
-      // Daily entries have no period and keep their date from the route.
-      const draftRange =
-        isSummary && d.periodStart && d.entryDate && d.periodStart <= d.entryDate
-          ? { from: d.periodStart, to: d.entryDate }
-          : null;
-      dispatch({
-        type: 'RESTORE_DRAFT',
-        text: d.text ?? '',
-        moodScore: d.mood ?? undefined,
-        energyScore: d.energy ?? undefined,
-        date: draftRange?.to,
-        periodStart: draftRange?.from,
-        tags: d.tags?.length ? d.tags : undefined,
-        emotions: d.emotions?.length ? d.emotions : undefined,
-        qaPairs: d.qaPairs?.length ? d.qaPairs : undefined,
-      });
+      applyDraft(d);
     } catch {
       /* ignore malformed draft */
     }
-  }, [isEdit, kind, isSummary, state.entryDate]);
+  }, [isEdit, isSummary, currentDraftKey, savedSnapshot, applyDraft]);
 
-  // Auto-save draft to localStorage (new entries only, debounced 2s). The key is
-  // the day for a daily entry and the fixed summary slot for a summary, so editing
-  // the range can no longer strand a draft under a key nothing clears.
+  // Auto-save draft to localStorage (debounced 2s). The key is the day for a new
+  // daily entry, the fixed summary slot for a new summary — so editing the range can
+  // no longer strand a draft under a key nothing clears — and the entry id for an
+  // edit.
+  //
+  // What counts as worth saving differs per mode: a new entry needs content, an edit
+  // needs to DIFFER from the entry as saved. Emptying a saved entry's text is a real
+  // change to protect, and text that matches the entry protects nothing.
   useEffect(() => {
-    if (isEdit) return;
-    // Skip the first run of this mount: the restore effect's dispatch hasn't
-    // committed yet, so state still looks empty. Acting now would delete the
-    // draft restore is about to load.
+    // Skip the first run of this mount: the restore effect runs first but its
+    // dispatch has not committed yet, so state still looks like the empty form (new)
+    // or the pristine entry (edit). Acting now would delete the draft the restore
+    // path is about to load or offer.
     if (!hydratedRef.current) {
       hydratedRef.current = true;
       return;
     }
-    const key = draftKey(kind, state.entryDate);
-    const hasContent =
-      state.textValue ||
-      state.moodScore !== undefined ||
-      state.energyScore !== undefined ||
-      state.tags.length > 0 ||
-      state.emotions.length > 0 ||
-      state.qaPairs.length > 0;
-    if (!hasContent) {
-      // Day cleared of content — drop any stale draft so it reopens clean.
-      localStorage.removeItem(key);
-      return;
+    const key = currentDraftKey;
+    if (isEdit) {
+      if (!isDirty) {
+        // The banner is still up, so the user has not answered it yet: an untouched
+        // form matching the entry is the expected state while they decide, and
+        // deleting the key here would pull the offer out from under them on the very
+        // next render (a picker re-emitting its value is enough to re-run this).
+        if (state.pendingDraft) return;
+        // Edits undone — what is on screen is what is saved, nothing left to recover.
+        localStorage.removeItem(key);
+        return;
+      }
+    } else {
+      const hasContent =
+        state.textValue ||
+        state.moodScore !== undefined ||
+        state.energyScore !== undefined ||
+        state.tags.length > 0 ||
+        state.emotions.length > 0 ||
+        state.qaPairs.length > 0;
+      if (!hasContent) {
+        // Day cleared of content — drop any stale draft so it reopens clean.
+        localStorage.removeItem(key);
+        return;
+      }
     }
     if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     draftSaveRef.current = setTimeout(() => {
@@ -532,6 +754,10 @@ export function EntryForm({
           // payload is unchanged.
           periodStart: isSummary ? state.periodStart : undefined,
           entryDate: isSummary ? state.entryDate : undefined,
+          // Edit drafts only: the version the edits were written on top of, so a
+          // later restore can say the entry has moved on since (saved from another
+          // tab or device). Undefined for new entries, so their payload is unchanged.
+          baseVersion: entry?.version.version_number,
           savedAt: Date.now(),
         }),
       );
@@ -539,7 +765,23 @@ export function EntryForm({
     return () => {
       if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.periodStart, state.tags, state.emotions, state.qaPairs, isEdit, kind, isSummary]);
+  }, [state.textValue, state.moodScore, state.energyScore, state.entryDate, state.periodStart, state.tags, state.emotions, state.qaPairs, state.pendingDraft, isEdit, isDirty, isSummary, currentDraftKey, entry]);
+
+  // Warn on tab close / reload while an edit has unsaved changes. The draft itself
+  // survives either way; the prompt is the only thing that can stop the user from
+  // walking away without realising. New entries get no prompt: their draft is
+  // restored automatically on the next visit, so there is nothing to warn about.
+  useEffect(() => {
+    if (!isEdit || !isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // preventDefault is what triggers the prompt in current browsers; returnValue
+      // keeps older ones asking too.
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isEdit, isDirty]);
 
   async function handleGenerateEmotions() {
     setIsGeneratingEmotions(true);
@@ -810,6 +1052,18 @@ export function EntryForm({
             resetForm();
           }
         } else {
+          // The edits are persisted now, so the draft has nothing left to protect —
+          // and a banner still offering it would be lying about what is unsaved.
+          discardDraft();
+          // Compare against what was just sent rather than the version still in the
+          // prop, so the form stops counting as dirty immediately and nothing
+          // rewrites the key that was just cleared. Same snapshot rules as the
+          // dirty check, which already mirror what the server stores.
+          setJustSaved({
+            afterVersion: entry!.version.version_number,
+            snapshot: stateSnapshot(state, isSummary),
+          });
+          dispatch({ type: 'DRAFT_DISMISSED' });
           dispatch({ type: 'REFRESH_PICKERS' });
         }
         onSuccess?.();
@@ -842,6 +1096,16 @@ export function EntryForm({
 
   // In summary mode the mood/energy scores describe the whole period, not one day.
   const scoreLabelSuffix = isSummary ? ' (az időszak egészére)' : '';
+
+  // Only worth saying when the entry moved on since the draft was written — saved
+  // from another tab or device, or synced from the offline queue. Restoring is still
+  // allowed, but it overwrites work the draft never saw, so name both versions.
+  const draftVersionNotice =
+    entry &&
+    state.pendingDraft?.baseVersion !== undefined &&
+    state.pendingDraft.baseVersion !== entry.version.version_number
+      ? ` A bejegyzés azóta módosult (v${state.pendingDraft.baseVersion} → v${entry.version.version_number}).`
+      : '';
 
   // Shift the entry date by ±1 day. Navigates the same way picking a day in the
   // calendar does, so the server loads any existing entry for the new date.
@@ -937,6 +1201,29 @@ export function EntryForm({
           </div>
         )}
       </div>
+
+      {/* Unsaved-changes offer (edit only) — never applied without being asked for. */}
+      {state.pendingDraft && (
+        <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2'>
+          <p className='text-xs text-muted-foreground'>
+            {`Nem mentett változtatásaid vannak ehhez a bejegyzéshez.${draftVersionNotice}`}
+          </p>
+          <div className='flex items-center gap-1.5'>
+            <Button type='button' variant='outline' size='xs' onClick={handleRestoreDraft}>
+              Visszaállítás
+            </Button>
+            <Button
+              type='button'
+              variant='ghost'
+              size='xs'
+              onClick={handleDismissDraft}
+              className='text-muted-foreground'
+            >
+              Elvetés
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Textarea */}
       <div>
