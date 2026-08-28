@@ -482,7 +482,20 @@ export function softDeleteEntry(id: string): void {
   db.update(entries).set({ deleted_at: Date.now() }).where(eq(entries.id, id)).run();
 }
 
-export function searchEntries(query: string, limit = 20) {
+/**
+ * Full-text search over entry text and tag names.
+ *
+ * Takes the same date/mood filters and paging as `listEntries`: the search page
+ * shows one set of controls, so they have to mean the same thing whether or not
+ * a query is typed. Ordering stays by relevance — that is what the query is for;
+ * `listEntries` is the one that reads chronologically.
+ */
+export function searchEntries(
+  query: string,
+  filters: Omit<ListEntriesFilters, 'tag_ids' | 'include_deleted'> = {},
+) {
+  const { from_date, to_date, min_mood, max_mood, page = 1, page_size = 20 } = filters;
+  const offset = (page - 1) * page_size;
   const searchRowSchema = z.object({
     id: z.string(),
     created_at: z.number(),
@@ -523,8 +536,12 @@ export function searchEntries(query: string, limit = 20) {
         JOIN entries e ON e.current_version_id = ev.id
         WHERE entries_fts MATCH ${query}
           AND e.deleted_at IS NULL
+          ${from_date ? sql`AND ev.entry_date >= ${from_date}` : sql``}
+          ${to_date ? sql`AND ev.entry_date <= ${to_date}` : sql``}
+          ${min_mood !== undefined ? sql`AND ev.mood_score >= ${min_mood}` : sql``}
+          ${max_mood !== undefined ? sql`AND ev.mood_score <= ${max_mood}` : sql``}
         ORDER BY entries_fts.rank
-        LIMIT ${limit}
+        LIMIT ${page_size} OFFSET ${offset}
       `,
   );
 
