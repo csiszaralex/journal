@@ -90,7 +90,7 @@ export function SearchView({
     placeholderData: (prev) => prev,
   });
 
-  const hasNext = !debouncedQ && entries.length === PAGE_SIZE;
+  const hasNext = entries.length === PAGE_SIZE;
   const hasFilters = debouncedQ || debouncedFrom || debouncedTo || moodMin || moodMax;
 
   function clearAll() {
@@ -220,8 +220,9 @@ export function SearchView({
         </div>
       )}
 
-      {/* Pagination (non-FTS only) */}
-      {!debouncedQ && (page > 1 || hasNext) && (
+      {/* Pagination — search results page like the list does; a full page is
+          how we know there may be more, in both modes. */}
+      {(page > 1 || hasNext) && (
         <div className="flex items-center justify-between gap-4 pt-2">
           {page > 1 ? (
             <Button

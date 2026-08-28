@@ -20,16 +20,19 @@ export const searchEntriesAction = authActionClient
   .action(async ({ parsedInput }) => {
     const { q, from, to, moodMin, moodMax, page = 1 } = parsedInput;
 
-    if (q?.trim()) {
-      return searchEntries(q.trim(), 25);
-    }
-
-    return listEntries({
+    // One set of controls on the page, so both branches take the same filters.
+    const common = {
       from_date: from || undefined,
       to_date: to || undefined,
       min_mood: moodMin,
       max_mood: moodMax,
       page,
       page_size: 25,
-    });
+    };
+
+    if (q?.trim()) {
+      return searchEntries(q.trim(), common);
+    }
+
+    return listEntries(common);
   });
