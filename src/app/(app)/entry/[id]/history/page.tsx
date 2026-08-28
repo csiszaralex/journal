@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatInAppTZ } from "@/lib/date";
 import { ArrowLeftIcon } from "lucide-react";
 import { getEntry, getVersionHistory } from "@/db/queries/entries";
 import { rollbackVersionAction } from "@/actions/entries";
@@ -62,7 +62,7 @@ export default async function EntryHistoryPage({
                     v{version.version_number}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(version.edited_at), "MMM d, yyyy 'at' HH:mm")}
+                    {formatInAppTZ(version.edited_at, "MMM d, yyyy 'at' HH:mm")}
                   </span>
                   {isCurrent && (
                     <Badge className="h-4 px-1.5 py-0 text-[10px]">
