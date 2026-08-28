@@ -10,6 +10,7 @@ import {
   listEntries,
   type EntryWithVersion,
 } from '@/db/queries/entries';
+import { todayInAppTZ } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import {
   addMonths,
@@ -43,9 +44,12 @@ const MOOD_TEXT: Record<number, string> = {
 
 export default async function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
   const { month, day } = await searchParams;
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = todayInAppTZ();
 
-  const monthDate = month ? new Date(month + '-01T00:00:00') : new Date();
+  // No ?month → the month today falls in, in the app's zone. Parsing today's own
+  // date string keeps the default month from flipping around midnight when the
+  // server's zone is ahead of or behind APP_TZ.
+  const monthDate = new Date((month ? month + '-01' : today) + 'T00:00:00');
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
   const monthKey = format(monthStart, 'yyyy-MM');

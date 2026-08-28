@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { SearchIcon, LoaderIcon } from "lucide-react";
+import { todayInAppTZ } from "@/lib/date";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,8 @@ export function SearchView({
   initialMoodMin = "",
   initialMoodMax = "",
 }: SearchViewProps) {
-  const today = format(new Date(), "yyyy-MM-dd");
+  // The app's day, not the browser's — EntryCard compares it against entry_date.
+  const today = todayInAppTZ();
 
   const [q, setQ] = useState(initialQ);
   const [from, setFrom] = useState(initialFrom);

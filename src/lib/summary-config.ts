@@ -2,7 +2,8 @@
 // server/DB imports so the settings UI and other client components can import
 // them without pulling in the DB client.
 
-import { addDays, differenceInCalendarDays, format, subDays } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns';
+import { shiftDaysISO, todayInAppTZ } from './date';
 
 export const SUMMARY_GAP_DAYS_DEFAULT = 7;
 export const SUMMARY_GAP_DAYS_MIN = 3;
@@ -11,15 +12,13 @@ export const SUMMARY_GAP_DAYS_MAX = 60;
 /** Prior entries fed to the AI when writing a summary. Not user-configurable. */
 export const SUMMARY_HISTORY_ENTRIES = 12;
 
-const ISO_DATE = 'yyyy-MM-dd';
-
 function parseISODate(iso: string): Date {
   return new Date(iso + 'T00:00:00');
 }
 
 /** The day after `iso`, as yyyy-MM-dd. */
 export function nextDay(iso: string): string {
-  return format(addDays(parseISODate(iso), 1), ISO_DATE);
+  return shiftDaysISO(iso, 1);
 }
 
 /** Whole days from `from` through `to`, both ends counted (1 when equal). */
@@ -40,16 +39,18 @@ export type SummaryPeriod = { from: string; to: string };
  * clamped to a single day.
  *
  * Single source of truth for the home-page gap banner and the /summary/new
- * defaults, which must offer the same period.
+ * defaults, which must offer the same period. `today` is a yyyy-MM-dd day in the
+ * app's zone, not an instant, so the banner and the page it links to cannot land
+ * on different days by being rendered in different zones.
  */
 export function getDefaultSummaryPeriod(
   lastDailyDate: string | null,
-  today: Date = new Date(),
+  today: string = todayInAppTZ(),
 ): SummaryPeriod {
-  const to = format(subDays(today, 1), ISO_DATE);
+  const to = shiftDaysISO(today, -1);
   const derivedFrom = lastDailyDate
     ? nextDay(lastDailyDate)
-    : format(subDays(today, SUMMARY_GAP_DAYS_DEFAULT), ISO_DATE);
+    : shiftDaysISO(today, -SUMMARY_GAP_DAYS_DEFAULT);
   return { from: derivedFrom > to ? to : derivedFrom, to };
 }
 

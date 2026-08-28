@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { PencilIcon, HistoryIcon, ChevronRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteEntryButton } from "@/components/journal/DeleteEntryButton";
 import type { EntryWithVersion } from "@/db/queries/entries";
+import { dayInAppTZ, hourInAppTZ, shiftDaysISO } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { getContrastTextColor } from "@/lib/color";
 
@@ -35,10 +36,11 @@ export function EntryCard({ entry, today }: EntryCardProps) {
   // Backdated = entry_date is before the day the entry was originally created.
   // Entries written before 6am count toward the previous day — at that hour
   // you're likely still up from the night before, not starting a new day.
-  const createdAt = new Date(entry.created_at);
-  const effectiveCreatedAt =
-    createdAt.getHours() < 6 ? subDays(createdAt, 1) : createdAt;
-  const createdDateStr = format(effectiveCreatedAt, 'yyyy-MM-dd');
+  // Both the day and the 6am cut-off are read in the app's zone: the badge
+  // compares against entry_date, which is a day in that same zone.
+  const createdDay = dayInAppTZ(entry.created_at);
+  const createdDateStr =
+    hourInAppTZ(entry.created_at) < 6 ? shiftDaysISO(createdDay, -1) : createdDay;
   const isBackdated = !isSummary && v.entry_date < createdDateStr;
   const isScheduled = v.entry_date > today;
   const preview = v.text.slice(0, 300);

@@ -7,9 +7,9 @@ import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryDays, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 import { auth } from '@/lib/auth';
+import { todayInAppTZ } from '@/lib/date';
 import { SUMMARY_HISTORY_ENTRIES } from '@/lib/summary-config';
 import { format, subDays } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -218,8 +218,7 @@ export async function POST(req: NextRequest) {
 
   // The date being written — not necessarily today, since the form supports
   // backdating. Everything (filtering, ages, gap detection) is relative to it.
-  const appToday = formatInTimeZone(new Date(), 'Europe/Budapest', 'yyyy-MM-dd');
-  const referenceDate = parsed.data.referenceDate ?? appToday;
+  const referenceDate = parsed.data.referenceDate ?? todayInAppTZ();
 
   // How many prior entries to feed the AI (configurable in Settings).
   const historyDays = getAiHistoryDays();

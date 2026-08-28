@@ -2,13 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { StatsCharts } from '@/components/journal/StatsCharts';
 import { getDailyStats, getFirstEntryDate, getOverallStats } from '@/db/queries/entries';
+import { daysAgoInAppTZ, todayInAppTZ } from '@/lib/date';
 
 export default function StatsPage() {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const chartFrom = new Date();
-  chartFrom.setDate(chartFrom.getDate() - 89);
-  const chartFromStr = chartFrom.toISOString().slice(0, 10);
+  const today = todayInAppTZ();
+  // 90 days inclusive of today.
+  const chartFromStr = daysAgoInAppTZ(89);
 
   const stats = getOverallStats();
   const daily = getDailyStats(chartFromStr, today);

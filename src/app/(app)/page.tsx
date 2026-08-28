@@ -9,6 +9,7 @@ import {
   getSummaryRanges,
 } from "@/db/queries/entries";
 import { getSummaryGapDays } from "@/db/queries/settings";
+import { todayInAppTZ } from "@/lib/date";
 import {
   firstUncoveredDay,
   getDefaultSummaryPeriod,
@@ -29,7 +30,7 @@ export default async function TodayPage({
   searchParams: SearchParams;
 }) {
   const { date: dateParam } = await searchParams;
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayInAppTZ();
   const selectedDate = dateParam ?? today;
   const isToday = selectedDate === today;
   const existingEntry = getEntryByDate(selectedDate);

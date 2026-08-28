@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import type { EntryKind, EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
+import { todayInAppTZ } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
@@ -433,7 +434,9 @@ export function EntryForm({
 }: EntryFormProps) {
   const isSummary = kind === 'summary';
   const isEdit = !!entry;
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  // The journal's day, not the device's: a phone in another zone must still
+  // default to (and reset to) the same day the server pages call today.
+  const todayStr = todayInAppTZ();
   const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True once this mount's autosave effect has run once. Guards against the
   // autosave effect deleting a just-restored draft before the restore re-render
