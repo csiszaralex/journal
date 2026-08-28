@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { listAuditLogs } from '@/db/queries/audit';
-import { format } from 'date-fns';
+import { formatInAppTZ } from '@/lib/date';
 import { ArrowLeftIcon } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
@@ -98,7 +98,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
             <div key={item.id} className='space-y-1 p-3'>
               <div className='flex items-center gap-3'>
                 <span className='tabular-nums text-xs text-muted-foreground'>
-                  {format(new Date(item.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                  {formatInAppTZ(item.created_at, 'yyyy-MM-dd HH:mm:ss')}
                 </span>
                 <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-xs'>
                   {item.event}

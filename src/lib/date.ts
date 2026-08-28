@@ -51,3 +51,14 @@ export function shiftDaysISO(iso: string, days: number): string {
 export function daysAgoInAppTZ(days: number): string {
   return shiftDaysISO(todayInAppTZ(), -days);
 }
+
+/**
+ * A stored instant rendered as wall-clock time in APP_TZ.
+ *
+ * For timestamps shown with an hour, not just a day: the server renders them
+ * wherever it happens to run (UTC in the container), but the person reading
+ * "signed in 21:40" is in the journal's zone and means 21:40 there.
+ */
+export function formatInAppTZ(instant: Date | number, pattern: string): string {
+  return formatInTimeZone(instant, APP_TZ, pattern);
+}

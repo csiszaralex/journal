@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listSessionsForUser } from "@/db/queries/sessions";
 import { listPasskeysForUser } from "@/db/queries/passkeys";
+import { formatInAppTZ } from "@/lib/date";
 import { SessionsClient } from "@/components/journal/SessionsClient";
 
 export default async function SessionsPage() {
@@ -18,11 +19,10 @@ export default async function SessionsPage() {
     cookieStore.get("__Secure-authjs.session-token")?.value ??
     null;
 
-  const fmt = (d: Date | null | undefined): string | null => {
-    if (!d) return null;
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+  // Rendered in the journal's zone, not the server's: these are the times the
+  // reader recognises as when they signed in.
+  const fmt = (d: Date | null | undefined): string | null =>
+    d ? formatInAppTZ(d, "yyyy-MM-dd HH:mm") : null;
 
   const sessions = listSessionsForUser(userId).map((s) => ({
     sessionToken: s.sessionToken,
