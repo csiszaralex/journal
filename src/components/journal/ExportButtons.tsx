@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DownloadIcon, LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportJsonAction, exportMarkdownAction } from "@/actions/export";
+import { todayInAppTZ } from "@/lib/date";
 
 function downloadBlob(content: string, filename: string, mime: string) {
   const blob = new Blob([content], { type: mime });
@@ -19,7 +20,9 @@ export function ExportButtons() {
   const [loadingJson, setLoadingJson] = useState(false);
   const [loadingMd, setLoadingMd] = useState(false);
 
-  const dateStamp = new Date().toISOString().slice(0, 10);
+  // Stamp the filename with the journal's day, so an export names the same day
+  // the entries in it are filed under.
+  const dateStamp = todayInAppTZ();
 
   async function handleJson() {
     setLoadingJson(true);

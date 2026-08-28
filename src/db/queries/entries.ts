@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { daysAgoInAppTZ, shiftDaysISO, todayInAppTZ } from '@/lib/date';
 import { db } from '../client';
 import {
   emotions,
@@ -625,13 +626,6 @@ export function getDailyStats(from: string, to: string): DailyStat[] {
   }));
 }
 
-function localDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 export function getCurrentStreak(): number {
   return getStreakInfo().streak;
 }
@@ -639,7 +633,7 @@ export function getCurrentStreak(): number {
 export type StreakInfo = { streak: number; wroteToday: boolean };
 
 export function getStreakInfo(): StreakInfo {
-  const todayForQuery = localDateStr(new Date());
+  const todayStr = todayInAppTZ();
 
   const dateRowSchema = z.object({ entry_date: z.string() });
   const rawRows = db.all(
@@ -648,7 +642,7 @@ export function getStreakInfo(): StreakInfo {
         FROM entries e
         INNER JOIN entry_versions ev ON e.current_version_id = ev.id
         WHERE e.deleted_at IS NULL
-          AND ev.entry_date <= ${todayForQuery}
+          AND ev.entry_date <= ${todayStr}
           AND ev.kind = 'daily'
         ORDER BY ev.entry_date DESC
       `,
@@ -661,24 +655,19 @@ export function getStreakInfo(): StreakInfo {
 
   if (rows.length === 0) return { streak: 0, wroteToday: false };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = localDateStr(today);
-
   const wroteToday = rows[0] === todayStr;
 
-  // Count consecutive days starting from today (if wrote) or yesterday (grace period)
-  const cursor = new Date(today);
-  if (!wroteToday) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (rows[0] !== localDateStr(cursor)) return { streak: 0, wroteToday: false };
-  }
+  // Count consecutive days starting from today (if wrote) or yesterday (grace period).
+  // The cursor walks day strings, which is what the rows are — no Date rounding
+  // and no zone to disagree with the one `todayStr` came from.
+  let cursor = wroteToday ? todayStr : shiftDaysISO(todayStr, -1);
+  if (!wroteToday && rows[0] !== cursor) return { streak: 0, wroteToday: false };
 
   let streak = 0;
   for (const date of rows) {
-    if (date === localDateStr(cursor)) {
+    if (date === cursor) {
       streak++;
-      cursor.setDate(cursor.getDate() - 1);
+      cursor = shiftDaysISO(cursor, -1);
     } else {
       break;
     }
@@ -694,7 +683,7 @@ export type GapInfo = { lastDailyDate: string | null; gapDays: number };
  * Summaries are ignored: writing one must not make the gap look closed.
  */
 export function getGapInfo(): GapInfo {
-  const todayStr = localDateStr(new Date());
+  const todayStr = todayInAppTZ();
   const rowSchema = z.object({ last_date: z.string().nullable() });
   const rawRow = db.get(
     sql`
@@ -763,9 +752,7 @@ export type OverallStats = {
 };
 
 export function getOverallStats(): OverallStats {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const from30 = thirtyDaysAgo.toISOString().slice(0, 10);
+  const from30 = daysAgoInAppTZ(30);
 
   const totalSchema = z.object({ cnt: z.number() });
   const totalsRaw = db.get(
