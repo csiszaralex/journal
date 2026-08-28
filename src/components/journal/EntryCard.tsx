@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { format, subDays } from "date-fns";
-import { PencilIcon, Trash2Icon, HistoryIcon, ChevronRightIcon } from "lucide-react";
+import { PencilIcon, HistoryIcon, ChevronRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { softDeleteEntryAction } from "@/actions/entries";
+import { DeleteEntryButton } from "@/components/journal/DeleteEntryButton";
 import type { EntryWithVersion } from "@/db/queries/entries";
 import { cn } from "@/lib/utils";
 import { getContrastTextColor } from "@/lib/color";
@@ -44,7 +44,15 @@ export function EntryCard({ entry, today }: EntryCardProps) {
   const preview = v.text.slice(0, 300);
   const isTruncated = v.text.length > 300;
 
-  const deleteAction = softDeleteEntryAction.bind(null, entry.id);
+  // Summary entries cover a range; daily ones a single day. The delete
+  // confirmation names the entry, so both need the same label.
+  const dateLabel =
+    isSummary && v.period_start
+      ? `${format(new Date(v.period_start + 'T00:00:00'), 'MMM d')} – ${format(
+          new Date(v.entry_date + 'T00:00:00'),
+          'MMM d, yyyy',
+        )}`
+      : format(new Date(v.entry_date + 'T00:00:00'), 'EEEE, MMMM d, yyyy');
 
   return (
     <article className="group rounded-xl border bg-card p-4 transition-all hover:ring-1 hover:ring-ring/20">
@@ -55,12 +63,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
             href={`/entry/${entry.id}`}
             className="text-sm font-medium hover:underline"
           >
-            {isSummary && v.period_start
-              ? `${format(new Date(v.period_start + 'T00:00:00'), 'MMM d')} – ${format(
-                  new Date(v.entry_date + 'T00:00:00'),
-                  'MMM d, yyyy',
-                )}`
-              : format(new Date(v.entry_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
+            {dateLabel}
           </Link>
           {isSummary && (
             <Badge variant='outline' className='h-4 px-1.5 py-0 text-[10px]'>
@@ -106,17 +109,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
               <PencilIcon className="size-3" />
             </Button>
           </Link>
-          <form action={deleteAction}>
-            <Button
-              type="submit"
-              variant="ghost"
-              size="icon"
-              className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              title="Delete"
-            >
-              <Trash2Icon className="size-3" />
-            </Button>
-          </form>
+          <DeleteEntryButton entryId={entry.id} dateLabel={dateLabel} />
         </div>
       </div>
 

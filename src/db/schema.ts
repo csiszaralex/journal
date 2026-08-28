@@ -186,6 +186,7 @@ export const intentions = sqliteTable(
     completed_at: integer("completed_at"),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
+    deleted_at: integer("deleted_at"),
   },
   (t) => [
     index("intentions_status_idx").on(t.status),

@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, gte, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "../client";
 import { intentions, intentionCategoryColors } from "../schema";
@@ -6,6 +19,13 @@ import { parseCategory } from "@/lib/intentions";
 
 export type IntentionStatus = "open" | "done" | "dropped";
 export type Intention = typeof intentions.$inferSelect;
+
+/**
+ * Intentions are soft-deleted: the row stays, `deleted_at` is stamped. Every
+ * read and every mutator must filter on this, otherwise a deleted intention
+ * reappears in the lists (or gets revived by a status change).
+ */
+const notDeleted = isNull(intentions.deleted_at);
 
 export function createIntention(input: {
   text: string;
@@ -23,6 +43,7 @@ export function createIntention(input: {
     completed_at: null,
     created_at: now,
     updated_at: now,
+    deleted_at: null,
   };
   db.insert(intentions).values(row).run();
   return row;
@@ -42,7 +63,9 @@ export function updateIntention(input: {
   if (input.due_date !== undefined) patch.due_date = input.due_date;
   db.update(intentions)
     .set(patch)
-    .where(and(eq(intentions.id, input.id), eq(intentions.status, "open")))
+    .where(
+      and(eq(intentions.id, input.id), eq(intentions.status, "open"), notDeleted)
+    )
     .run();
 }
 
@@ -54,7 +77,7 @@ export function completeIntention(id: string): void {
       completed_at: now,
       updated_at: now,
     })
-    .where(eq(intentions.id, id))
+    .where(and(eq(intentions.id, id), notDeleted))
     .run();
 }
 
@@ -62,7 +85,7 @@ export function dropIntention(id: string): void {
   const now = Date.now();
   db.update(intentions)
     .set({ status: "dropped", completed_at: now, updated_at: now })
-    .where(eq(intentions.id, id))
+    .where(and(eq(intentions.id, id), notDeleted))
     .run();
 }
 
@@ -74,12 +97,16 @@ export function reopenIntention(id: string): void {
       completed_at: null,
       updated_at: now,
     })
-    .where(eq(intentions.id, id))
+    .where(and(eq(intentions.id, id), notDeleted))
     .run();
 }
 
+/** Soft delete — the row survives so nothing referencing it dangles. */
 export function deleteIntention(id: string): void {
-  db.delete(intentions).where(eq(intentions.id, id)).run();
+  db.update(intentions)
+    .set({ deleted_at: Date.now(), updated_at: Date.now() })
+    .where(and(eq(intentions.id, id), notDeleted))
+    .run();
 }
 
 export function listOpenIntentionsForToday(todayISO: string): Intention[] {
@@ -87,7 +114,11 @@ export function listOpenIntentionsForToday(todayISO: string): Intention[] {
     .select()
     .from(intentions)
     .where(
-      and(eq(intentions.status, "open"), lte(intentions.due_date, todayISO))
+      and(
+        eq(intentions.status, "open"),
+        lte(intentions.due_date, todayISO),
+        notDeleted
+      )
     )
     .orderBy(asc(intentions.due_date), asc(intentions.created_at))
     .all();
@@ -98,7 +129,11 @@ export function countOpenIntentionsForToday(todayISO: string): number {
     .select({ c: sql<number>`count(*)` })
     .from(intentions)
     .where(
-      and(eq(intentions.status, "open"), lte(intentions.due_date, todayISO))
+      and(
+        eq(intentions.status, "open"),
+        lte(intentions.due_date, todayISO),
+        notDeleted
+      )
     )
     .get();
   return row?.c ?? 0;
@@ -108,7 +143,7 @@ export function listAllOpenIntentions(todayISO: string): Intention[] {
   return db
     .select()
     .from(intentions)
-    .where(eq(intentions.status, "open"))
+    .where(and(eq(intentions.status, "open"), notDeleted))
     .orderBy(
       sql`CASE
         WHEN ${intentions.due_date} IS NULL THEN 3
@@ -128,7 +163,11 @@ export function listRecentlyClosed(days: number): Intention[] {
     .select()
     .from(intentions)
     .where(
-      and(ne(intentions.status, "open"), gte(intentions.completed_at, cutoff))
+      and(
+        ne(intentions.status, "open"),
+        gte(intentions.completed_at, cutoff),
+        notDeleted
+      )
     )
     .orderBy(desc(intentions.completed_at))
     .all();
@@ -145,8 +184,12 @@ export function listAllDistinctCategories(): string[] {
 
 function distinctCategories(openOnly: boolean): string[] {
   const where = openOnly
-    ? and(eq(intentions.status, "open"), isNotNull(intentions.category))
-    : isNotNull(intentions.category);
+    ? and(
+        eq(intentions.status, "open"),
+        isNotNull(intentions.category),
+        notDeleted
+      )
+    : and(isNotNull(intentions.category), notDeleted);
   const rows = db
     .selectDistinct({ category: intentions.category })
     .from(intentions)
@@ -191,9 +234,12 @@ export function listIntentionsForPeriod(from: string, to: string): Intention[] {
     .select()
     .from(intentions)
     .where(
-      or(
-        and(gte(intentions.due_date, from), lte(intentions.due_date, to)),
-        and(eq(intentions.status, "open"), lt(intentions.due_date, from)),
+      and(
+        or(
+          and(gte(intentions.due_date, from), lte(intentions.due_date, to)),
+          and(eq(intentions.status, "open"), lt(intentions.due_date, from)),
+        ),
+        notDeleted,
       ),
     )
     .orderBy(intentions.due_date)
