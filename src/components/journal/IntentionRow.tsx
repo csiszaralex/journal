@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { MoreHorizontalIcon, Undo2Icon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   completeIntentionAction,
   dropIntentionAction,
@@ -31,6 +40,9 @@ export function IntentionRow({
   categoryColors,
 }: IntentionRowProps) {
   const [pending, startTransition] = useTransition();
+  // The dialog lives outside the dropdown menu: picking a menu item closes the
+  // menu, which would tear down a dialog nested inside it before it can open.
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const isOpen = intention.status === 'open';
   const overdueDays =
     intention.due_date && intention.due_date < todayISO
@@ -41,6 +53,13 @@ export function IntentionRow({
     if (!isOpen || !checked) return;
     startTransition(async () => {
       await completeIntentionAction({ id: intention.id });
+    });
+  }
+
+  function onDeleteConfirmed() {
+    startTransition(async () => {
+      await deleteIntentionAction({ id: intention.id });
+      setConfirmOpen(false);
     });
   }
 
@@ -98,13 +117,7 @@ export function IntentionRow({
               >
                 Elejtés
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  startTransition(async () => {
-                    await deleteIntentionAction({ id: intention.id });
-                  })
-                }
-              >
+              <DropdownMenuItem onClick={() => setConfirmOpen(true)}>
                 Törlés
               </DropdownMenuItem>
             </>
@@ -119,19 +132,37 @@ export function IntentionRow({
               >
                 <Undo2Icon className="h-4 w-4 mr-2" /> Visszanyit
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  startTransition(async () => {
-                    await deleteIntentionAction({ id: intention.id });
-                  })
-                }
-              >
+              <DropdownMenuItem onClick={() => setConfirmOpen(true)}>
                 Törlés
               </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Törlöd ezt a szándékot?</DialogTitle>
+            <DialogDescription>
+              A(z) „{intention.text}” szándék eltűnik a listákból. Az
+              alkalmazásból nem hozható vissza.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" />}>
+              Mégse
+            </DialogClose>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={onDeleteConfirmed}
+              disabled={pending}
+            >
+              {pending ? 'Törlés…' : 'Törlés'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `intentions` ADD `deleted_at` integer;
