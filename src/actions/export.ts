@@ -4,13 +4,27 @@ import {
   getAllEmotionsForExport,
   getAllEntriesForExport,
   getAllTagsForExport,
-  getPushSubscriptionsForExport,
   getAuditLogForExport,
+  getIntentionCategoryColorsForExport,
+  getIntentionsForExport,
+  getProfileQaForExport,
+  getPushSubscriptionsForExport,
+  getSettingsForExport,
+  getTemplatesForExport,
 } from "@/db/queries/export";
 import { logAudit } from "@/db/queries/audit";
+import { buildMarkdownExport } from "@/lib/export-markdown";
 import { authActionClient } from "@/lib/safe-action";
 
-const SCHEMA_VERSION = 1;
+// 2 added the entries' Q&A pairs plus templates, intentions (with their category
+// colours), the profile Q&A and the settings table — everything the app stores
+// that the user wrote, rather than only the parts that existed when v1 shipped.
+//
+// Still out, on purpose: the push subscriptions' p256dh/auth keys (device
+// secrets, unusable from a file), the Auth.js user/session/passkey tables
+// (credentials do not belong in a downloadable dump, and a passkey cannot be
+// restored from one), and notifications_sent (send bookkeeping, worthless here).
+const SCHEMA_VERSION = 2;
 
 export const exportJsonAction = authActionClient.action(async () => {
   const data = {
@@ -19,6 +33,11 @@ export const exportJsonAction = authActionClient.action(async () => {
     entries: getAllEntriesForExport(),
     tags: getAllTagsForExport(),
     emotions: getAllEmotionsForExport(),
+    templates: getTemplatesForExport(),
+    intentions: getIntentionsForExport(),
+    intention_category_colors: getIntentionCategoryColorsForExport(),
+    profile_qa: getProfileQaForExport(),
+    settings: getSettingsForExport(),
     push_subscriptions: getPushSubscriptionsForExport(),
     audit_log: getAuditLogForExport(),
   };
@@ -29,44 +48,9 @@ export const exportJsonAction = authActionClient.action(async () => {
 });
 
 export const exportMarkdownAction = authActionClient.action(async () => {
-  const entries = getAllEntriesForExport();
+  const { markdown, entryCount } = buildMarkdownExport(getAllEntriesForExport());
 
-  const sorted = entries
-    .filter((e) => e.deleted_at == null)
-    .map((e) => {
-      const current = e.versions.find((v) => v.id === e.current_version_id)!;
-      return { entry: e, current };
-    })
-    .sort((a, b) =>
-      a.current.entry_date < b.current.entry_date ? -1 : 1
-    );
+  logAudit("export.markdown", { entry_count: entryCount });
 
-  const parts = sorted.map(({ entry, current }) => {
-    const tagNames = current.tags.map((t) => t.display_name);
-    const emotionNames = current.emotions.map((e) => e.display_name);
-    const frontmatter = [
-      "---",
-      `date: ${current.entry_date}`,
-      ...(current.kind === "summary" && current.period_start
-        ? [`kind: summary`, `period: ${current.period_start}..${current.entry_date}`]
-        : []),
-      current.mood_score != null ? `mood: ${current.mood_score}` : null,
-      current.energy_score != null ? `energy: ${current.energy_score}` : null,
-      tagNames.length > 0 ? `tags: [${tagNames.map((t) => `"${t}"`).join(", ")}]` : null,
-      emotionNames.length > 0
-        ? `emotions: [${emotionNames.map((e) => `"${e}"`).join(", ")}]`
-        : null,
-      `created_at: ${new Date(entry.created_at).toISOString()}`,
-      `version: ${current.version_number}`,
-      "---",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    return `${frontmatter}\n\n${current.text}`;
-  });
-
-  logAudit("export.markdown", { entry_count: sorted.length });
-
-  return parts.join("\n\n---\n\n");
+  return markdown;
 });
