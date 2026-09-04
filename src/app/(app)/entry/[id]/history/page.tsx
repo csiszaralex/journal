@@ -17,7 +17,10 @@ export default async function EntryHistoryPage({
 }) {
   const { id } = await params;
   const entry = getEntry(id);
-  if (!entry) notFound();
+  // Same guard as the entry page: getEntry does not filter deleted rows, so
+  // without this a deleted entry's history stayed readable by URL — with a
+  // Restore button that would have re-pointed a deleted entry at a version.
+  if (!entry || entry.deleted_at) notFound();
 
   const versions = getVersionHistory(id);
 
