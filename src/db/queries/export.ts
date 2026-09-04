@@ -1,16 +1,22 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "../client";
 import {
+  appSettings,
   emotions,
   entries,
+  entryTemplates,
   entryVersions,
   entryVersionEmotions,
   entryVersionTags,
+  intentions,
+  intentionCategoryColors,
   tags,
   pushSubscriptions,
   auditLog,
+  userProfileQa,
 } from "../schema";
 import { listEmotionsByUsage } from "./emotions";
+import { getEntryQAPairs } from "./entries";
 import { listTagsByUsage } from "./tags";
 
 export function getAllEntriesForExport() {
@@ -58,7 +64,9 @@ export function getAllEntriesForExport() {
           .innerJoin(emotions, eq(entryVersionEmotions.emotion_id, emotions.id))
           .where(eq(entryVersionEmotions.version_id, v.id))
           .all();
-        return { ...v, tags: vTags, emotions: vEmotions };
+        // The answers the user wrote to the AI's questions are their words as
+        // much as the entry text, and they are versioned alongside it.
+        return { ...v, tags: vTags, emotions: vEmotions, qa_pairs: getEntryQAPairs(v.id) };
       }),
     };
   });
@@ -98,4 +106,47 @@ export function getAuditLogForExport() {
     .from(auditLog)
     .orderBy(asc(auditLog.created_at))
     .all();
+}
+
+export function getTemplatesForExport() {
+  return db
+    .select()
+    .from(entryTemplates)
+    .orderBy(asc(entryTemplates.created_at))
+    .all();
+}
+
+/** Including soft-deleted ones: a backup keeps what the app is only hiding. */
+export function getIntentionsForExport() {
+  return db
+    .select()
+    .from(intentions)
+    .orderBy(asc(intentions.created_at))
+    .all();
+}
+
+export function getIntentionCategoryColorsForExport() {
+  return db
+    .select()
+    .from(intentionCategoryColors)
+    .orderBy(asc(intentionCategoryColors.name))
+    .all();
+}
+
+export function getProfileQaForExport() {
+  return db
+    .select()
+    .from(userProfileQa)
+    .orderBy(asc(userProfileQa.position))
+    .all();
+}
+
+/**
+ * The whole key/value table, dumped as-is — it holds the AI history size, the
+ * summary gap threshold, the registration toggle and the profile bio. Exported
+ * verbatim rather than as named fields so a key added later is in the backup
+ * without anyone having to remember to add it here.
+ */
+export function getSettingsForExport() {
+  return db.select().from(appSettings).orderBy(asc(appSettings.key)).all();
 }
