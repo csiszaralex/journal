@@ -47,7 +47,7 @@ Useful scripts: `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm db:studio`, `
 - **Stats** — totals, current/best streak, 30-day mood/energy averages, consistency percentage, 90-day mood/energy line charts (`getOverallStats` / `getDailyStats`). Daily entries only.
 - **Tags & emotions** — two normalized dictionaries (lowercase unique `name`, free `display_name`, colour; emotions also have `emoji` and a per-entry position). Both are versioned per `entry_versions` row. Suggestion order is by live usage (non-deleted entries whose current version links the item); there is no stored counter — it is computed live. Admin page at `/settings/tags` (rename, recolour, delete; no merge).
 - **Export** — JSON (full dump incl. version history, soft-deleted entries, and the audit log; profile, intentions, templates and Q&A pairs are currently not included) and Markdown (current versions with YAML frontmatter). Each export is logged in `audit_log`. No import.
-- **Auth** — Cloudflare Access (perimeter) → Auth.js v5 passkey/WebAuthn (in-app) → database session, **7-day** cookie (httpOnly, secure in prod, sameSite=lax). Only `ALLOWED_EMAIL` may sign in. New passkey registrations from the sign-in page are gated by an in-app "Registration" toggle in Settings (default **on** — disable it after your initial setup). There is **no** email magic-link fallback.
+- **Auth** — Auth.js v5 passkey/WebAuthn with a database session, **7-day** cookie (httpOnly, secure in prod, sameSite=lax). There is no perimeter gate in front of it, so this is the whole defence. Only `ALLOWED_EMAIL` may sign in, and enrolling a new passkey needs the "Registration" toggle in Settings, which is **off** by default — except while no passkey exists at all, which always allows enrolling the first one, so a fresh install can be bootstrapped. There is **no** email magic-link fallback.
 - **Sessions & passkeys** — `/settings/sessions` lists active sessions and registered authenticators with friendly device names derived from the user-agent at creation time; rename or revoke from there. The last passkey and the current session cannot be removed.
 - **Inactivity timeout** — 30 minutes of no user input triggers a 60-second warning, then automatic sign-out (`InactivityTimer`).
 - **PWA** — Serwist service worker (production builds only) with precache, runtime caching, and a `~/offline` fallback for navigations. Install from the browser to enable push on iOS ≥ 16.4.
@@ -95,13 +95,13 @@ Used and validated in [src/env.ts](src/env.ts) (server-only — there are no `NE
 
 ## Deployment
 
-Production runs as Docker containers (web, worker, Litestream) on a VPS behind Traefik and Cloudflare Access. Since commit `83db7fe` the compose file, `litestream.yml`, and the deploy job live in the central infra repository — this repo only builds and publishes the image.
+Production runs as Docker containers (web, worker, Litestream) on a VPS behind Traefik. Since commit `83db7fe` the compose file, `litestream.yml`, and the deploy job live in the central infra repository — this repo only builds and publishes the image.
 
 What stays here:
 
-- **Cloudflare Access** (perimeter auth) — a self-hosted application for `naplo.csalex.dev` with an "Owner only" policy including the single allowed email. The app's passkey auth is the second layer.
+- **Auth is the only perimeter.** There is no Cloudflare Access or other gate in front of the app: `naplo.csalex.dev` is publicly reachable and the passkey is what protects it. Since this repository is public, `ALLOWED_EMAIL` is not a secret either — it is the author of every commit here — so the registration toggle is the thing to keep closed.
 - **Cloudflare R2** — bucket `journal-backup` with an Object Read & Write API token, used by Litestream (configured in the infra repo).
-- **First sign-in** — Settings → Registration must be on for the first passkey enrollment; turn it off afterwards.
+- **First sign-in** — a journal with no passkey registered always allows enrolling one, so a fresh deploy can be signed into without touching the database. After that, adding a device needs Settings → Registration switched on, and switched back off.
 - **Health check** — `GET /api/health` → `{"ok":true}`.
 
 ---
