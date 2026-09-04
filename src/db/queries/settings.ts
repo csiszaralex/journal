@@ -10,7 +10,7 @@ import {
 } from '@/lib/summary-config';
 import { eq } from 'drizzle-orm';
 import { db } from '../client';
-import { appSettings } from '../schema';
+import { appSettings, authAuthenticators } from '../schema';
 
 function clampHistoryDays(n: number): number {
   return Math.min(AI_HISTORY_DAYS_MAX, Math.max(AI_HISTORY_DAYS_MIN, n));
@@ -32,8 +32,32 @@ function setSetting(key: string, value: string): void {
     .run();
 }
 
+/**
+ * The toggle in Settings. Defaults to OFF: the sign-in page is reachable by
+ * anyone who knows the URL, and the one address allowed to register is public
+ * knowledge (it is the author of every commit in this repository), so an open
+ * registration form is all that stands between a stranger and the journal.
+ * Bootstrapping a first passkey does not depend on it — see isRegistrationAllowed.
+ */
 export function getRegistrationEnabled(): boolean {
-  return getSetting('registration_enabled', 'true') === 'true';
+  return getSetting('registration_enabled', 'false') === 'true';
+}
+
+/**
+ * Whether the sign-in page may enrol a new passkey right now.
+ *
+ * With no passkey registered there is nobody who could turn the toggle on, so
+ * an empty authenticator table opens registration by itself — that is the only
+ * way a fresh install (or a restored backup) can ever be signed into. Once a
+ * passkey exists the toggle governs, and it is off unless deliberately enabled.
+ *
+ * Note the corollary: losing every passkey re-opens registration. That is the
+ * recovery path — it needs no database surgery — but it is also open at exactly
+ * the moment the owner is locked out, so re-register promptly.
+ */
+export function isRegistrationAllowed(): boolean {
+  const anyPasskey = db.select({ id: authAuthenticators.credentialID }).from(authAuthenticators).get();
+  return !anyPasskey || getRegistrationEnabled();
 }
 
 export function setRegistrationEnabled(enabled: boolean): void {
