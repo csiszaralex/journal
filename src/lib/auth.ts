@@ -1,6 +1,6 @@
 import { db } from '@/db/client';
 import { logAudit } from '@/db/queries/audit';
-import { getRegistrationEnabled } from '@/db/queries/settings';
+import { isRegistrationAllowed } from '@/db/queries/settings';
 import {
   authAccounts,
   authAuthenticators,
@@ -74,15 +74,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn({ user }) {
       if (user.email !== env.ALLOWED_EMAIL) return false;
 
-      // New registration = no existing authenticators for this email.
-      // Block registration when the admin has disabled it.
+      // New registration = no existing authenticators for this email. Enrolling
+      // one is allowed only while the journal has no passkey at all (there would
+      // be nobody who could turn the toggle on) or when the toggle says so.
       const hasAuthenticator = db
         .select({ id: authAuthenticators.credentialID })
         .from(authAuthenticators)
         .innerJoin(authUsers, eq(authUsers.id, authAuthenticators.userId))
         .where(and(eq(authUsers.email, user.email)))
         .get();
-      if (!hasAuthenticator && !getRegistrationEnabled()) return false;
+      if (!hasAuthenticator && !isRegistrationAllowed()) return false;
 
       return true;
     },

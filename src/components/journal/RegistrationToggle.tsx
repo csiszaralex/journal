@@ -23,8 +23,8 @@ export function RegistrationToggle({ enabled }: Props) {
         <p className='text-sm font-medium'>Allow new registrations</p>
         <p className='text-xs text-muted-foreground'>
           {enabled
-            ? 'New passkey registrations are allowed on the sign-in page.'
-            : 'Registration is disabled. Only existing passkeys can sign in.'}
+            ? 'New passkey registrations are allowed on the sign-in page. Turn this off once your device is enrolled — the sign-in page is public.'
+            : 'Registration is disabled. Only existing passkeys can sign in — except when none is registered at all, which always allows enrolling the first one.'}
         </p>
       </div>
       <Switch
