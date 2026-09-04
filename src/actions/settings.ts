@@ -2,11 +2,11 @@
 
 import { logAudit } from '@/db/queries/audit';
 import {
-  setAiHistoryDays,
+  setAiHistoryEntries,
   setRegistrationEnabled,
   setSummaryGapDays,
 } from '@/db/queries/settings';
-import { AI_HISTORY_DAYS_MAX, AI_HISTORY_DAYS_MIN } from '@/lib/ai/history-config';
+import { AI_HISTORY_ENTRIES_MAX, AI_HISTORY_ENTRIES_MIN } from '@/lib/ai/history-config';
 import { authActionClient } from '@/lib/safe-action';
 import { SUMMARY_GAP_DAYS_MAX, SUMMARY_GAP_DAYS_MIN } from '@/lib/summary-config';
 import { revalidatePath } from 'next/cache';
@@ -20,16 +20,16 @@ export const setRegistrationEnabledAction = authActionClient
     logAudit('settings.registration.toggle', { enabled: parsedInput.enabled });
   });
 
-export const setAiHistoryDaysAction = authActionClient
+export const setAiHistoryEntriesAction = authActionClient
   .inputSchema(
     z.object({
-      days: z.number().int().min(AI_HISTORY_DAYS_MIN).max(AI_HISTORY_DAYS_MAX),
+      entries: z.number().int().min(AI_HISTORY_ENTRIES_MIN).max(AI_HISTORY_ENTRIES_MAX),
     }),
   )
   .action(async ({ parsedInput }) => {
-    setAiHistoryDays(parsedInput.days);
+    setAiHistoryEntries(parsedInput.entries);
     revalidatePath('/settings');
-    logAudit('settings.ai_history_days.set', { days: parsedInput.days });
+    logAudit('settings.ai_history_entries.set', { entries: parsedInput.entries });
   });
 
 export const setSummaryGapDaysAction = authActionClient

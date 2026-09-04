@@ -1,7 +1,7 @@
 import {
-  AI_HISTORY_DAYS_DEFAULT,
-  AI_HISTORY_DAYS_MAX,
-  AI_HISTORY_DAYS_MIN,
+  AI_HISTORY_ENTRIES_DEFAULT,
+  AI_HISTORY_ENTRIES_MAX,
+  AI_HISTORY_ENTRIES_MIN,
 } from '@/lib/ai/history-config';
 import {
   SUMMARY_GAP_DAYS_DEFAULT,
@@ -12,8 +12,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '../client';
 import { appSettings, authAuthenticators } from '../schema';
 
-function clampHistoryDays(n: number): number {
-  return Math.min(AI_HISTORY_DAYS_MAX, Math.max(AI_HISTORY_DAYS_MIN, n));
+function clampHistoryEntries(n: number): number {
+  return Math.min(AI_HISTORY_ENTRIES_MAX, Math.max(AI_HISTORY_ENTRIES_MIN, n));
 }
 
 function clampGapDays(n: number): number {
@@ -64,14 +64,14 @@ export function setRegistrationEnabled(enabled: boolean): void {
   setSetting('registration_enabled', enabled ? 'true' : 'false');
 }
 
-export function getAiHistoryDays(): number {
-  const n = Number.parseInt(getSetting('ai_history_days', String(AI_HISTORY_DAYS_DEFAULT)), 10);
-  if (Number.isNaN(n)) return AI_HISTORY_DAYS_DEFAULT;
-  return clampHistoryDays(n);
+export function getAiHistoryEntries(): number {
+  const n = Number.parseInt(getSetting('ai_history_entries', String(AI_HISTORY_ENTRIES_DEFAULT)), 10);
+  if (Number.isNaN(n)) return AI_HISTORY_ENTRIES_DEFAULT;
+  return clampHistoryEntries(n);
 }
 
-export function setAiHistoryDays(days: number): void {
-  setSetting('ai_history_days', String(clampHistoryDays(Math.round(days))));
+export function setAiHistoryEntries(entries: number): void {
+  setSetting('ai_history_entries', String(clampHistoryEntries(Math.round(entries))));
 }
 
 export function getSummaryGapDays(): number {
