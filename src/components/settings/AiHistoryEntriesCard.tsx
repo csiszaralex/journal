@@ -1,6 +1,6 @@
 'use client';
 
-import { setAiHistoryDaysAction } from '@/actions/settings';
+import { setAiHistoryEntriesAction } from '@/actions/settings';
 import {
   Select,
   SelectContent,
@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AI_HISTORY_DAYS_MAX, AI_HISTORY_DAYS_MIN } from '@/lib/ai/history-config';
+import { AI_HISTORY_ENTRIES_MAX, AI_HISTORY_ENTRIES_MIN } from '@/lib/ai/history-config';
 import { useTransition } from 'react';
 
 interface Props {
@@ -16,17 +16,17 @@ interface Props {
 }
 
 const OPTIONS = Array.from(
-  { length: AI_HISTORY_DAYS_MAX - AI_HISTORY_DAYS_MIN + 1 },
-  (_, i) => AI_HISTORY_DAYS_MIN + i,
+  { length: AI_HISTORY_ENTRIES_MAX - AI_HISTORY_ENTRIES_MIN + 1 },
+  (_, i) => AI_HISTORY_ENTRIES_MIN + i,
 );
 
-export function AiHistoryDaysCard({ value }: Props) {
+export function AiHistoryEntriesCard({ value }: Props) {
   const [isPending, startTransition] = useTransition();
 
   function handleChange(next: number | null) {
     if (next === null || next === value) return;
     startTransition(async () => {
-      await setAiHistoryDaysAction({ days: next });
+      await setAiHistoryEntriesAction({ entries: next });
     });
   }
 
@@ -39,13 +39,13 @@ export function AiHistoryDaysCard({ value }: Props) {
         </p>
       </div>
       <Select value={value} onValueChange={handleChange} disabled={isPending}>
-        <SelectTrigger aria-label='Előzmény napok száma'>
-          <SelectValue>{(v: number | null) => `${v ?? value} nap`}</SelectValue>
+        <SelectTrigger aria-label='Előzmény bejegyzések száma'>
+          <SelectValue>{(v: number | null) => `${v ?? value} bejegyzés`}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {OPTIONS.map((n) => (
             <SelectItem key={n} value={n}>
-              {n} nap
+              {n} bejegyzés
             </SelectItem>
           ))}
         </SelectContent>

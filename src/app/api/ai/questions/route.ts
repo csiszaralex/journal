@@ -4,7 +4,7 @@ import { logAudit } from '@/db/queries/audit';
 import { listEntries, type EntryKind } from '@/db/queries/entries';
 import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
-import { getAiHistoryDays, getSummaryGapDays } from '@/db/queries/settings';
+import { getAiHistoryEntries, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
 import { auth } from '@/lib/auth';
 import { todayInAppTZ } from '@/lib/date';
@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
   const referenceDate = parsed.data.referenceDate ?? todayInAppTZ();
 
   // How many prior entries to feed the AI (configurable in Settings).
-  const historyDays = getAiHistoryDays();
+  const historyEntries = getAiHistoryEntries();
   // The gap threshold that also drives the home-page banner (single knob).
   const gapThreshold = getSummaryGapDays();
   const periodStart = parsed.data.periodStart;
@@ -235,8 +235,8 @@ export async function POST(req: NextRequest) {
           to_date: format(subDays(new Date(periodStart + 'T00:00:00'), 1), 'yyyy-MM-dd'),
           page_size: SUMMARY_HISTORY_ENTRIES + 7,
         })
-      : listEntries({ to_date: referenceDate, page_size: historyDays + 7 });
-  const windowSize = mode === 'summary' ? SUMMARY_HISTORY_ENTRIES : historyDays;
+      : listEntries({ to_date: referenceDate, page_size: historyEntries + 7 });
+  const windowSize = mode === 'summary' ? SUMMARY_HISTORY_ENTRIES : historyEntries;
   const priorDays = recent
     // Drop the entry currently being written — a DAILY one shares its date with
     // the reference date. A summary ending on that date is a different entry

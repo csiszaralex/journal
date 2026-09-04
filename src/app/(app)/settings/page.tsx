@@ -3,14 +3,14 @@ export const dynamic = 'force-dynamic';
 import { ExportButtons } from '@/components/journal/ExportButtons';
 import { RegistrationToggle } from '@/components/journal/RegistrationToggle';
 import { TemplatesManager } from '@/components/journal/TemplatesManager';
-import { AiHistoryDaysCard } from '@/components/settings/AiHistoryDaysCard';
+import { AiHistoryEntriesCard } from '@/components/settings/AiHistoryEntriesCard';
 import { InstallAppCollapsible } from '@/components/settings/InstallAppCollapsible';
 import { KeyboardShortcutsCollapsible } from '@/components/settings/KeyboardShortcutsCollapsible';
 import { SettingsCard } from '@/components/settings/SettingsCard';
 import { SummaryGapDaysCard } from '@/components/settings/SummaryGapDaysCard';
 import { ThemeCard } from '@/components/settings/ThemeCard';
 import {
-  getAiHistoryDays,
+  getAiHistoryEntries,
   getRegistrationEnabled,
   getSummaryGapDays,
 } from '@/db/queries/settings';
@@ -19,7 +19,7 @@ import { listTemplates } from '@/db/queries/templates';
 export default function SettingsPage() {
   const templates = listTemplates();
   const registrationEnabled = getRegistrationEnabled();
-  const aiHistoryDays = getAiHistoryDays();
+  const aiHistoryEntries = getAiHistoryEntries();
   const summaryGapDays = getSummaryGapDays();
 
   return (
@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
       <section className='space-y-3'>
         <h2 className='text-sm font-medium'>AI</h2>
-        <AiHistoryDaysCard value={aiHistoryDays} />
+        <AiHistoryEntriesCard value={aiHistoryEntries} />
         <SummaryGapDaysCard value={summaryGapDays} />
       </section>
 
