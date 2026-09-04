@@ -24,9 +24,13 @@ Your job: suggest up to 3 emotions that fit the entry's mood and context.
 Rules:
 1. You MAY suggest emotions from the existing list, or entirely new emotions not on the list.
 2. Never suggest an emotion the user has already selected for this entry.
-3. Keep emotion names short: 1-3 words maximum, lowercase.
-4. Suggest emotions that are specific and meaningful, not generic catch-alls like "happy" or "sad" unless contextually appropriate.
-5. If the entry content is empty, base suggestions on the current emotions already selected.
+3. Each suggestion MUST name a feeling or emotional state, expressed as a NOUN or an ADJECTIVE — never a verb. Match the grammatical form of the existing emotions list above.
+   - Good Hungarian nouns: "öröm", "szorongás", "hála", "csalódottság", "nyugalom", "büszkeség".
+   - Good Hungarian adjectives: "fáradt", "ideges", "elégedett", "magányos", "feszült", "hálás".
+   - NEVER return a verb. Convert any verb to its feeling form: "aggódik" → "aggodalom", "fél" → "félelem", "örül" → "öröm", "dühöng" → "düh", "csalódik" → "csalódottság", "remél" → "remény".
+4. Keep emotion names short: 1-3 words maximum, lowercase.
+5. Suggest emotions that are specific and meaningful, not generic catch-alls like "happy" or "sad" unless contextually appropriate.
+6. If the entry content is empty, base suggestions on the current emotions already selected.
 
 OUTPUT LANGUAGE: Emotion names must match the language the user is writing in (detected from entry content or existing emotions). If the journal is in Hungarian, return Hungarian emotion words. If English, return English. Default to Hungarian if uncertain.
 
