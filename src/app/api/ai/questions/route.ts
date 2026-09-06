@@ -6,11 +6,12 @@ import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryEntries, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { auth } from '@/lib/auth';
+import { withSession } from '@/lib/api-route';
+import { limitAi, TOO_FAST } from '@/lib/rate-limit';
 import { todayInAppTZ } from '@/lib/date';
 import { SUMMARY_HISTORY_ENTRIES } from '@/lib/summary-config';
 import { format, subDays } from 'date-fns';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const requestSchema = z.object({
@@ -49,8 +50,6 @@ OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/
 
 Return your questions ONLY via the \`submit_questions\` tool. Do not produce any free text.`;
 
-const RATE_LIMIT_MS = 5000;
-const lastCallByUser = new Map<string, number>();
 
 function daysBetween(fromISO: string, toISO: string): number {
   const from = new Date(fromISO + 'T00:00:00');
@@ -181,20 +180,7 @@ function buildProfileContext(
   return lines.join('\n');
 }
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
-
-  // Rate limit (per-user, in-process)
-  const now = Date.now();
-  const last = lastCallByUser.get(userId);
-  if (last !== undefined && now - last < RATE_LIMIT_MS) {
-    return NextResponse.json({ error: 'Túl gyors, várj egy kicsit' }, { status: 429 });
-  }
-
+export const POST = withSession(async (req) => {
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -296,10 +282,6 @@ export async function POST(req: NextRequest) {
   );
   const userMessage = profileContext ? `${profileContext}\n\n${baseUserMessage}` : baseUserMessage;
 
-  // Update rate-limit timestamp BEFORE the API call so two near-simultaneous
-  // requests can't both slip past the check.
-  lastCallByUser.set(userId, now);
-
   try {
     const client = getAnthropicClient();
     const message = await client.messages.create({
@@ -367,5 +349,5 @@ export async function POST(req: NextRequest) {
     logAudit('ai.questions', { model: QUESTIONS_MODEL, mode, success: false, error: 'exception' });
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
-}
+}, { limit: limitAi, limitMessage: TOO_FAST });
 

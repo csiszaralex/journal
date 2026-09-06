@@ -3,8 +3,9 @@ export const dynamic = 'force-dynamic';
 import { logAudit } from '@/db/queries/audit';
 import { getPopularEmotions } from '@/db/queries/emotions';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { auth } from '@/lib/auth';
-import { NextRequest, NextResponse } from 'next/server';
+import { withSession } from '@/lib/api-route';
+import { limitAi, TOO_FAST } from '@/lib/rate-limit';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const requestSchema = z.object({
@@ -36,22 +37,8 @@ OUTPUT LANGUAGE: Emotion names must match the language the user is writing in (d
 
 Return your suggestions ONLY via the \`submit_emotions\` tool. Do not produce any free text.`;
 
-const RATE_LIMIT_MS = 5000;
-const lastCallByUser = new Map<string, number>();
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
-
-  const now = Date.now();
-  const last = lastCallByUser.get(userId);
-  if (last !== undefined && now - last < RATE_LIMIT_MS) {
-    return NextResponse.json({ error: 'Túl gyors, várj egy kicsit' }, { status: 429 });
-  }
-
+export const POST = withSession(async (req) => {
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -79,8 +66,6 @@ export async function POST(req: NextRequest) {
     '## Task',
     'Suggest up to 3 emotions that fit this entry. Do not repeat any currently selected emotion.',
   ].join('\n');
-
-  lastCallByUser.set(userId, now);
 
   const toolResponseSchema = z.object({
     emotions: z.array(z.string().min(1).max(100)).max(3),
@@ -149,5 +134,5 @@ export async function POST(req: NextRequest) {
     logAudit('ai.emotions', { model: QUESTIONS_MODEL, success: false, error: 'exception' });
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
-}
+}, { limit: limitAi, limitMessage: TOO_FAST });
 

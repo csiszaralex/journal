@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { logAudit } from '@/db/queries/audit';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { auth } from '@/lib/auth';
-import { NextRequest, NextResponse } from 'next/server';
+import { withSession } from '@/lib/api-route';
+import { limitAi, TOO_FAST } from '@/lib/rate-limit';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const requestSchema = z.object({
@@ -24,22 +25,8 @@ OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/
 
 Return your questions ONLY via the submit_questions tool. No free text.`;
 
-const RATE_LIMIT_MS = 5000;
-const lastCallByUser = new Map<string, number>();
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
-
-  const now = Date.now();
-  const last = lastCallByUser.get(userId);
-  if (last !== undefined && now - last < RATE_LIMIT_MS) {
-    return NextResponse.json({ error: 'Túl gyors, várj egy kicsit' }, { status: 429 });
-  }
-
+export const POST = withSession(async (req) => {
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -59,8 +46,6 @@ export async function POST(req: NextRequest) {
     '## Task',
     "Generate 3 to 5 new questions in Hungarian about this person's life circumstances.",
   ].join('\n');
-
-  lastCallByUser.set(userId, now);
 
   const toolResponseSchema = z.object({
     questions: z.array(z.string().min(1)).min(3).max(5),
@@ -138,5 +123,5 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
-}
+}, { limit: limitAi, limitMessage: TOO_FAST });
 
