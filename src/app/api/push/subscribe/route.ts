@@ -1,16 +1,16 @@
 export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withSession } from "@/lib/api-route";
+import { limitPush } from "@/lib/rate-limit";
 import { upsertSubscription } from "@/db/queries/subscriptions";
 import { logAudit } from "@/db/queries/audit";
 import { friendlyNameFromUA } from "@/lib/user-agent";
 import { pushSubscribeSchema } from "@/lib/validation";
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+// Session-gated already, so the throttle is depth rather than the first line of
+// defence: it caps what a stolen session could do to the push tables.
+export const POST = withSession(async (req) => {
   const parsed = pushSubscribeSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
@@ -32,4 +32,4 @@ export async function POST(req: NextRequest) {
   logAudit("push.subscribe", { subscription_id: id, device_label: deviceLabel });
 
   return NextResponse.json({ id });
-}
+}, { limit: limitPush });

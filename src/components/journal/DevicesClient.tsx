@@ -119,7 +119,12 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
       });
       if (res.ok) {
         window.location.reload();
+        return;
       }
+      // Without this the button just goes quiet on any refusal — a throttled
+      // request answers 429 rather than throwing, so the catch below never sees it.
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      alert(body?.error ?? `Failed to enable notifications (HTTP ${res.status}).`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to enable notifications.");
     } finally {

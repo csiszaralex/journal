@@ -5,7 +5,7 @@ import { db } from '../client';
 import { auditLog } from '../schema';
 
 type Category = (typeof CATEGORIES)[number];
-type CategoryEvent = `${Category}.${string}`;
+export type CategoryEvent = `${Category}.${string}`;
 
 export function logAudit(event: CategoryEvent, metadata?: Record<string, unknown>): void {
   db.insert(auditLog)
