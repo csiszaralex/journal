@@ -2,6 +2,7 @@
 
 import { SmileIcon } from "lucide-react";
 import { lookupEmotionsAction, suggestEmotionsAction } from "@/actions/emotions";
+import { useI18n } from "@/i18n/provider";
 import { TaggablePicker } from "./TaggablePicker";
 
 interface EmotionComboboxProps {
@@ -19,6 +20,7 @@ export function EmotionCombobox({
   initialEmojis,
   onValueChange,
 }: EmotionComboboxProps) {
+  const d = useI18n();
   return (
     <TaggablePicker
       name={name}
@@ -28,9 +30,9 @@ export function EmotionCombobox({
       onValueChange={onValueChange}
       suggestAction={suggestEmotionsAction}
       lookupAction={lookupEmotionsAction}
-      triggerLabel="Add emotion"
+      triggerLabel={d.entry.pickers.addEmotion}
       TriggerIcon={SmileIcon}
-      emptyMessage="No emotions yet."
+      emptyMessage={d.entry.pickers.noEmotions}
       sortable
     />
   );

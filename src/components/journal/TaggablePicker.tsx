@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { DEFAULT_TAG_COLOR, getContrastTextColor } from "@/lib/color";
+import { useI18n } from "@/i18n/provider";
 
 export type TaggableItem = {
   id: string;
@@ -70,10 +71,15 @@ export function TaggablePicker({
   lookupAction,
   triggerLabel,
   TriggerIcon,
-  searchPlaceholder = "Search or create…",
-  emptyMessage = "No items yet.",
+  searchPlaceholder,
+  emptyMessage,
   sortable = false,
 }: TaggablePickerProps) {
+  const d = useI18n();
+  // Defaults for the callers that name neither. They cannot be parameter
+  // defaults any more: the dictionary is only readable inside the component.
+  const searchPlaceholderText = searchPlaceholder ?? d.entry.pickers.searchPlaceholder;
+  const emptyMessageText = emptyMessage ?? d.entry.pickers.empty;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>(defaultValue);
@@ -223,7 +229,7 @@ export function TaggablePicker({
             key={item}
             type="button"
             onClick={(e) => removeItem(e, item)}
-            aria-label={`Remove ${item}`}
+            aria-label={d.entry.pickers.remove(item)}
             className="inline-flex cursor-pointer select-none items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
             style={{ backgroundColor: bg, color: fg }}
           >
@@ -264,13 +270,13 @@ export function TaggablePicker({
         <PopoverContent className="w-56 p-0" align="start" side="bottom">
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholderText}
               value={search}
               onValueChange={setSearch}
             />
             <CommandList>
               {suggestions.length === 0 && !trimmed && (
-                <CommandEmpty>{emptyMessage}</CommandEmpty>
+                <CommandEmpty>{emptyMessageText}</CommandEmpty>
               )}
               {(suggestions.length > 0 || showCreate) && (
                 <CommandGroup>
@@ -303,7 +309,7 @@ export function TaggablePicker({
                       }}
                     >
                       <PlusIcon className="size-3.5" />
-                      Create &quot;{trimmed}&quot;
+                      {d.entry.pickers.create(trimmed)}
                     </CommandItem>
                   )}
                 </CommandGroup>

@@ -3,6 +3,7 @@
 import { signOutAction } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/utils';
 import { BarChart2Icon, CalendarIcon, HomeIcon, LogOutIcon, MoreHorizontalIcon, SearchIcon, SettingsIcon, TargetIcon } from 'lucide-react';
 import type { Route } from 'next';
@@ -11,23 +12,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-type NavItem = { href: Route; icon: typeof HomeIcon; label: string };
+/** The label is looked up at render time — these arrays are module-level, and a
+ *  module cannot call a hook — so an item carries its dictionary key instead. */
+type NavLabelKey = 'today' | 'calendar' | 'intentions' | 'search' | 'stats' | 'settings';
+
+type NavItem = { href: Route; icon: typeof HomeIcon; labelKey: NavLabelKey };
 
 const primaryNavItems: NavItem[] = [
-  { href: '/', icon: HomeIcon, label: 'Today' },
-  { href: '/calendar', icon: CalendarIcon, label: 'Calendar' },
-  { href: '/intentions', icon: TargetIcon, label: 'Szándékok' },
+  { href: '/', icon: HomeIcon, labelKey: 'today' },
+  { href: '/calendar', icon: CalendarIcon, labelKey: 'calendar' },
+  { href: '/intentions', icon: TargetIcon, labelKey: 'intentions' },
 ];
 
 const secondaryNavItems: NavItem[] = [
-  { href: '/search', icon: SearchIcon, label: 'Search' },
-  { href: '/stats', icon: BarChart2Icon, label: 'Stats' },
-  { href: '/settings', icon: SettingsIcon, label: 'Settings' },
+  { href: '/search', icon: SearchIcon, labelKey: 'search' },
+  { href: '/stats', icon: BarChart2Icon, labelKey: 'stats' },
+  { href: '/settings', icon: SettingsIcon, labelKey: 'settings' },
 ];
 
 const allNavItems = [...primaryNavItems, ...secondaryNavItems];
 
 export function AppNav() {
+  const d = useI18n();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -37,13 +43,15 @@ export function AppNav() {
       <header className='sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm'>
         <div className='mx-auto flex h-12 max-w-2xl items-center justify-between px-4'>
           <Link href='/' className='flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground'>
-            <Image src='/icon.png' alt='Journal' width={20} height={20} className='rounded-sm' />
+            {/* Decorative: the wordmark beside it already names the app, and an
+                alt of "Journal" would have a screen reader say it twice. */}
+            <Image src='/icon.png' alt='' width={20} height={20} className='rounded-sm' />
             Journal
           </Link>
 
           {/* Desktop nav */}
           <nav className='hidden sm:flex items-center gap-0.5'>
-            {allNavItems.map(({ href, icon: Icon, label }) => (
+            {allNavItems.map(({ href, icon: Icon, labelKey }) => (
               <Link
                 key={href}
                 href={href}
@@ -55,13 +63,13 @@ export function AppNav() {
                 )}
               >
                 <Icon className='size-3.5' />
-                <span>{label}</span>
+                <span>{d.nav[labelKey]}</span>
               </Link>
             ))}
           </nav>
 
           <form action={signOutAction} className='hidden sm:block'>
-            <Button type='submit' variant='ghost' size='icon' className='size-8' title='Sign out'>
+            <Button type='submit' variant='ghost' size='icon' className='size-8' title={d.nav.signOut}>
               <LogOutIcon className='size-3.5' />
             </Button>
           </form>
@@ -70,7 +78,7 @@ export function AppNav() {
 
       {/* Mobile bottom nav */}
       <nav className='fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-background/95 backdrop-blur-sm sm:hidden'>
-        {primaryNavItems.map(({ href, icon: Icon, label }) => (
+        {primaryNavItems.map(({ href, icon: Icon, labelKey }) => (
           <Link
             key={href}
             href={href}
@@ -82,7 +90,7 @@ export function AppNav() {
             )}
           >
             <Icon className='size-5' />
-            {label}
+            {d.nav[labelKey]}
           </Link>
         ))}
 
@@ -96,11 +104,11 @@ export function AppNav() {
             }
           >
             <MoreHorizontalIcon className='size-5' />
-            More
+            {d.nav.more}
           </SheetTrigger>
           <SheetContent side='bottom' className='rounded-t-2xl px-4 pb-8 pt-6'>
             <div className='grid grid-cols-4 gap-2'>
-              {secondaryNavItems.map(({ href, icon: Icon, label }) => (
+              {secondaryNavItems.map(({ href, icon: Icon, labelKey }) => (
                 <Link
                   key={href}
                   href={href}
@@ -113,7 +121,7 @@ export function AppNav() {
                   )}
                 >
                   <Icon className='size-6' />
-                  {label}
+                  {d.nav[labelKey]}
                 </Link>
               ))}
             </div>
@@ -126,7 +134,7 @@ export function AppNav() {
                   className='w-full justify-start gap-3 rounded-xl px-3 py-3 text-sm font-medium'
                 >
                   <LogOutIcon className='size-5' />
-                  Sign out
+                  {d.nav.signOut}
                 </Button>
               </form>
             </div>

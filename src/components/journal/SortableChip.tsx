@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n } from '@/i18n/provider';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -12,6 +13,7 @@ interface SortableChipProps {
 }
 
 export function SortableChip({ id, bg, fg, emoji, onRemove }: SortableChipProps) {
+  const d = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -32,7 +34,7 @@ export function SortableChip({ id, bg, fg, emoji, onRemove }: SortableChipProps)
       <span
         {...listeners}
         onDoubleClick={onRemove}
-        title='Double-click to remove'
+        title={d.entry.pickers.doubleClickToRemove}
         className='inline-flex cursor-grab items-center gap-1 px-2 py-0.5 active:cursor-grabbing'
       >
         {emoji && (

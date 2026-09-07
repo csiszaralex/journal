@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { EntryTemplate } from '@/db/queries/templates';
+import { useI18n } from '@/i18n/provider';
 import { LayoutTemplateIcon } from 'lucide-react';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function TemplateSelector({ templates, onSelect }: Props) {
+  const d = useI18n();
   if (templates.length === 0) return null;
 
   return (
@@ -24,7 +26,7 @@ export function TemplateSelector({ templates, onSelect }: Props) {
         className='inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
       >
         <LayoutTemplateIcon className='size-3' />
-        Template
+        {d.entry.templates.trigger}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         {templates.map((t) => (

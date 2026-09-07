@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useI18n } from '@/i18n/provider';
 import { CircleMinus, Pencil, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import {
   Dialog,
@@ -47,6 +48,7 @@ export function EntryQuestions({
   onQuestionChange,
   onDeleteOne,
 }: EntryQuestionsProps) {
+  const d = useI18n();
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
@@ -70,7 +72,7 @@ export function EntryQuestions({
   function cancelEditing() {
     setEditingIndex(null);
   }
-  // Full-set loading skeletons (initial fetch or "Más kérdéseket")
+  // Full-set loading skeletons (initial fetch or "different questions")
   if (loading) {
     return (
       <div className='mt-4 flex flex-col gap-3'>
@@ -91,7 +93,7 @@ export function EntryQuestions({
         <div className='mt-4 flex items-center gap-2'>
           <p className='text-xs text-destructive'>{error}</p>
           <Button type='button' variant='ghost' size='sm' onClick={onFetch}>
-            Újra
+            {d.entry.questions.retry}
           </Button>
         </div>
       );
@@ -106,7 +108,7 @@ export function EntryQuestions({
           className='text-muted-foreground'
         >
           <Sparkles className='size-3.5' />
-          Kérdezz tőlem
+          {d.entry.questions.ask}
         </Button>
       </div>
     );
@@ -144,7 +146,7 @@ export function EntryQuestions({
                   }
                 }}
                 maxLength={500}
-                placeholder='Kérdés szövege…'
+                placeholder={d.entry.questions.questionPlaceholder}
                 className='resize-y text-sm'
               />
             ) : (
@@ -157,8 +159,8 @@ export function EntryQuestions({
                   size='icon-xs'
                   onClick={() => startEditing(idx, pair.question)}
                   disabled={busy}
-                  title='Kérdés szerkesztése'
-                  aria-label='Kérdés szerkesztése'
+                  title={d.entry.questions.editQuestion}
+                  aria-label={d.entry.questions.editQuestion}
                   className='text-muted-foreground/60'
                 >
                   <Pencil className='size-3' />
@@ -169,8 +171,8 @@ export function EntryQuestions({
                   size='icon-xs'
                   onClick={() => onRegenerateOne(idx)}
                   disabled={busy}
-                  title='Másik kérdést kérek erre a helyre'
-                  aria-label='Másik kérdést kérek erre a helyre'
+                  title={d.entry.questions.replaceQuestion}
+                  aria-label={d.entry.questions.replaceQuestion}
                   className='text-muted-foreground/60'
                 >
                   <RefreshCw className='size-3' />
@@ -187,8 +189,8 @@ export function EntryQuestions({
                     }
                   }}
                   disabled={busy}
-                  title='Kérdés törlése'
-                  aria-label='Kérdés törlése'
+                  title={d.entry.questions.deleteQuestion}
+                  aria-label={d.entry.questions.deleteQuestion}
                   className='text-muted-foreground/60 hover:text-destructive'
                 >
                   <CircleMinus className='size-3' />
@@ -200,7 +202,7 @@ export function EntryQuestions({
               rows={2}
               value={pair.answer}
               onChange={(e) => onAnswerChange(idx, e.target.value)}
-              placeholder='Válaszolj röviden, vagy hagyd üresen…'
+              placeholder={d.entry.questions.answerPlaceholder}
               maxLength={2000}
               className='resize-y'
             />
@@ -224,7 +226,7 @@ export function EntryQuestions({
           className='text-muted-foreground'
         >
           <RefreshCw className='size-3.5' />
-          Más kérdéseket
+          {d.entry.questions.regenerateAll}
         </Button>
         {pairs.length < MAX_QUESTIONS && (
           <Button
@@ -236,7 +238,7 @@ export function EntryQuestions({
             className='text-muted-foreground'
           >
             <Plus className='size-3.5' />
-            +1 kérdés
+            {d.entry.questions.addOne}
           </Button>
         )}
       </div>
@@ -246,12 +248,12 @@ export function EntryQuestions({
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Törlöd ezt a kérdést?</DialogTitle>
-            <DialogDescription>A beírt válaszod elvész.</DialogDescription>
+            <DialogTitle>{d.entry.questions.deleteTitle}</DialogTitle>
+            <DialogDescription>{d.entry.questions.deleteDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant='outline' size='sm' />}>
-              Mégsem
+              {d.common.cancel}
             </DialogClose>
             <Button
               size='sm'
@@ -263,7 +265,7 @@ export function EntryQuestions({
                 }
               }}
             >
-              Törlés
+              {d.common.delete}
             </Button>
           </DialogFooter>
         </DialogContent>

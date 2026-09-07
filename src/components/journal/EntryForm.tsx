@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/dialog';
 import type { EntryKind, EntryWithVersion } from '@/db/queries/entries';
 import type { EntryTemplate } from '@/db/queries/templates';
-import { todayInAppTZ } from '@/lib/date';
+import { useI18n } from '@/i18n/provider';
+import { formatISODay, todayInAppTZ } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { entryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
@@ -432,6 +433,7 @@ export function EntryForm({
   kind = 'daily',
   defaultPeriodStart,
 }: EntryFormProps) {
+  const d = useI18n();
   const isSummary = kind === 'summary';
   const isEdit = !!entry;
   // The journal's day, not the device's: a phone in another zone must still
@@ -590,22 +592,20 @@ export function EntryForm({
   // edits keep their previous behaviour verbatim.
   function handleOfflineSaved() {
     if (isEdit) {
-      toast('Saved offline — will sync when connected', { duration: 4000 });
+      toast(d.entry.form.savedOffline, { duration: 4000 });
       // The draft stays deliberately: the update is only QUEUED, not persisted, and
       // the entry on the server is still the old version. Until the queue drains,
       // that draft is the only copy of these edits — and since the form still
       // differs from the saved entry, autosave keeps it current on its own.
       dispatch({ type: 'REFRESH_PICKERS' });
     } else if (isSummary) {
-      toast('Az összefoglaló sorban áll — szinkronizálunk, amint újra online vagy', {
-        duration: 4000,
-      });
+      toast(d.entry.form.summaryQueued, { duration: 4000 });
       // The recap is queued, so the draft has done its job; dropping it also keeps
       // the next visit to /summary/new from restoring text that is already saved.
       discardDraft();
       setOfflineQueued(true);
     } else {
-      toast('Saved offline — will sync when connected', { duration: 4000 });
+      toast(d.entry.form.savedOffline, { duration: 4000 });
       discardDraft();
       resetForm();
     }
@@ -801,11 +801,11 @@ export function EntryForm({
         | { emotions?: string[]; error?: string }
         | null;
       if (!res.ok || !data) {
-        toast.error(data?.error ?? 'Hálózati hiba történt');
+        toast.error(data?.error ?? d.common.networkError);
         return;
       }
       if (!data.emotions || !Array.isArray(data.emotions)) {
-        toast.error(data?.error ?? 'Hálózati hiba történt');
+        toast.error(data?.error ?? d.common.networkError);
         return;
       }
       const capitalized = data.emotions.map((e) => e.charAt(0).toUpperCase() + e.slice(1));
@@ -827,7 +827,7 @@ export function EntryForm({
 
       dispatch({ type: 'EMOTIONS_AI_ADD', newEmotions: capitalized });
     } catch {
-      toast.error('Hálózati hiba történt');
+      toast.error(d.common.networkError);
     } finally {
       setIsGeneratingEmotions(false);
     }
@@ -854,24 +854,24 @@ export function EntryForm({
       if (!res.ok || !data) {
         dispatch({
           type: 'QA_REQUEST_ERROR',
-          error: data?.error ?? 'Hálózati hiba történt',
+          error: data?.error ?? d.common.networkError,
         });
         return;
       }
       if (!data.questions || !Array.isArray(data.questions)) {
-        dispatch({ type: 'QA_REQUEST_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        dispatch({ type: 'QA_REQUEST_ERROR', error: data.error ?? d.common.networkError });
         return;
       }
       dispatch({ type: 'QA_REQUEST_SUCCESS', questions: data.questions });
     } catch {
-      dispatch({ type: 'QA_REQUEST_ERROR', error: 'Hálózati hiba történt' });
+      dispatch({ type: 'QA_REQUEST_ERROR', error: d.common.networkError });
     }
   }
 
   function handleRegenerateQuestions() {
     const hasAnswers = state.qaPairs.some((p) => p.answer.trim().length > 0);
     if (hasAnswers) {
-      const ok = window.confirm('A meglévő válaszaid elvesznek. Biztos?');
+      const ok = window.confirm(d.entry.form.confirmRegenerateAll);
       if (!ok) return;
     }
     // Send current questions so the AI gives a substantively different set.
@@ -883,7 +883,7 @@ export function EntryForm({
     const target = state.qaPairs[index];
     if (!target) return;
     if (target.answer.trim().length > 0) {
-      const ok = window.confirm('A válaszod ehhez a kérdéshez elveszik. Biztos?');
+      const ok = window.confirm(d.entry.form.confirmRegenerateOne);
       if (!ok) return;
     }
     dispatch({ type: 'QA_REPLACE_ONE_START', index });
@@ -910,18 +910,18 @@ export function EntryForm({
       if (!res.ok || !data) {
         dispatch({
           type: 'QA_REPLACE_ONE_ERROR',
-          error: data?.error ?? 'Hálózati hiba történt',
+          error: data?.error ?? d.common.networkError,
         });
         return;
       }
       const newQ = data.questions?.[0];
       if (!newQ) {
-        dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: data.error ?? d.common.networkError });
         return;
       }
       dispatch({ type: 'QA_REPLACE_ONE_SUCCESS', index, question: newQ });
     } catch {
-      dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: 'Hálózati hiba történt' });
+      dispatch({ type: 'QA_REPLACE_ONE_ERROR', error: d.common.networkError });
     }
   }
 
@@ -948,18 +948,18 @@ export function EntryForm({
       if (!res.ok || !data) {
         dispatch({
           type: 'QA_APPEND_ONE_ERROR',
-          error: data?.error ?? 'Hálózati hiba történt',
+          error: data?.error ?? d.common.networkError,
         });
         return;
       }
       const newQ = data.questions?.[0];
       if (!newQ) {
-        dispatch({ type: 'QA_APPEND_ONE_ERROR', error: data.error ?? 'Hálózati hiba történt' });
+        dispatch({ type: 'QA_APPEND_ONE_ERROR', error: data.error ?? d.common.networkError });
         return;
       }
       dispatch({ type: 'QA_APPEND_ONE_SUCCESS', question: newQ });
     } catch {
-      dispatch({ type: 'QA_APPEND_ONE_ERROR', error: 'Hálózati hiba történt' });
+      dispatch({ type: 'QA_APPEND_ONE_ERROR', error: d.common.networkError });
     }
   }
 
@@ -1049,7 +1049,7 @@ export function EntryForm({
           // saved entry instead. Daily entries stay put: the home page re-keys
           // the form on the saved entry's id.
           if (isSummary && data.id) {
-            toast('Összefoglaló mentve');
+            toast(d.entry.form.summarySaved);
             router.push(`/entry/${data.id}`);
           } else {
             resetForm();
@@ -1071,7 +1071,7 @@ export function EntryForm({
         }
         onSuccess?.();
       } else {
-        setErrors([data.error ?? 'Something went wrong. Please try again.']);
+        setErrors([data.error ?? d.common.unexpectedError]);
       }
     } catch {
       if (!navigator.onLine) {
@@ -1088,7 +1088,7 @@ export function EntryForm({
         }
         handleOfflineSaved();
       } else {
-        setErrors(['Network error. Please try again.']);
+        setErrors([d.common.networkError]);
       }
     } finally {
       setIsPending(false);
@@ -1097,18 +1097,21 @@ export function EntryForm({
 
   const calendarDate = new Date(state.entryDate + 'T00:00:00');
 
-  // In summary mode the mood/energy scores describe the whole period, not one day.
-  const scoreLabelSuffix = isSummary ? ' (az időszak egészére)' : '';
-
-  // Only worth saying when the entry moved on since the draft was written — saved
-  // from another tab or device, or synced from the offline queue. Restoring is still
-  // allowed, but it overwrites work the draft never saw, so name both versions.
-  const draftVersionNotice =
+  // The draft banner's text. The longer wording is used only when the entry moved
+  // on since the draft was written — saved from another tab or device, or synced
+  // from the offline queue. Restoring is still allowed, but it overwrites work the
+  // draft never saw, so that version names both. Two whole sentences rather than
+  // one with a clause appended: a language may want the warning somewhere else in
+  // it entirely.
+  const draftBannerText =
     entry &&
     state.pendingDraft?.baseVersion !== undefined &&
     state.pendingDraft.baseVersion !== entry.version.version_number
-      ? ` A bejegyzés azóta módosult (v${state.pendingDraft.baseVersion} → v${entry.version.version_number}).`
-      : '';
+      ? d.entry.form.draftBannerOutdated(
+          state.pendingDraft.baseVersion,
+          entry.version.version_number,
+        )
+      : d.entry.form.draftBanner;
 
   // Shift the entry date by ±1 day. Navigates the same way picking a day in the
   // calendar does, so the server loads any existing entry for the new date.
@@ -1125,11 +1128,11 @@ export function EntryForm({
           <span className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
             {isSummary
               ? isEdit
-                ? 'Összefoglaló szerkesztése'
-                : 'Új összefoglaló'
+                ? d.entry.form.heading.editSummary
+                : d.entry.form.heading.newSummary
               : isEdit
-                ? 'Edit entry'
-                : 'New entry'}
+                ? d.entry.form.heading.editEntry
+                : d.entry.form.heading.newEntry}
           </span>
           {isEdit && entry && (
             <Link
@@ -1137,7 +1140,7 @@ export function EntryForm({
               className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
             >
               <HistoryIcon className='size-3' />
-              v{entry.version.version_number}
+              {d.entry.versionLabel(entry.version.version_number)}
             </Link>
           )}
           {!isEdit && (
@@ -1160,7 +1163,7 @@ export function EntryForm({
             <button
               type='button'
               onClick={() => shiftDate(-1)}
-              aria-label='Előző nap'
+              aria-label={d.entry.form.previousDay}
               className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
             >
               <ChevronLeftIcon className='size-4' />
@@ -1171,11 +1174,12 @@ export function EntryForm({
                 className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
               >
                 <CalendarIcon className='size-3' />
-                {state.entryDate}
+                {formatISODay(state.entryDate, d.dates.dayInput, d.dates.locale)}
               </PopoverTrigger>
               <PopoverContent className='w-auto p-0' align='end'>
                 <Calendar
                   mode='single'
+                  locale={d.dates.locale}
                   selected={calendarDate}
                   defaultMonth={calendarDate}
                   onMonthChange={ensureMonthLoaded}
@@ -1196,7 +1200,7 @@ export function EntryForm({
             <button
               type='button'
               onClick={() => shiftDate(1)}
-              aria-label='Következő nap'
+              aria-label={d.entry.form.nextDay}
               className='inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
             >
               <ChevronRightIcon className='size-4' />
@@ -1208,12 +1212,10 @@ export function EntryForm({
       {/* Unsaved-changes offer (edit only) — never applied without being asked for. */}
       {state.pendingDraft && (
         <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2'>
-          <p className='text-xs text-muted-foreground'>
-            {`Nem mentett változtatásaid vannak ehhez a bejegyzéshez.${draftVersionNotice}`}
-          </p>
+          <p className='text-xs text-muted-foreground'>{draftBannerText}</p>
           <div className='flex items-center gap-1.5'>
             <Button type='button' variant='outline' size='xs' onClick={handleRestoreDraft}>
-              Visszaállítás
+              {d.entry.form.restoreDraft}
             </Button>
             <Button
               type='button'
@@ -1222,7 +1224,7 @@ export function EntryForm({
               onClick={handleDismissDraft}
               className='text-muted-foreground'
             >
-              Elvetés
+              {d.entry.form.dismissDraft}
             </Button>
           </div>
         </div>
@@ -1234,7 +1236,7 @@ export function EntryForm({
           name='text'
           value={state.textValue}
           onChange={(e) => dispatch({ type: 'SET_TEXT', text: e.target.value })}
-          placeholder='Write freely…'
+          placeholder={d.entry.form.textPlaceholder}
           className='min-h-35 resize-none border-muted/60 bg-muted/20 text-base leading-relaxed placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:bg-muted/40'
         />
       </div>
@@ -1264,7 +1266,7 @@ export function EntryForm({
         <Label
           className={cn('shrink-0 text-xs text-muted-foreground', isSummary ? 'w-40' : 'w-14')}
         >
-          {`Mood${scoreLabelSuffix}`}
+          {d.entry.form.moodLabel(isSummary)}
         </Label>
         <div className='flex gap-1.5'>
           {[1, 2, 3, 4, 5].map((s) => (
@@ -1292,7 +1294,7 @@ export function EntryForm({
         <Label
           className={cn('shrink-0 text-xs text-muted-foreground', isSummary ? 'w-40' : 'w-14')}
         >
-          {`Energy${scoreLabelSuffix}`}
+          {d.entry.form.energyLabel(isSummary)}
         </Label>
         <div className='flex gap-1.5'>
           {[1, 2, 3, 4, 5].map((s) => (
@@ -1317,7 +1319,7 @@ export function EntryForm({
 
       {/* Tags */}
       <div className='flex flex-col gap-1.5'>
-        <Label className='text-xs text-muted-foreground'>Tags</Label>
+        <Label className='text-xs text-muted-foreground'>{d.entry.form.tagsLabel}</Label>
         <TagCombobox
           key={state.tagKey}
           name='tags'
@@ -1330,7 +1332,7 @@ export function EntryForm({
       {/* Emotions */}
       <div className='flex flex-col gap-1.5'>
         <div className='flex items-center justify-between'>
-          <Label className='text-xs text-muted-foreground'>Emotions</Label>
+          <Label className='text-xs text-muted-foreground'>{d.entry.form.emotionsLabel}</Label>
           <Button
             type='button'
             variant='ghost'
@@ -1340,7 +1342,7 @@ export function EntryForm({
             className='text-muted-foreground'
           >
             <Sparkles className='size-3' />
-            {isGeneratingEmotions ? 'Generálás…' : 'AI javaslat'}
+            {isGeneratingEmotions ? d.common.generating : d.entry.form.aiSuggest}
           </Button>
         </div>
         <EmotionCombobox
@@ -1359,9 +1361,7 @@ export function EntryForm({
           <p className='text-xs text-destructive'>{errors[0]}</p>
         ) : offlineQueued ? (
           // Only reachable for a new summary saved offline — see handleOfflineSaved.
-          <p className='text-xs text-muted-foreground'>
-            Az összefoglaló sorban áll, és szinkronizálódik, amint újra online leszel.
-          </p>
+          <p className='text-xs text-muted-foreground'>{d.entry.form.summaryQueuedNotice}</p>
         ) : (
           <span />
         )}
@@ -1369,28 +1369,30 @@ export function EntryForm({
           {!isEdit && (
             <Dialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
               <DialogTrigger render={<Button type='button' variant='ghost' size='sm' />}>
-                Clear
+                {d.common.clear}
               </DialogTrigger>
               <DialogContent showCloseButton={false}>
                 <DialogHeader>
-                  <DialogTitle>Clear this entry?</DialogTitle>
-                  <DialogDescription>
-                    This will reset all fields and remove the saved draft.
-                  </DialogDescription>
+                  <DialogTitle>{d.entry.form.clearTitle}</DialogTitle>
+                  <DialogDescription>{d.entry.form.clearDescription}</DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                   <DialogClose render={<Button variant='outline' size='sm' />}>
-                    Cancel
+                    {d.common.cancel}
                   </DialogClose>
                   <Button size='sm' variant='destructive' onClick={handleClear}>
-                    Clear
+                    {d.common.clear}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           )}
           <Button type='submit' disabled={isPending || offlineQueued} size='sm'>
-            {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add entry'}
+            {isPending
+              ? d.common.saving
+              : isEdit
+                ? d.entry.form.saveChanges
+                : d.entry.form.addEntry}
           </Button>
         </div>
       </div>

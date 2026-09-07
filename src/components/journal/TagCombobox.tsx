@@ -2,6 +2,7 @@
 
 import { TagIcon } from "lucide-react";
 import { lookupTagsAction, suggestTagsAction } from "@/actions/tags";
+import { useI18n } from "@/i18n/provider";
 import { TaggablePicker } from "./TaggablePicker";
 
 interface TagComboboxProps {
@@ -12,6 +13,7 @@ interface TagComboboxProps {
 }
 
 export function TagCombobox({ name, defaultValue, initialColors, onValueChange }: TagComboboxProps) {
+  const d = useI18n();
   return (
     <TaggablePicker
       name={name}
@@ -20,9 +22,9 @@ export function TagCombobox({ name, defaultValue, initialColors, onValueChange }
       onValueChange={onValueChange}
       suggestAction={suggestTagsAction}
       lookupAction={lookupTagsAction}
-      triggerLabel="Add tag"
+      triggerLabel={d.entry.pickers.addTag}
       TriggerIcon={TagIcon}
-      emptyMessage="No tags yet."
+      emptyMessage={d.entry.pickers.noTags}
     />
   );
 }

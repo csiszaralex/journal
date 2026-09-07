@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { WifiOffIcon } from 'lucide-react';
+import { useI18n } from '@/i18n/provider';
 import { OFFLINE_QUEUE_KEY } from '@/lib/offline';
 
 import { z } from 'zod';
@@ -62,6 +63,7 @@ function getServerSnapshot() {
 }
 
 export function OfflineIndicator() {
+  const d = useI18n();
   const offline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   useEffect(() => {
@@ -83,7 +85,7 @@ export function OfflineIndicator() {
     <div className='fixed bottom-16 left-0 right-0 z-50 flex items-center justify-center md:bottom-0'>
       <div className='mx-4 mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-400'>
         <WifiOffIcon className='size-3.5 shrink-0' />
-        <span>You&apos;re offline — entries will sync when connected</span>
+        <span>{d.nav.offlineBanner}</span>
       </div>
     </div>
   );
