@@ -6,6 +6,7 @@ import { TemplatesManager } from '@/components/journal/TemplatesManager';
 import { AiHistoryEntriesCard } from '@/components/settings/AiHistoryEntriesCard';
 import { InstallAppCollapsible } from '@/components/settings/InstallAppCollapsible';
 import { KeyboardShortcutsCollapsible } from '@/components/settings/KeyboardShortcutsCollapsible';
+import { LocaleCard } from '@/components/settings/LocaleCard';
 import { SettingsCard } from '@/components/settings/SettingsCard';
 import { SummaryGapDaysCard } from '@/components/settings/SummaryGapDaysCard';
 import { ThemeCard } from '@/components/settings/ThemeCard';
@@ -15,8 +16,10 @@ import {
   getSummaryGapDays,
 } from '@/db/queries/settings';
 import { listTemplates } from '@/db/queries/templates';
+import { getLocale } from '@/i18n/request';
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const locale = await getLocale();
   const templates = listTemplates();
   const registrationEnabled = getRegistrationEnabled();
   const aiHistoryEntries = getAiHistoryEntries();
@@ -28,6 +31,7 @@ export default function SettingsPage() {
 
       <div className='grid grid-cols-3 sm:grid-cols-6 gap-2'>
         <ThemeCard />
+        <LocaleCard locale={locale} />
         <SettingsCard emoji='🔑' label='Sessions & passkeys' href='/settings/sessions' />
         <SettingsCard emoji='🔔' label='Devices & notifications' href='/settings/devices' />
         <SettingsCard emoji='👤' label='Profil' href='/settings/profile' />

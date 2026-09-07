@@ -8,7 +8,7 @@
 // and the intentions list then disagree around midnight. They are all views of
 // one journal kept in one place, so they all use that place's clock.
 
-import { addDays, format } from 'date-fns';
+import { addDays, format, type Locale as DateFnsLocale } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 
 /**
@@ -58,7 +58,27 @@ export function daysAgoInAppTZ(days: number): string {
  * For timestamps shown with an hour, not just a day: the server renders them
  * wherever it happens to run (UTC in the container), but the person reading
  * "signed in 21:40" is in the journal's zone and means 21:40 there.
+ *
+ * The zone and the language are separate questions and stay separate here: the
+ * zone is fixed (see APP_TZ), the language is a setting. Pass `locale` from
+ * `dates.locale` in the dictionary whenever the pattern contains month or
+ * weekday names — without it date-fns spells them in English.
  */
-export function formatInAppTZ(instant: Date | number, pattern: string): string {
-  return formatInTimeZone(instant, APP_TZ, pattern);
+export function formatInAppTZ(
+  instant: Date | number,
+  pattern: string,
+  locale?: DateFnsLocale,
+): string {
+  return formatInTimeZone(instant, APP_TZ, pattern, { locale });
+}
+
+/**
+ * A stored yyyy-MM-dd day rendered for a person to read.
+ *
+ * The string already names a calendar day, so it is parsed at local midnight
+ * and formatted as-is — no zone conversion, which would be free to move it a
+ * day either way.
+ */
+export function formatISODay(iso: string, pattern: string, locale?: DateFnsLocale): string {
+  return format(new Date(iso + 'T00:00:00'), pattern, { locale });
 }

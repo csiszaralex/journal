@@ -3,9 +3,11 @@
 import { logAudit } from '@/db/queries/audit';
 import {
   setAiHistoryEntries,
+  setLocale,
   setRegistrationEnabled,
   setSummaryGapDays,
 } from '@/db/queries/settings';
+import { LOCALES } from '@/i18n/locales';
 import { AI_HISTORY_ENTRIES_MAX, AI_HISTORY_ENTRIES_MIN } from '@/lib/ai/history-config';
 import { authActionClient } from '@/lib/safe-action';
 import { SUMMARY_GAP_DAYS_MAX, SUMMARY_GAP_DAYS_MIN } from '@/lib/summary-config';
@@ -18,6 +20,16 @@ export const setRegistrationEnabledAction = authActionClient
     setRegistrationEnabled(parsedInput.enabled);
     revalidatePath('/settings');
     logAudit('settings.registration.toggle', { enabled: parsedInput.enabled });
+  });
+
+export const setLocaleAction = authActionClient
+  .inputSchema(z.object({ locale: z.enum(LOCALES) }))
+  .action(async ({ parsedInput }) => {
+    setLocale(parsedInput.locale);
+    // Every page renders text, so every page is stale — revalidating the root
+    // layout is the only honest scope here, not just '/settings'.
+    revalidatePath('/', 'layout');
+    logAudit('settings.locale.set', { locale: parsedInput.locale });
   });
 
 export const setAiHistoryEntriesAction = authActionClient

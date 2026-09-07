@@ -4,6 +4,8 @@ import { KeyboardShortcuts } from '@/components/journal/KeyboardShortcuts';
 import { OfflineIndicator } from '@/components/journal/OfflineIndicator';
 import { QueryProvider } from '@/components/query-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { I18nProvider } from '@/i18n/provider';
+import { getLocale } from '@/i18n/request';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
@@ -11,20 +13,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   if (!session) redirect('/sign-in');
 
+  const locale = await getLocale();
+
   return (
-    <QueryProvider>
-      <TooltipProvider>
-        <AppNav />
-        <div className='flex-1'>
-          <div className='mx-auto max-w-2xl space-y-6 px-4 py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4'>
-            {children}
+    <I18nProvider locale={locale}>
+      <QueryProvider>
+        <TooltipProvider>
+          <AppNav />
+          <div className='flex-1'>
+            <div className='mx-auto max-w-2xl space-y-6 px-4 py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4'>
+              {children}
+            </div>
           </div>
-        </div>
-        <KeyboardShortcuts />
-        <InactivityTimer />
-        <OfflineIndicator />
-      </TooltipProvider>
-    </QueryProvider>
+          <KeyboardShortcuts />
+          <InactivityTimer />
+          <OfflineIndicator />
+        </TooltipProvider>
+      </QueryProvider>
+    </I18nProvider>
   );
 }
 

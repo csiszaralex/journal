@@ -8,6 +8,7 @@ import {
   SUMMARY_GAP_DAYS_MAX,
   SUMMARY_GAP_DAYS_MIN,
 } from '@/lib/summary-config';
+import { isLocale, type Locale } from '@/i18n/locales';
 import { eq } from 'drizzle-orm';
 import { db } from '../client';
 import { appSettings, authAuthenticators } from '../schema';
@@ -72,6 +73,24 @@ export function getAiHistoryEntries(): number {
 
 export function setAiHistoryEntries(entries: number): void {
   setSetting('ai_history_entries', String(clampHistoryEntries(Math.round(entries))));
+}
+
+/**
+ * The chosen language, or null if nobody has chosen one.
+ *
+ * The null is the point: it is what lets an unconfigured install fall back to
+ * the browser's `Accept-Language` instead of to a constant, so this cannot
+ * collapse into `getSetting('locale', DEFAULT_LOCALE)`. An unrecognised stored
+ * value is treated as unset rather than as an error — the row is data, and a
+ * language that no longer exists should not break every page.
+ */
+export function getStoredLocale(): Locale | null {
+  const value = getSetting('locale', '');
+  return isLocale(value) ? value : null;
+}
+
+export function setLocale(locale: Locale): void {
+  setSetting('locale', locale);
 }
 
 export function getSummaryGapDays(): number {
