@@ -1,8 +1,6 @@
 import type { Entry } from '../en/entry';
 
 export const entry: Entry = {
-  versionLabel: (n) => `v${n}`,
-
   form: {
     heading: {
       newEntry: 'Új bejegyzés',

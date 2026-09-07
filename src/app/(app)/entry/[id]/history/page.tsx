@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getDict } from "@/i18n/request";
 import { formatInAppTZ } from "@/lib/date";
 import { ArrowLeftIcon } from "lucide-react";
 import { getEntry, getVersionHistory } from "@/db/queries/entries";
@@ -16,6 +17,7 @@ export default async function EntryHistoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const d = await getDict();
   const entry = getEntry(id);
   // Same guard as the entry page: getEntry does not filter deleted rows, so
   // without this a deleted entry's history stayed readable by URL — with a
@@ -32,16 +34,16 @@ export default async function EntryHistoryPage({
           className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeftIcon className="size-3" />
-          Back to entry
+          {d.history.backToEntry}
         </Link>
       </div>
 
       <div>
         <h1 className="text-lg font-semibold tracking-tight">
-          Version History
+          {d.history.title}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {versions.length} {versions.length === 1 ? "version" : "versions"}
+          {d.history.versionCount(versions.length)}
         </p>
       </div>
 
@@ -62,14 +64,18 @@ export default async function EntryHistoryPage({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">
-                    v{version.version_number}
+                    {d.common.versionLabel(version.version_number)}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatInAppTZ(version.edited_at, "MMM d, yyyy 'at' HH:mm")}
+                    {formatInAppTZ(
+                      version.edited_at,
+                      d.dates.editedAt,
+                      d.dates.locale,
+                    )}
                   </span>
                   {isCurrent && (
                     <Badge className="h-4 px-1.5 py-0 text-[10px]">
-                      Current
+                      {d.history.version.currentBadge}
                     </Badge>
                   )}
                 </div>
@@ -82,7 +88,7 @@ export default async function EntryHistoryPage({
                       size="xs"
                       className="h-6 text-xs"
                     >
-                      Restore
+                      {d.history.version.restore}
                     </Button>
                   </form>
                 )}
@@ -128,9 +134,10 @@ export default async function EntryHistoryPage({
 
               {version.mood_score != null && (
                 <p className="text-xs text-muted-foreground">
-                  Mood {version.mood_score}
-                  {version.energy_score != null &&
-                    ` · Energy ${version.energy_score}`}
+                  {d.history.version.scores(
+                    version.mood_score,
+                    version.energy_score,
+                  )}
                 </p>
               )}
             </div>

@@ -1140,7 +1140,7 @@ export function EntryForm({
               className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
             >
               <HistoryIcon className='size-3' />
-              {d.entry.versionLabel(entry.version.version_number)}
+              {d.common.versionLabel(entry.version.version_number)}
             </Link>
           )}
           {!isEdit && (

@@ -11,10 +11,6 @@ import type { EmphasisedSentence } from '../emphasis';
  * They live in `common` and are used from there.
  */
 export const entry = {
-  /** The version marker beside an entry: on the card, and in the form's link to
-   *  the version history. */
-  versionLabel: (n: number) => `v${n}`,
-
   form: {
     /** What the form is for, shown above it. Four separate sentences rather
      *  than a noun with a modifier stuck on: "summary" declines differently

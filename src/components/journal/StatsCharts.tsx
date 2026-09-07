@@ -1,6 +1,8 @@
 'use client';
 
 import type { DailyStat } from '@/db/queries/entries';
+import { useI18n } from '@/i18n/provider';
+import { formatISODay } from '@/lib/date';
 import {
   CartesianGrid,
   Line,
@@ -16,17 +18,20 @@ interface StatsChartsProps {
 }
 
 export function StatsCharts({ data }: StatsChartsProps) {
-  const formatted = data.map((d) => ({
-    date: d.entry_date.slice(5), // MM-DD
-    mood: d.avg_mood !== null ? Math.round(d.avg_mood * 10) / 10 : null,
-    energy: d.avg_energy !== null ? Math.round(d.avg_energy * 10) / 10 : null,
+  const d = useI18n();
+  const formatted = data.map((row) => ({
+    // A day read off an axis, not an ISO fragment: `dates.chartAxis` is a
+    // deliberately tiny pattern, because up to 90 of these share one axis.
+    date: formatISODay(row.entry_date, d.dates.chartAxis, d.dates.locale),
+    mood: row.avg_mood !== null ? Math.round(row.avg_mood * 10) / 10 : null,
+    energy: row.avg_energy !== null ? Math.round(row.avg_energy * 10) / 10 : null,
   }));
 
   return (
     <div className='space-y-8'>
       <div className='space-y-2'>
         <p className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
-          Mood
+          {d.stats.series.mood}
         </p>
         <ResponsiveContainer width='100%' height={180}>
           <LineChart data={formatted} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -54,7 +59,7 @@ export function StatsCharts({ data }: StatsChartsProps) {
               }}
               labelStyle={{ color: 'hsl(var(--foreground))' }}
               itemStyle={{ color: 'hsl(var(--foreground))' }}
-              formatter={(v) => [v, 'Mood']}
+              formatter={(v) => [v, d.stats.series.mood]}
             />
             <Line
               type='monotone'
@@ -70,7 +75,7 @@ export function StatsCharts({ data }: StatsChartsProps) {
 
       <div className='space-y-2'>
         <p className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
-          Energy
+          {d.stats.series.energy}
         </p>
         <ResponsiveContainer width='100%' height={180}>
           <LineChart data={formatted} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -98,7 +103,7 @@ export function StatsCharts({ data }: StatsChartsProps) {
               }}
               labelStyle={{ color: 'hsl(var(--foreground))' }}
               itemStyle={{ color: 'hsl(var(--foreground))' }}
-              formatter={(v) => [v, 'Energy']}
+              formatter={(v) => [v, d.stats.series.energy]}
             />
             <Line
               type='monotone'

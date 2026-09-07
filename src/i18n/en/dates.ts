@@ -38,6 +38,11 @@ export const dates = {
   editedAt: "MMM d, yyyy 'at' HH:mm",
   /** "2026-09-03" shown to a person — the date picker trigger. */
   dayInput: 'MMM d, yyyy',
+  /** A day on a chart axis. Its own register because it is bounded by pixels
+   *  rather than by convention: up to ninety of these share one phone-width
+   *  axis, so a translation has to stay a few characters wide even where the
+   *  language would normally spell the month out. */
+  chartAxis: 'MMM d',
 };
 
 export type Dates = typeof dates;

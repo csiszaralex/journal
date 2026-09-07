@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SearchIcon, LoaderIcon } from "lucide-react";
+import { useI18n } from "@/i18n/provider";
 import { todayInAppTZ } from "@/lib/date";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ export function SearchView({
   initialMoodMin = "",
   initialMoodMax = "",
 }: SearchViewProps) {
+  const d = useI18n();
   // The app's day, not the browser's — EntryCard compares it against entry_date.
   const today = todayInAppTZ();
 
@@ -103,10 +105,10 @@ export function SearchView({
   }
 
   const heading = debouncedQ
-    ? `Results for "${debouncedQ}"`
+    ? d.search.heading.results(debouncedQ)
     : hasFilters
-      ? "Filtered entries"
-      : "All entries";
+      ? d.search.heading.filtered
+      : d.search.heading.all;
 
   return (
     <div className="space-y-6">
@@ -116,7 +118,7 @@ export function SearchView({
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search entries and tags…"
+          placeholder={d.search.placeholder}
           className="pl-9 pr-8"
           autoComplete="off"
           autoFocus
@@ -129,7 +131,7 @@ export function SearchView({
       {/* Filters */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">From</Label>
+          <Label className="text-xs text-muted-foreground">{d.search.filters.from}</Label>
           <Input
             type="date"
             value={from}
@@ -138,7 +140,7 @@ export function SearchView({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">To</Label>
+          <Label className="text-xs text-muted-foreground">{d.search.filters.to}</Label>
           <Input
             type="date"
             value={to}
@@ -147,7 +149,7 @@ export function SearchView({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Min mood</Label>
+          <Label className="text-xs text-muted-foreground">{d.search.filters.moodMin}</Label>
           <Select
             value={moodMin || "any"}
             onValueChange={(v) => setMoodMin(!v || v === "any" ? "" : v)}
@@ -156,7 +158,7 @@ export function SearchView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="any">Any</SelectItem>
+              <SelectItem value="any">{d.search.filters.any}</SelectItem>
               {[1, 2, 3, 4, 5].map((n) => (
                 <SelectItem key={n} value={String(n)}>{n}</SelectItem>
               ))}
@@ -164,7 +166,7 @@ export function SearchView({
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Max mood</Label>
+          <Label className="text-xs text-muted-foreground">{d.search.filters.moodMax}</Label>
           <Select
             value={moodMax || "any"}
             onValueChange={(v) => setMoodMax(!v || v === "any" ? "" : v)}
@@ -173,7 +175,7 @@ export function SearchView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="any">Any</SelectItem>
+              <SelectItem value="any">{d.search.filters.any}</SelectItem>
               {[1, 2, 3, 4, 5].map((n) => (
                 <SelectItem key={n} value={String(n)}>{n}</SelectItem>
               ))}
@@ -189,15 +191,14 @@ export function SearchView({
         </p>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
-            {entries.length === 0
-              ? "No results"
-              : entries.length === PAGE_SIZE
-                ? `${PAGE_SIZE}+ results`
-                : `${entries.length} result${entries.length === 1 ? "" : "s"}`}
+            {entries.length === PAGE_SIZE
+              ? // A full page: at least this many, possibly more.
+                d.search.results.atLeast(PAGE_SIZE)
+              : d.search.results.count(entries.length)}
           </span>
           {hasFilters && (
             <Button variant="ghost" size="xs" onClick={clearAll}>
-              Clear
+              {d.common.clear}
             </Button>
           )}
         </div>
@@ -206,11 +207,11 @@ export function SearchView({
       {/* Results */}
       {isError ? (
         <p className="py-8 text-center text-sm text-destructive">
-          Something went wrong. Please try again.
+          {d.common.unexpectedError}
         </p>
       ) : entries.length === 0 && !isFetching ? (
         <p className="py-8 text-center text-sm text-muted-foreground/60">
-          {debouncedQ ? "No entries matched your search." : "No entries found."}
+          {debouncedQ ? d.search.empty.query : d.search.empty.all}
         </p>
       ) : (
         <div className="space-y-3">
@@ -230,19 +231,19 @@ export function SearchView({
               size="sm"
               onClick={() => setPage((p) => p - 1)}
             >
-              ← Previous
+              {d.common.previous}
             </Button>
           ) : (
             <span />
           )}
-          <span className="text-xs text-muted-foreground">Page {page}</span>
+          <span className="text-xs text-muted-foreground">{d.common.page(page)}</span>
           {hasNext ? (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setPage((p) => p + 1)}
             >
-              Next →
+              {d.common.next}
             </Button>
           ) : (
             <span />
