@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { softDeleteEntryAction } from '@/actions/entries';
+import { useI18n } from '@/i18n/provider';
 
 interface DeleteEntryButtonProps {
   entryId: string;
@@ -27,8 +28,10 @@ interface DeleteEntryButtonProps {
  * server component, so the dialog (and its client state) lives here.
  */
 export function DeleteEntryButton({ entryId, dateLabel }: DeleteEntryButtonProps) {
+  const d = useI18n();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const deleteAction = softDeleteEntryAction.bind(null, entryId);
+  const description = d.entry.delete.description(dateLabel);
 
   return (
     <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -39,8 +42,8 @@ export function DeleteEntryButton({ entryId, dateLabel }: DeleteEntryButtonProps
             variant="ghost"
             size="icon"
             className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            title="Törlés"
-            aria-label="Törlés"
+            title={d.common.delete}
+            aria-label={d.common.delete}
           />
         }
       >
@@ -48,15 +51,16 @@ export function DeleteEntryButton({ entryId, dateLabel }: DeleteEntryButtonProps
       </DialogTrigger>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Törlöd ezt a bejegyzést?</DialogTitle>
+          <DialogTitle>{d.entry.delete.title}</DialogTitle>
           <DialogDescription>
-            A(z) <strong>{dateLabel}</strong> bejegyzés eltűnik a naptárból, a
-            keresésből és a statisztikákból. Az alkalmazásból nem hozható vissza.
+            {description.before}
+            <strong className='font-medium text-foreground'>{description.emphasis}</strong>
+            {description.after}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose render={<Button variant="outline" size="sm" />}>
-            Mégse
+            {d.common.cancel}
           </DialogClose>
           <form action={deleteAction}>
             <DeleteSubmitButton />
@@ -68,6 +72,7 @@ export function DeleteEntryButton({ entryId, dateLabel }: DeleteEntryButtonProps
 }
 
 function DeleteSubmitButton() {
+  const d = useI18n();
   const { pending } = useFormStatus();
   return (
     <Button
@@ -77,7 +82,7 @@ function DeleteSubmitButton() {
       disabled={pending}
       className="w-full sm:w-auto"
     >
-      {pending ? 'Törlés…' : 'Törlés'}
+      {pending ? d.common.deleting : d.common.delete}
     </Button>
   );
 }

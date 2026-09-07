@@ -6,19 +6,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useI18n } from '@/i18n/provider';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-
-const shortcuts = [
-  { keys: ['h'], description: 'Go to Today' },
-  { keys: ['c'], description: 'Go to Calendar' },
-  { keys: ['s'], description: 'Go to Search' },
-  { keys: ['t'], description: 'Go to Stats' },
-  { keys: ['d'], description: 'Go to Devices' },
-  { keys: ['p'], description: 'Go to Settings' },
-  { keys: ['?'], description: 'Show this help' },
-];
 
 function isInInput(e: KeyboardEvent) {
   const target = e.target;
@@ -28,8 +19,21 @@ function isInInput(e: KeyboardEvent) {
 }
 
 export function KeyboardShortcuts() {
+  const d = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  // Built here rather than at module scope: the descriptions come from the
+  // dictionary, which is a hook away.
+  const shortcuts = [
+    { keys: ['h'], description: d.nav.shortcuts.goToToday },
+    { keys: ['c'], description: d.nav.shortcuts.goToCalendar },
+    { keys: ['s'], description: d.nav.shortcuts.goToSearch },
+    { keys: ['t'], description: d.nav.shortcuts.goToStats },
+    { keys: ['d'], description: d.nav.shortcuts.goToDevices },
+    { keys: ['p'], description: d.nav.shortcuts.goToSettings },
+    { keys: ['?'], description: d.nav.shortcuts.showHelp },
+  ];
 
   // ? — manual listener (TanStack doesn't accept '?' as a hotkey string)
   useEffect(() => {
@@ -54,7 +58,7 @@ export function KeyboardShortcuts() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className='max-w-sm'>
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogTitle>{d.nav.shortcuts.title}</DialogTitle>
         </DialogHeader>
         <div className='space-y-1'>
           {shortcuts.map((s) => (

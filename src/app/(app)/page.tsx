@@ -9,7 +9,8 @@ import {
   getSummaryRanges,
 } from "@/db/queries/entries";
 import { getSummaryGapDays } from "@/db/queries/settings";
-import { todayInAppTZ } from "@/lib/date";
+import { getDict } from "@/i18n/request";
+import { formatISODay, todayInAppTZ } from "@/lib/date";
 import {
   firstUncoveredDay,
   getDefaultSummaryPeriod,
@@ -30,6 +31,7 @@ export default async function TodayPage({
   searchParams: SearchParams;
 }) {
   const { date: dateParam } = await searchParams;
+  const d = await getDict();
   const today = todayInAppTZ();
   const selectedDate = dateParam ?? today;
   const isToday = selectedDate === today;
@@ -73,7 +75,7 @@ export default async function TodayPage({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            {format(headerDate, "EEEE, MMMM d")}
+            {formatISODay(selectedDate, d.dates.dayLong, d.dates.locale)}
           </h1>
           <p className="text-sm text-muted-foreground">
             {format(headerDate, "yyyy")}
@@ -87,7 +89,7 @@ export default async function TodayPage({
               : "border-2 border-orange-400 text-orange-500"
           )}>
             <FlameIcon className="size-3.5" />
-            {streak} {streak === 1 ? "day" : "days"}
+            {d.entry.today.streak(streak)}
           </div>
         )}
       </div>

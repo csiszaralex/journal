@@ -2,6 +2,8 @@
 
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useI18n } from '@/i18n/provider';
+import { formatISODay } from '@/lib/date';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export function SummaryPeriodField({ from, to, onChange, disabled }: Props) {
+  const d = useI18n();
   const [openFrom, setOpenFrom] = useState(false);
   const [openTo, setOpenTo] = useState(false);
 
@@ -36,15 +39,16 @@ export function SummaryPeriodField({ from, to, onChange, disabled }: Props) {
         <PopoverTrigger
           type='button'
           disabled={disabled}
-          aria-label='Időszak kezdete'
+          aria-label={d.entry.period.start}
           className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground'
         >
           <CalendarIcon className='size-3' />
-          {from}
+          {formatISODay(from, d.dates.dayInput, d.dates.locale)}
         </PopoverTrigger>
         <PopoverContent className='w-auto p-0' align='end'>
           <Calendar
             mode='single'
+            locale={d.dates.locale}
             selected={new Date(from + 'T00:00:00')}
             defaultMonth={new Date(from + 'T00:00:00')}
             onSelect={(day) => pick('from', day)}
@@ -56,15 +60,16 @@ export function SummaryPeriodField({ from, to, onChange, disabled }: Props) {
         <PopoverTrigger
           type='button'
           disabled={disabled}
-          aria-label='Időszak vége'
+          aria-label={d.entry.period.end}
           className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground'
         >
           <CalendarIcon className='size-3' />
-          {to}
+          {formatISODay(to, d.dates.dayInput, d.dates.locale)}
         </PopoverTrigger>
         <PopoverContent className='w-auto p-0' align='end'>
           <Calendar
             mode='single'
+            locale={d.dates.locale}
             selected={new Date(to + 'T00:00:00')}
             defaultMonth={new Date(to + 'T00:00:00')}
             onSelect={(day) => pick('to', day)}

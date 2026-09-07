@@ -2,6 +2,7 @@
 
 import { signOutInactiveAction } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/i18n/provider';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const TIMEOUT_MS = 30 * 60 * 1000;
@@ -18,6 +19,7 @@ const ACTIVITY_EVENTS = [
 ] as const;
 
 export function InactivityTimer() {
+  const d = useI18n();
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -65,23 +67,27 @@ export function InactivityTimer() {
 
   if (!warningVisible) return null;
 
+  const warning = d.nav.inactivity.body(countdown);
+
   return (
     <div className='fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-border bg-card p-4 shadow-2xl animate-in slide-in-from-bottom-2 duration-300'>
       <div className='space-y-3'>
         <div className='space-y-1'>
-          <p className='text-sm font-semibold'>Still there?</p>
+          <p className='text-sm font-semibold'>{d.nav.inactivity.title}</p>
+          {/* Tabular figures keep the sentence from shifting as the number
+              ticks down; the language decides where in it the number falls. */}
           <p className='text-xs text-muted-foreground'>
-            You&apos;ll be signed out in{' '}
-            <span className='font-medium tabular-nums text-foreground'>{countdown}s</span> due to
-            inactivity.
+            {warning.before}
+            <span className='font-medium tabular-nums text-foreground'>{warning.emphasis}</span>
+            {warning.after}
           </p>
         </div>
         <div className='flex gap-2'>
           <Button onClick={resetTimer} size='sm' className='flex-1'>
-            Stay logged in
+            {d.nav.inactivity.stayLoggedIn}
           </Button>
           <Button onClick={() => signOutInactiveAction()} size='sm' variant='ghost'>
-            Sign out
+            {d.nav.signOut}
           </Button>
         </div>
       </div>

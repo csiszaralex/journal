@@ -1,11 +1,19 @@
+"use client";
+
+// A client component, not a server one: the card is rendered both from server
+// pages (calendar) and from SearchView, which is `'use client'`. A shared
+// component cannot read the dictionary — `getDict` needs a request, `useI18n`
+// needs the provider — so it picks the side that works in both places. The
+// card's own dependencies were already in the client bundle for SearchView.
+
 import Link from "next/link";
-import { format } from "date-fns";
 import { PencilIcon, HistoryIcon, ChevronRightIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteEntryButton } from "@/components/journal/DeleteEntryButton";
 import type { EntryWithVersion } from "@/db/queries/entries";
-import { dayInAppTZ, hourInAppTZ, shiftDaysISO } from "@/lib/date";
+import { useI18n } from "@/i18n/provider";
+import { dayInAppTZ, formatISODay, hourInAppTZ, shiftDaysISO } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { getContrastTextColor } from "@/lib/color";
 
@@ -31,6 +39,7 @@ interface EntryCardProps {
 }
 
 export function EntryCard({ entry, today }: EntryCardProps) {
+  const d = useI18n();
   const v = entry.version;
   const isSummary = v.kind === 'summary';
   // Backdated = entry_date is before the day the entry was originally created.
@@ -50,11 +59,11 @@ export function EntryCard({ entry, today }: EntryCardProps) {
   // confirmation names the entry, so both need the same label.
   const dateLabel =
     isSummary && v.period_start
-      ? `${format(new Date(v.period_start + 'T00:00:00'), 'MMM d')} – ${format(
-          new Date(v.entry_date + 'T00:00:00'),
-          'MMM d, yyyy',
-        )}`
-      : format(new Date(v.entry_date + 'T00:00:00'), 'EEEE, MMMM d, yyyy');
+      ? d.entry.card.summaryRange(
+          formatISODay(v.period_start, d.dates.dayShort, d.dates.locale),
+          formatISODay(v.entry_date, d.dates.dayShortWithYear, d.dates.locale),
+        )
+      : formatISODay(v.entry_date, d.dates.dayLongWithYear, d.dates.locale);
 
   return (
     <article className="group rounded-xl border bg-card p-4 transition-all hover:ring-1 hover:ring-ring/20">
@@ -69,22 +78,22 @@ export function EntryCard({ entry, today }: EntryCardProps) {
           </Link>
           {isSummary && (
             <Badge variant='outline' className='h-4 px-1.5 py-0 text-[10px]'>
-              Összefoglaló
+              {d.entry.card.summaryBadge}
             </Badge>
           )}
           {isBackdated && (
             <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px]">
-              Backdated
+              {d.entry.card.backdatedBadge}
             </Badge>
           )}
           {isScheduled && (
             <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px]">
-              Scheduled
+              {d.entry.card.scheduledBadge}
             </Badge>
           )}
           {v.version_number > 1 && (
             <span className="text-xs text-muted-foreground">
-              v{v.version_number}
+              {d.entry.versionLabel(v.version_number)}
             </span>
           )}
         </div>
@@ -96,7 +105,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
               variant="ghost"
               size="icon"
               className="size-6"
-              title="Version history"
+              title={d.entry.card.versionHistory}
             >
               <HistoryIcon className="size-3" />
             </Button>
@@ -106,7 +115,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
               variant="ghost"
               size="icon"
               className="size-6"
-              title="Edit"
+              title={d.common.edit}
             >
               <PencilIcon className="size-3" />
             </Button>
@@ -124,7 +133,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
               href={`/entry/${entry.id}`}
               className="ml-1 text-muted-foreground hover:text-foreground"
             >
-              …read more
+              {d.entry.card.readMore}
             </Link>
           )}
         </p>
@@ -136,7 +145,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
           <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-1">
               <ChevronRightIcon className="size-3 transition-transform group-open/qa:rotate-90" />
-              Reflexiók ({v.qa_pairs.length})
+              {d.entry.card.reflections(v.qa_pairs.length)}
             </span>
           </summary>
           <div className="mt-2 flex flex-col gap-2">
@@ -164,7 +173,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
             <div
               className={cn("size-2 rounded-full", MOOD_DOT[v.mood_score])}
             />
-            Mood {v.mood_score}
+            {d.entry.card.mood(v.mood_score)}
           </div>
         )}
         {v.energy_score != null && (
@@ -175,7 +184,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
                 ENERGY_DOT[v.energy_score]
               )}
             />
-            Energy {v.energy_score}
+            {d.entry.card.energy(v.energy_score)}
           </div>
         )}
         {v.tags.map((tag) => (
