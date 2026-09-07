@@ -93,7 +93,7 @@ export function EntryCard({ entry, today }: EntryCardProps) {
           )}
           {v.version_number > 1 && (
             <span className="text-xs text-muted-foreground">
-              {d.entry.versionLabel(v.version_number)}
+              {d.common.versionLabel(v.version_number)}
             </span>
           )}
         </div>

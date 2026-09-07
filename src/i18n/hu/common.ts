@@ -13,6 +13,7 @@ export const common: Common = {
   generating: 'Generálás…',
   loading: 'Betöltés…',
   saved: 'Mentve',
+  versionLabel: (n: number) => `v${n}`,
   previous: '← Előző',
   next: 'Következő →',
   page: (n: number) => `${n}. oldal`,

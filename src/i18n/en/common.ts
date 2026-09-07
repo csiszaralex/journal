@@ -18,6 +18,9 @@ export const common = {
   generating: 'Generating…',
   loading: 'Loading…',
   saved: 'Saved',
+  /** The version marker beside an entry — on its card, in the form's header,
+   *  and on both history screens. Shared so the four cannot drift apart. */
+  versionLabel: (n: number) => `v${n}`,
   previous: '← Previous',
   next: 'Next →',
   page: (n: number) => `Page ${n}`,

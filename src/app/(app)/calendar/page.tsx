@@ -10,7 +10,8 @@ import {
   listEntries,
   type EntryWithVersion,
 } from '@/db/queries/entries';
-import { todayInAppTZ } from '@/lib/date';
+import { getDict } from '@/i18n/request';
+import { formatISODay, todayInAppTZ } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import {
   addMonths,
@@ -44,6 +45,7 @@ const MOOD_TEXT: Record<number, string> = {
 
 export default async function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
   const { month, day } = await searchParams;
+  const d = await getDict();
   const today = todayInAppTZ();
 
   // No ?month → the month today falls in, in the app's zone. Parsing today's own
@@ -63,11 +65,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
     string,
     { mood: number | null; emojis: string[]; emotionColors: string[] }
   >();
-  for (const d of calData) {
-    dateMap.set(d.entry_date, {
-      mood: d.mood_score,
-      emojis: d.emojis,
-      emotionColors: d.emotionColors,
+  for (const row of calData) {
+    dateMap.set(row.entry_date, {
+      mood: row.mood_score,
+      emojis: row.emojis,
+      emotionColors: row.emotionColors,
     });
   }
 
@@ -84,11 +86,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   for (const r of summaryRanges) {
     const start = new Date(r.period_start + 'T00:00:00');
     const end = new Date(r.entry_date + 'T00:00:00');
-    for (const d of eachDayOfInterval({
+    for (const covered of eachDayOfInterval({
       start: start < monthStart ? monthStart : start,
       end: end > monthEnd ? monthEnd : end,
     })) {
-      summaryDates.add(format(d, 'yyyy-MM-dd'));
+      summaryDates.add(format(covered, 'yyyy-MM-dd'));
     }
   }
 
@@ -125,13 +127,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
       <div className='flex items-center justify-between'>
         <Link
           href={`/calendar?month=${prevMonthKey}`}
+          aria-label={d.calendar.previousMonth}
           className='flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
         >
           <ChevronLeftIcon className='size-4' />
         </Link>
-        <h1 className='text-lg font-semibold tracking-tight'>{format(monthStart, 'MMMM yyyy')}</h1>
+        <h1 className='text-lg font-semibold tracking-tight'>
+          {format(monthStart, d.dates.monthYear, { locale: d.dates.locale })}
+        </h1>
         <Link
           href={`/calendar?month=${nextMonthKey}`}
+          aria-label={d.calendar.nextMonth}
           className='flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
         >
           <ChevronRightIcon className='size-4' />
@@ -146,12 +152,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
       >
         {/* Weekday headers */}
         <div className='grid grid-cols-7 mb-1'>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          {d.dates.weekdayInitials.map((initial, i) => (
             <div
               key={i}
               className='py-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground'
             >
-              {d}
+              {initial}
             </div>
           ))}
         </div>
@@ -162,8 +168,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             <div key={`pad-${i}`} className='bg-background h-20' />
           ))}
 
-          {days.map((d) => {
-            const dateStr = format(d, 'yyyy-MM-dd');
+          {days.map((cell) => {
+            const dateStr = format(cell, 'yyyy-MM-dd');
             const data = dateMap.get(dateStr);
             const isSelected = selectedDay === dateStr;
             const isToday = dateStr === today;
@@ -204,7 +210,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                           : 'text-muted-foreground/50',
                   )}
                 >
-                  {format(d, 'd')}
+                  {format(cell, 'd')}
                 </span>
 
                 {/* Primary emoji + emotion color dots */}
@@ -257,18 +263,18 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
         <div className='space-y-3'>
           <div className='flex items-center justify-between'>
             <h2 className='text-sm font-medium'>
-              {format(new Date(selectedDay + 'T00:00:00'), 'EEEE, MMMM d')}
+              {formatISODay(selectedDay, d.dates.dayLong, d.dates.locale)}
             </h2>
             <Link href={`/?date=${selectedDay}`}>
               <Button size='sm' variant='outline' className='h-7 gap-1.5 text-xs'>
                 <PlusIcon className='size-3' />
-                Open entry
+                {d.calendar.openEntry}
               </Button>
             </Link>
           </div>
 
           {panelEntries.length === 0 ? (
-            <p className='py-2 text-sm text-muted-foreground/60'>No entries for this day.</p>
+            <p className='py-2 text-sm text-muted-foreground/60'>{d.calendar.noEntries}</p>
           ) : (
             panelEntries.map((entry) => <EntryCard key={entry.id} entry={entry} today={today} />)
           )}

@@ -18,4 +18,8 @@ export const dates: Dates = {
   timestampWithSeconds: 'yyyy-MM-dd HH:mm:ss',
   editedAt: 'y. MMM d. HH:mm',
   dayInput: 'y. MMM d.',
+  // Numeric, because the Hungarian month abbreviations ("szept.") are far too
+  // wide for ninety ticks. Big-endian like every other Hungarian date, so
+  // "09. 03." reads as September 3.
+  chartAxis: 'MM. dd.',
 };
