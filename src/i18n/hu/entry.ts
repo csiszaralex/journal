@@ -12,7 +12,6 @@ export const entry: Entry = {
     previousDay: 'Előző nap',
     nextDay: 'Következő nap',
 
-    textPlaceholder: 'Írj szabadon…',
 
     moodLabel: (forPeriod) => (forPeriod ? 'Hangulat (az időszak egészére)' : 'Hangulat'),
     energyLabel: (forPeriod) => (forPeriod ? 'Energia (az időszak egészére)' : 'Energia'),
@@ -49,11 +48,8 @@ export const entry: Entry = {
     addOne: '+1 kérdés',
     editQuestion: 'Kérdés szerkesztése',
     replaceQuestion: 'Másik kérdést kérek erre a helyre',
-    deleteQuestion: 'Kérdés törlése',
     questionPlaceholder: 'Kérdés szövege…',
     answerPlaceholder: 'Válaszolj röviden, vagy hagyd üresen…',
-    deleteTitle: 'Törlöd ezt a kérdést?',
-    deleteDescription: 'A beírt válaszod elvész.',
   },
 
   card: {

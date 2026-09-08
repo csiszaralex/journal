@@ -189,8 +189,8 @@ export function EntryQuestions({
                     }
                   }}
                   disabled={busy}
-                  title={d.entry.questions.deleteQuestion}
-                  aria-label={d.entry.questions.deleteQuestion}
+                  title={d.common.deleteQuestion}
+                  aria-label={d.common.deleteQuestion}
                   className='text-muted-foreground/60 hover:text-destructive'
                 >
                   <CircleMinus className='size-3' />
@@ -248,8 +248,8 @@ export function EntryQuestions({
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>{d.entry.questions.deleteTitle}</DialogTitle>
-            <DialogDescription>{d.entry.questions.deleteDescription}</DialogDescription>
+            <DialogTitle>{d.common.deleteQuestionTitle}</DialogTitle>
+            <DialogDescription>{d.common.deleteQuestionDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant='outline' size='sm' />}>

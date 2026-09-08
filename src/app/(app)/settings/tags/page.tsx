@@ -5,8 +5,10 @@ import { ArrowLeftIcon } from 'lucide-react';
 import { listAllTags } from '@/db/queries/tags';
 import { listAllEmotions } from '@/db/queries/emotions';
 import { TagsAdminList } from '@/components/journal/TagsAdminList';
+import { getDict } from '@/i18n/request';
 
-export default function TagsSettingsPage() {
+export default async function TagsSettingsPage() {
+  const d = await getDict();
   const tags = listAllTags();
   const emotions = listAllEmotions();
 
@@ -18,24 +20,20 @@ export default function TagsSettingsPage() {
           className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <ArrowLeftIcon className="size-3" />
-          Settings
+          {d.common.backToSettings}
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight">Tags &amp; emotions</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{d.tags.title}</h1>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Szerkesztheted a megjelenített nevet, a normalizált (összevonáshoz használt) nevet és a
-        színt. A normalizált név határozza meg, hogy két beírás ugyanaz a tag-e — pl. ha &quot;boldog&quot;-ot
-        adsz meg, akkor a &quot;BOLDOG&quot; beírás is ehhez fog kapcsolódni.
-      </p>
+      <p className="text-sm text-muted-foreground">{d.tags.intro}</p>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium">Tags</h2>
+        <h2 className="text-sm font-medium">{d.tags.sections.tags}</h2>
         <TagsAdminList kind="tag" items={tags} />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium">Emotions</h2>
+        <h2 className="text-sm font-medium">{d.tags.sections.emotions}</h2>
         <TagsAdminList kind="emotion" items={emotions} />
       </section>
     </div>

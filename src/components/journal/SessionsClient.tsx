@@ -31,6 +31,7 @@ import {
   renamePasskeyAction,
   verifyPasskeyRegistrationAction,
 } from "@/actions/passkeys";
+import { useI18n } from "@/i18n/provider";
 
 type SessionItem = {
   sessionToken: string;
@@ -49,12 +50,6 @@ type PasskeyItem = {
   createdAt: string | null;
 };
 
-function formatDeviceType(t: string): string {
-  if (t === "singleDevice") return "Single-device passkey";
-  if (t === "multiDevice") return "Synced passkey";
-  return t;
-}
-
 export function SessionsClient({
   sessions: initialSessions,
   passkeys: initialPasskeys,
@@ -62,6 +57,7 @@ export function SessionsClient({
   sessions: SessionItem[];
   passkeys: PasskeyItem[];
 }) {
+  const d = useI18n();
   const router = useRouter();
   const [sessions, setSessions] = useState(initialSessions);
   const [passkeys, setPasskeys] = useState(initialPasskeys);
@@ -70,7 +66,7 @@ export function SessionsClient({
   const [isPending, startTransition] = useTransition();
 
   function reportError(err: unknown) {
-    setError(err instanceof Error ? err.message : "Something went wrong");
+    setError(err instanceof Error ? err.message : d.common.unexpectedError);
   }
 
   async function handleRegisterPasskey() {
@@ -79,7 +75,7 @@ export function SessionsClient({
     try {
       const optionsResult = await getPasskeyRegistrationOptionsAction();
       if (optionsResult?.serverError) throw new Error(optionsResult.serverError);
-      if (!optionsResult?.data) throw new Error("Failed to get registration options");
+      if (!optionsResult?.data) throw new Error(d.sessions.passkeys.optionsFailed);
       const response = await startRegistration(optionsResult.data);
       const verifyResult = await verifyPasskeyRegistrationAction({ response });
       if (verifyResult?.serverError) throw new Error(verifyResult.serverError);
@@ -103,10 +99,9 @@ export function SessionsClient({
 
       <section className="space-y-3">
         <div className="space-y-1">
-          <h2 className="text-sm font-medium">Passkeys</h2>
+          <h2 className="text-sm font-medium">{d.sessions.passkeys.heading}</h2>
           <p className="text-sm text-muted-foreground">
-            Registered keys you can use to sign in. The last remaining passkey
-            cannot be deleted.
+            {d.sessions.passkeys.description}
           </p>
         </div>
         <Button
@@ -120,11 +115,11 @@ export function SessionsClient({
           ) : (
             <PlusIcon className="size-4" />
           )}
-          Add a passkey on this device
+          {d.sessions.passkeys.add}
         </Button>
         {passkeys.length === 0 ? (
           <p className="text-sm text-muted-foreground/60 py-4">
-            No passkeys registered.
+            {d.sessions.passkeys.empty}
           </p>
         ) : (
           <div className="space-y-3">
@@ -170,15 +165,14 @@ export function SessionsClient({
 
       <section className="space-y-3">
         <div className="space-y-1">
-          <h2 className="text-sm font-medium">Active sessions</h2>
+          <h2 className="text-sm font-medium">{d.sessions.active.heading}</h2>
           <p className="text-sm text-muted-foreground">
-            Devices currently signed in to your account. You cannot revoke the
-            session you are currently using.
+            {d.sessions.active.description}
           </p>
         </div>
         {sessions.length === 0 ? (
           <p className="text-sm text-muted-foreground/60 py-4">
-            No active sessions.
+            {d.sessions.active.empty}
           </p>
         ) : (
           <div className="space-y-3">
@@ -237,8 +231,17 @@ function PasskeyCard({
   onRename: (name: string) => void;
   onDelete: () => void;
 }) {
+  const d = useI18n();
   const [name, setName] = useState(passkey.name ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Only the two device types WebAuthn defines have words; anything else an
+  // authenticator reports is a machine string and is shown as it arrived.
+  const type = passkey.credentialDeviceType;
+  const deviceType =
+    type === "singleDevice" || type === "multiDevice"
+      ? d.sessions.passkeys.deviceType(type)
+      : type;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -247,7 +250,7 @@ function PasskeyCard({
           <KeyRoundIcon className="size-4 text-muted-foreground shrink-0" />
           <Input
             value={name}
-            placeholder="Unnamed passkey"
+            placeholder={d.sessions.passkeys.namePlaceholder}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
               const trimmed = name.trim();
@@ -267,23 +270,22 @@ function PasskeyCard({
             disabled={isPending || isOnly}
             title={
               isOnly
-                ? "Cannot delete your last passkey"
-                : "Delete passkey"
+                ? d.sessions.passkeys.deleteDisabledTitle
+                : d.sessions.passkeys.deleteTitle
             }
           >
             <TrashIcon className="size-3.5" />
           </Button>
           <DialogContent showCloseButton={false}>
             <DialogHeader>
-              <DialogTitle>Delete this passkey?</DialogTitle>
+              <DialogTitle>{d.sessions.passkeys.confirmTitle}</DialogTitle>
               <DialogDescription>
-                You will no longer be able to sign in with this key. This
-                cannot be undone.
+                {d.sessions.passkeys.confirmDescription}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <DialogClose render={<Button variant="outline" size="sm" />}>
-                Cancel
+                {d.common.cancel}
               </DialogClose>
               <Button
                 size="sm"
@@ -293,15 +295,15 @@ function PasskeyCard({
                   onDelete();
                 }}
               >
-                Delete
+                {d.common.delete}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
       <div className="text-xs text-muted-foreground space-y-0.5 pl-6">
-        <p>{formatDeviceType(passkey.credentialDeviceType)}</p>
-        <p>Added: {passkey.createdAt ?? "—"}</p>
+        <p>{deviceType}</p>
+        <p>{d.sessions.passkeys.added(passkey.createdAt ?? "—")}</p>
       </div>
     </div>
   );
@@ -318,6 +320,7 @@ function SessionCard({
   onRename: (name: string) => void;
   onDelete: () => void;
 }) {
+  const d = useI18n();
   const [name, setName] = useState(session.name ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -328,7 +331,7 @@ function SessionCard({
           <MonitorSmartphoneIcon className="size-4 text-muted-foreground shrink-0" />
           <Input
             value={name}
-            placeholder="Unnamed session"
+            placeholder={d.sessions.active.namePlaceholder}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
               const trimmed = name.trim();
@@ -340,7 +343,7 @@ function SessionCard({
           />
           {session.isCurrent && (
             <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Current
+              {d.sessions.active.currentBadge}
             </span>
           )}
         </div>
@@ -353,22 +356,22 @@ function SessionCard({
             disabled={isPending || session.isCurrent}
             title={
               session.isCurrent
-                ? "You cannot revoke your current session"
-                : "Revoke session"
+                ? d.sessions.active.revokeDisabledTitle
+                : d.sessions.active.revokeTitle
             }
           >
             <TrashIcon className="size-3.5" />
           </Button>
           <DialogContent showCloseButton={false}>
             <DialogHeader>
-              <DialogTitle>Revoke this session?</DialogTitle>
+              <DialogTitle>{d.sessions.active.confirmTitle}</DialogTitle>
               <DialogDescription>
-                That device will be signed out on its next request.
+                {d.sessions.active.confirmDescription}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <DialogClose render={<Button variant="outline" size="sm" />}>
-                Cancel
+                {d.common.cancel}
               </DialogClose>
               <Button
                 size="sm"
@@ -378,7 +381,7 @@ function SessionCard({
                   onDelete();
                 }}
               >
-                Revoke
+                {d.sessions.active.revoke}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -390,8 +393,8 @@ function SessionCard({
             {session.userAgent}
           </p>
         )}
-        <p>Signed in: {session.createdAt ?? "—"}</p>
-        <p>Expires: {session.expires}</p>
+        <p>{d.sessions.active.signedIn(session.createdAt ?? "—")}</p>
+        <p>{d.sessions.active.expires(session.expires)}</p>
       </div>
     </div>
   );

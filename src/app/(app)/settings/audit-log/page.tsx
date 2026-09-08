@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { listAuditLogs } from '@/db/queries/audit';
+import { getDict } from '@/i18n/request';
 import { formatInAppTZ } from '@/lib/date';
 import { ArrowLeftIcon } from 'lucide-react';
 import type { Route } from 'next';
@@ -22,6 +23,7 @@ function tryParseJson(s: string | null): unknown {
 
 export default async function AuditLogPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
+  const d = await getDict();
   const q = params.q ?? '';
   const category = params.category ?? '';
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
@@ -55,9 +57,9 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
           className='inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground'
         >
           <ArrowLeftIcon className='size-3' />
-          Settings
+          {d.common.backToSettings}
         </Link>
-        <h1 className='text-xl font-semibold tracking-tight'>Audit log</h1>
+        <h1 className='text-xl font-semibold tracking-tight'>{d.auditLog.title}</h1>
       </div>
 
       <form method='get' className='flex gap-2'>
@@ -65,7 +67,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
           type='search'
           name='q'
           defaultValue={q}
-          placeholder='Keresés...'
+          placeholder={d.auditLog.searchPlaceholder}
           className='h-8 flex-1 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring'
         />
         <select
@@ -73,10 +75,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
           defaultValue={category}
           className='h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring'
         >
-          <option value=''>Minden kategória</option>
+          <option value=''>{d.auditLog.allCategories}</option>
+          {/* The value stays the stored slug; only the label is translated. */}
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {c}
+              {d.auditLog.categories[c]}
             </option>
           ))}
         </select>
@@ -84,21 +87,21 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
           type='submit'
           className='h-8 rounded-md bg-primary px-3 text-sm text-primary-foreground hover:bg-primary/90'
         >
-          Szűrés
+          {d.auditLog.filterButton}
         </button>
       </form>
 
-      <p className='text-xs text-muted-foreground'>{total} bejegyzés</p>
+      <p className='text-xs text-muted-foreground'>{d.auditLog.resultCount(total)}</p>
 
       <div className='divide-y divide-border rounded-md border'>
         {items.length === 0 ? (
-          <p className='p-4 text-sm text-muted-foreground'>Nincs találat.</p>
+          <p className='p-4 text-sm text-muted-foreground'>{d.common.noResults}</p>
         ) : (
           items.map((item) => (
             <div key={item.id} className='space-y-1 p-3'>
               <div className='flex items-center gap-3'>
                 <span className='tabular-nums text-xs text-muted-foreground'>
-                  {formatInAppTZ(item.created_at, 'yyyy-MM-dd HH:mm:ss')}
+                  {formatInAppTZ(item.created_at, d.dates.timestampWithSeconds, d.dates.locale)}
                 </span>
                 <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-xs'>
                   {item.event}
@@ -107,7 +110,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
               {item.metadata && (
                 <details className='text-xs'>
                   <summary className='cursor-pointer text-muted-foreground hover:text-foreground'>
-                    metadata
+                    {d.auditLog.metadata}
                   </summary>
                   <pre className='mt-1 overflow-x-auto rounded bg-muted p-2 text-xs'>
                     {JSON.stringify(tryParseJson(item.metadata), null, 2)}
@@ -126,20 +129,20 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
               href={buildHref({ page: page - 1 })}
               className='text-sm text-muted-foreground hover:text-foreground'
             >
-              ← Előző
+              {d.common.previous}
             </Link>
           ) : (
             <span />
           )}
           <span className='text-xs text-muted-foreground'>
-            {page} / {totalPages}
+            {d.auditLog.pageIndicator(page, totalPages)}
           </span>
           {page < totalPages ? (
             <Link
               href={buildHref({ page: page + 1 })}
               className='text-sm text-muted-foreground hover:text-foreground'
             >
-              Következő →
+              {d.common.next}
             </Link>
           ) : (
             <span />

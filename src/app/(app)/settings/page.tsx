@@ -16,9 +16,10 @@ import {
   getSummaryGapDays,
 } from '@/db/queries/settings';
 import { listTemplates } from '@/db/queries/templates';
-import { getLocale } from '@/i18n/request';
+import { getDict, getLocale } from '@/i18n/request';
 
 export default async function SettingsPage() {
+  const d = await getDict();
   const locale = await getLocale();
   const templates = listTemplates();
   const registrationEnabled = getRegistrationEnabled();
@@ -27,32 +28,32 @@ export default async function SettingsPage() {
 
   return (
     <div className='mx-auto max-w-2xl space-y-10 px-4 py-8'>
-      <h1 className='text-xl font-semibold tracking-tight'>Settings</h1>
+      <h1 className='text-xl font-semibold tracking-tight'>{d.settings.title}</h1>
 
       <div className='grid grid-cols-3 sm:grid-cols-6 gap-2'>
         <ThemeCard />
         <LocaleCard locale={locale} />
-        <SettingsCard emoji='🔑' label='Sessions & passkeys' href='/settings/sessions' />
-        <SettingsCard emoji='🔔' label='Devices & notifications' href='/settings/devices' />
-        <SettingsCard emoji='👤' label='Profil' href='/settings/profile' />
-        <SettingsCard emoji='🏷️' label='Tags & emotions' href='/settings/tags' />
-        <SettingsCard emoji='🎨' label='Kategóriák' href='/settings/categories' />
-        <SettingsCard emoji='📋' label='Audit log' href='/settings/audit-log' />
+        <SettingsCard emoji='🔑' label={d.settings.cards.sessions} href='/settings/sessions' />
+        <SettingsCard emoji='🔔' label={d.settings.cards.devices} href='/settings/devices' />
+        <SettingsCard emoji='👤' label={d.settings.cards.profile} href='/settings/profile' />
+        <SettingsCard emoji='🏷️' label={d.settings.cards.tags} href='/settings/tags' />
+        <SettingsCard emoji='🎨' label={d.settings.cards.categories} href='/settings/categories' />
+        <SettingsCard emoji='📋' label={d.settings.cards.auditLog} href='/settings/audit-log' />
       </div>
 
       <section className='space-y-3'>
-        <h2 className='text-sm font-medium'>Entry templates</h2>
+        <h2 className='text-sm font-medium'>{d.settings.sections.templates}</h2>
         <TemplatesManager templates={templates} />
       </section>
 
       <section className='space-y-3'>
-        <h2 className='text-sm font-medium'>AI</h2>
+        <h2 className='text-sm font-medium'>{d.settings.sections.ai}</h2>
         <AiHistoryEntriesCard value={aiHistoryEntries} />
         <SummaryGapDaysCard value={summaryGapDays} />
       </section>
 
       <section className='space-y-3'>
-        <h2 className='text-sm font-medium'>Registration</h2>
+        <h2 className='text-sm font-medium'>{d.settings.sections.registration}</h2>
         <RegistrationToggle enabled={registrationEnabled} />
       </section>
 
@@ -65,7 +66,7 @@ export default async function SettingsPage() {
       </section>
 
       <section className='space-y-3'>
-        <h2 className='text-sm font-medium'>Export data</h2>
+        <h2 className='text-sm font-medium'>{d.settings.sections.export}</h2>
         <ExportButtons />
       </section>
     </div>

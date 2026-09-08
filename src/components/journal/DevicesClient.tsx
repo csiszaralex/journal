@@ -21,6 +21,8 @@ import {
   toggleSubscriptionAction,
   type SendActionResult,
 } from "@/actions/subscriptions";
+import { useI18n } from "@/i18n/provider";
+import type { SendKind } from "@/i18n/en/devices";
 
 type Subscription = {
   id: string;
@@ -49,53 +51,65 @@ const TIMEZONES = [
 ];
 
 export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subscriptions: Subscription[]; vapidPublicKey: string }) {
+  const d = useI18n();
   const [subscriptions, setSubscriptions] = useState(initial);
   const [subscribing, setSubscribing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function reportResult(label: string, data: SendActionResult | undefined, serverError: string | undefined) {
+  // `kind` names which button was pressed, not the words to print: the
+  // dictionary writes each of these messages out in full, per language.
+  function reportResult(kind: SendKind, data: SendActionResult | undefined, serverError: string | undefined) {
+    const send = d.devices.send;
     if (serverError) {
-      toast.error(`${label} failed: ${serverError}`);
+      toast.error(send.failed(kind, serverError));
       return;
     }
     if (!data) {
-      toast.error(`${label} failed: no response`);
+      toast.error(send.noResponse(kind));
       return;
     }
     if (data.ok) {
-      toast.success(`${label} sent ✓`);
+      toast.success(send.sent(kind));
       return;
     }
     if (data.reason === "gone") {
-      toast.error("Subscription expired — re-enable notifications on this device.");
+      toast.error(send.expired);
       return;
     }
     if (data.reason === "not-found") {
-      toast.error("Subscription not found.");
+      toast.error(send.notFound);
       return;
     }
-    const status = data.statusCode ? ` (HTTP ${data.statusCode})` : "";
-    toast.error(`${label} failed${status}: ${data.message ?? "Unknown error"}`);
+    if (data.statusCode) {
+      toast.error(
+        data.message
+          ? send.failedWithStatus(kind, data.statusCode, data.message)
+          : send.failedUnknownWithStatus(kind, data.statusCode)
+      );
+      return;
+    }
+    toast.error(data.message ? send.failed(kind, data.message) : send.failedUnknown(kind));
   }
 
   async function handleSubscribe() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      alert("Push notifications are not supported in this browser.");
+      alert(d.devices.subscribe.notSupported);
       return;
     }
     setSubscribing(true);
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        alert("Notification permission denied.");
+        alert(d.devices.subscribe.permissionDenied);
         return;
       }
 
-      // Wait for SW with a timeout — fails gracefully if SW isn't registered
+      // Wait for SW with a timeout — fails gracefully if SW isn't registered.
+      // The message is translated here because the catch below alerts it.
       const swReady = Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Service worker not ready — try reloading the page.")), 8000)
+          setTimeout(() => reject(new Error(d.devices.subscribe.serviceWorkerTimeout)), 8000)
         ),
       ]);
       const reg = await swReady;
@@ -124,9 +138,9 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
       // Without this the button just goes quiet on any refusal — a throttled
       // request answers 429 rather than throwing, so the catch below never sees it.
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      alert(body?.error ?? `Failed to enable notifications (HTTP ${res.status}).`);
+      alert(body?.error ?? d.devices.subscribe.failedWithStatus(res.status));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to enable notifications.");
+      alert(err instanceof Error ? err.message : d.devices.subscribe.failed);
     } finally {
       setSubscribing(false);
     }
@@ -153,16 +167,16 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
       <div className="flex flex-wrap gap-3">
         <Button onClick={handleSubscribe} disabled={subscribing} size="sm" className="gap-2">
           {subscribing ? <LoaderIcon className="size-4 animate-spin" /> : <BellIcon className="size-4" />}
-          Enable notifications on this device
+          {d.devices.enableOnThisDevice}
         </Button>
         <Button onClick={handleUnsubscribeThis} variant="ghost" size="sm" className="gap-2 text-muted-foreground">
           <BellOffIcon className="size-4" />
-          Disable this device
+          {d.devices.disableThisDevice}
         </Button>
       </div>
 
       {subscriptions.length === 0 ? (
-        <p className="text-sm text-muted-foreground/60 py-4">No devices registered yet.</p>
+        <p className="text-sm text-muted-foreground/60 py-4">{d.devices.empty}</p>
       ) : (
         <div className="space-y-4">
           {subscriptions.map((sub) => (
@@ -187,13 +201,13 @@ export function DevicesClient({ subscriptions: initial, vapidPublicKey }: { subs
               onTest={() =>
                 startTransition(async () => {
                   const result = await sendTestNotificationAction({ id: sub.id });
-                  reportResult("Test", result?.data, result?.serverError);
+                  reportResult("test", result?.data, result?.serverError);
                 })
               }
               onPreview={() =>
                 startTransition(async () => {
                   const result = await sendScheduledPreviewAction({ id: sub.id });
-                  reportResult("Sample prompt", result?.data, result?.serverError);
+                  reportResult("preview", result?.data, result?.serverError);
                 })
               }
               onToggle={(enabled) =>
@@ -229,6 +243,7 @@ function SubscriptionCard({
   onPreview: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
+  const d = useI18n();
   const [label, setLabel] = useState(sub.device_label);
   const [timezone, setTimezone] = useState(sub.timezone);
   const [hour, setHour] = useState(sub.notify_hour);
@@ -253,7 +268,7 @@ function SubscriptionCard({
             className="size-7"
             onClick={onTest}
             disabled={isPending}
-            title="Send test notification"
+            title={d.devices.card.sendTest}
           >
             <SendIcon className="size-3.5" />
           </Button>
@@ -263,7 +278,7 @@ function SubscriptionCard({
             className="size-7"
             onClick={onPreview}
             disabled={isPending}
-            title="Send today's scheduled prompt now (preview)"
+            title={d.devices.card.sendPreview}
           >
             <SparklesIcon className="size-3.5" />
           </Button>
@@ -273,7 +288,7 @@ function SubscriptionCard({
             className="size-7"
             onClick={() => onToggle(!sub.enabled)}
             disabled={isPending}
-            title={sub.enabled ? "Disable" : "Enable"}
+            title={d.devices.card.toggle(Boolean(sub.enabled))}
           >
             {sub.enabled ? <BellIcon className="size-3.5" /> : <BellOffIcon className="size-3.5 text-muted-foreground" />}
           </Button>
@@ -283,7 +298,7 @@ function SubscriptionCard({
             className="size-7 text-destructive hover:text-destructive"
             onClick={onDelete}
             disabled={isPending}
-            title="Remove device"
+            title={d.devices.card.remove}
           >
             <TrashIcon className="size-3.5" />
           </Button>
@@ -292,7 +307,7 @@ function SubscriptionCard({
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Timezone</Label>
+          <Label className="text-xs text-muted-foreground">{d.devices.card.timezoneLabel}</Label>
           <Select
             value={timezone}
             onValueChange={(v) => {
@@ -312,7 +327,7 @@ function SubscriptionCard({
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Notify hour</Label>
+          <Label className="text-xs text-muted-foreground">{d.devices.card.notifyHourLabel}</Label>
           <Select
             value={String(hour)}
             onValueChange={(v) => {
@@ -325,6 +340,8 @@ function SubscriptionCard({
             <SelectTrigger size="sm" className="text-xs">
               <SelectValue />
             </SelectTrigger>
+            {/* Clock numerals, not words: "07:00" and ":15" are the same in
+                every language this app is read in, so they stay arithmetic. */}
             <SelectContent>
               {Array.from({ length: 24 }, (_, i) => (
                 <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
@@ -333,7 +350,7 @@ function SubscriptionCard({
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Notify minute</Label>
+          <Label className="text-xs text-muted-foreground">{d.devices.card.notifyMinuteLabel}</Label>
           <Select
             value={String(minute)}
             onValueChange={(v) => {
