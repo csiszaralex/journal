@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import type { ProfileQaItem } from '@/db/queries/profile';
+import { useI18n } from '@/i18n/provider';
 import { CircleMinus, Sparkles } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function ProfileForm({ initialBio, initialQaItems }: Props) {
+  const d = useI18n();
   const [bio, setBio] = useState(initialBio);
   const [qaItems, setQaItems] = useState(initialQaItems);
   const [aiLoading, setAiLoading] = useState(false);
@@ -38,7 +40,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
   function handleBioBlur() {
     startTransition(async () => {
       await setProfileBioAction({ bio });
-      toast.success('Mentve', { duration: 2000 });
+      toast.success(d.common.saved, { duration: 2000 });
     });
   }
 
@@ -65,7 +67,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
       });
       const data = (await res.json()) as { questions?: string[]; error?: string };
       if (!res.ok) {
-        setAiError(data.error ?? 'Hiba történt');
+        setAiError(data.error ?? d.common.unexpectedError);
         return;
       }
       const newQuestions = data.questions ?? [];
@@ -77,7 +79,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
         }
       });
     } catch {
-      setAiError('Hiba történt a kapcsolat során');
+      setAiError(d.common.networkError);
     } finally {
       setAiLoading(false);
     }
@@ -110,13 +112,13 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
     <div className='space-y-8'>
       {/* Bio */}
       <div className='space-y-2'>
-        <h2 className='text-sm font-medium'>Szabad leírás</h2>
+        <h2 className='text-sm font-medium'>{d.profile.bio.heading}</h2>
         <Textarea
           rows={6}
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           onBlur={handleBioBlur}
-          placeholder='Pl. étterem tulajdonos vagyok, két gyermekem van, rendszeresen futok...'
+          placeholder={d.profile.bio.placeholder}
           className='resize-y'
           maxLength={10000}
         />
@@ -124,7 +126,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
 
       {/* Q&A */}
       <div className='space-y-3'>
-        <h2 className='text-sm font-medium'>Kérdések és válaszok</h2>
+        <h2 className='text-sm font-medium'>{d.profile.qa.heading}</h2>
 
         {qaItems.map((item) => (
           <div key={item.id} className='flex flex-col gap-1.5'>
@@ -136,7 +138,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
                 size='icon-xs'
                 onClick={() => handleDeleteRequest(item.id)}
                 className='shrink-0 text-muted-foreground/60 hover:text-destructive'
-                aria-label='Kérdés törlése'
+                aria-label={d.common.deleteQuestion}
               >
                 <CircleMinus className='size-3' />
               </Button>
@@ -146,7 +148,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
               value={item.answer ?? ''}
               onChange={(e) => handleAnswerChange(item.id, e.target.value)}
               onBlur={(e) => handleAnswerBlur(item.id, e.target.value)}
-              placeholder='Válaszolj röviden…'
+              placeholder={d.profile.qa.answerPlaceholder}
               maxLength={2000}
               className='resize-y'
             />
@@ -164,7 +166,7 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
           className='text-muted-foreground'
         >
           <Sparkles className='size-3.5' />
-          {aiLoading ? 'Generálás…' : 'Kérdések generálása'}
+          {aiLoading ? d.common.generating : d.profile.qa.generate}
         </Button>
       </div>
 
@@ -177,13 +179,15 @@ export function ProfileForm({ initialBio, initialQaItems }: Props) {
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Törlöd ezt a kérdést?</DialogTitle>
-            <DialogDescription>A beírt válaszod elvész.</DialogDescription>
+            <DialogTitle>{d.common.deleteQuestionTitle}</DialogTitle>
+            <DialogDescription>{d.common.deleteQuestionDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant='outline' size='sm' />}>Mégsem</DialogClose>
+            <DialogClose render={<Button variant='outline' size='sm' />}>
+              {d.common.cancel}
+            </DialogClose>
             <Button size='sm' variant='destructive' onClick={handleDeleteConfirm}>
-              Törlés
+              {d.common.delete}
             </Button>
           </DialogFooter>
         </DialogContent>

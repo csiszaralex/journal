@@ -21,6 +21,18 @@ export const common = {
   /** The version marker beside an entry — on its card, in the form's header,
    *  and on both history screens. Shared so the four cannot drift apart. */
   versionLabel: (n: number) => `v${n}`,
+  /** The empty journal textarea, in the entry form and in the template editor —
+   *  the same invitation, so the same words. */
+  entryTextPlaceholder: 'Write freely…',
+
+  /**
+   * Removing an AI-written question, which happens in two places: the questions
+   * block inside the entry form, and the profile's list of known facts. It is
+   * one dialog over two different lists, so it is written once.
+   */
+  deleteQuestion: 'Delete question',
+  deleteQuestionTitle: 'Delete this question?',
+  deleteQuestionDescription: 'The answer you typed will be lost.',
   previous: '← Previous',
   next: 'Next →',
   page: (n: number) => `Page ${n}`,

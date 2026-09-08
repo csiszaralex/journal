@@ -26,7 +26,6 @@ export const entry = {
     previousDay: 'Previous day',
     nextDay: 'Next day',
 
-    textPlaceholder: 'Write freely…',
 
     /**
      * The mood and energy rows. A summary scores a whole period rather than a
@@ -93,11 +92,8 @@ export const entry = {
     addOne: '+1 question',
     editQuestion: 'Edit question',
     replaceQuestion: 'Ask a different question here',
-    deleteQuestion: 'Delete question',
     questionPlaceholder: 'Question text…',
     answerPlaceholder: 'Answer briefly, or leave it empty…',
-    deleteTitle: 'Delete this question?',
-    deleteDescription: 'The answer you typed will be lost.',
   },
 
   card: {

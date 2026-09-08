@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { EntryTemplate } from '@/db/queries/templates';
+import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/utils';
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { useActionState, useEffect, useState } from 'react';
@@ -68,6 +69,7 @@ interface TemplateFormProps {
 }
 
 function TemplateForm({ editing, onDone }: TemplateFormProps) {
+  const d = useI18n();
   const isEdit = !!editing;
   const action = isEdit ? updateTemplateAction : createTemplateAction;
   const [mood, setMood] = useState<number | undefined>(editing?.default_mood ?? undefined);
@@ -88,10 +90,10 @@ function TemplateForm({ editing, onDone }: TemplateFormProps) {
       {isEdit && <input type='hidden' name='id' value={editing.id} />}
 
       <div className='space-y-1'>
-        <Label className='text-xs text-muted-foreground'>Name</Label>
+        <Label className='text-xs text-muted-foreground'>{d.settings.templates.nameLabel}</Label>
         <Input
           name='name'
-          placeholder='Morning reflection…'
+          placeholder={d.settings.templates.namePlaceholder}
           required
           defaultValue={editing?.name ?? ''}
           className='h-8 text-sm'
@@ -99,18 +101,28 @@ function TemplateForm({ editing, onDone }: TemplateFormProps) {
       </div>
 
       <div className='space-y-1'>
-        <Label className='text-xs text-muted-foreground'>Default text (optional)</Label>
+        <Label className='text-xs text-muted-foreground'>{d.settings.templates.textLabel}</Label>
         <Textarea
           name='text'
-          placeholder='Write freely…'
+          placeholder={d.common.entryTextPlaceholder}
           defaultValue={editing?.text ?? ''}
           className='min-h-20 resize-none text-sm'
         />
       </div>
 
       <div className='flex gap-6'>
-        <ScoreRow label='Mood' name='default_mood' value={mood} onChange={setMood} />
-        <ScoreRow label='Energy' name='default_energy' value={energy} onChange={setEnergy} />
+        <ScoreRow
+          label={d.settings.templates.moodLabel}
+          name='default_mood'
+          value={mood}
+          onChange={setMood}
+        />
+        <ScoreRow
+          label={d.settings.templates.energyLabel}
+          name='default_energy'
+          value={energy}
+          onChange={setEnergy}
+        />
       </div>
 
       {result?.status === 'error' && (
@@ -119,10 +131,14 @@ function TemplateForm({ editing, onDone }: TemplateFormProps) {
 
       <div className='flex gap-2'>
         <Button type='submit' size='sm' disabled={isPending}>
-          {isPending ? 'Saving…' : isEdit ? 'Update template' : 'Save template'}
+          {isPending
+            ? d.common.saving
+            : isEdit
+              ? d.settings.templates.update
+              : d.settings.templates.create}
         </Button>
         <Button type='button' variant='ghost' size='sm' onClick={onDone}>
-          Cancel
+          {d.common.cancel}
         </Button>
       </div>
     </form>
@@ -130,6 +146,7 @@ function TemplateForm({ editing, onDone }: TemplateFormProps) {
 }
 
 export function TemplatesManager({ templates }: Props) {
+  const d = useI18n();
   const [mode, setMode] = useState<'list' | 'create' | string>('list'); // string = editing id
 
   const editingTemplate = typeof mode === 'string' && mode !== 'list' && mode !== 'create'
@@ -160,9 +177,7 @@ export function TemplatesManager({ templates }: Props) {
                 )}
                 {(t.default_mood || t.default_energy) && (
                   <p className='mt-1 text-xs text-muted-foreground'>
-                    {t.default_mood ? `Mood: ${t.default_mood}` : ''}
-                    {t.default_mood && t.default_energy ? ' · ' : ''}
-                    {t.default_energy ? `Energy: ${t.default_energy}` : ''}
+                    {d.settings.templates.defaults(t.default_mood, t.default_energy)}
                   </p>
                 )}
               </div>
@@ -171,6 +186,7 @@ export function TemplatesManager({ templates }: Props) {
                   type='button'
                   variant='ghost'
                   size='icon'
+                  aria-label={d.common.edit}
                   className='size-7 text-muted-foreground hover:text-foreground'
                   onClick={() => setMode(t.id)}
                 >
@@ -181,6 +197,7 @@ export function TemplatesManager({ templates }: Props) {
                     type='submit'
                     variant='ghost'
                     size='icon'
+                    aria-label={d.common.delete}
                     className='size-7 text-muted-foreground hover:text-destructive'
                   >
                     <Trash2Icon className='size-3.5' />
@@ -191,12 +208,12 @@ export function TemplatesManager({ templates }: Props) {
           ))}
         </ul>
       ) : (
-        <p className='text-sm text-muted-foreground'>No templates yet.</p>
+        <p className='text-sm text-muted-foreground'>{d.settings.templates.empty}</p>
       )}
 
       <Button variant='outline' size='sm' onClick={() => setMode('create')}>
         <PlusIcon className='size-3.5 mr-1.5' />
-        New template
+        {d.settings.templates.add}
       </Button>
     </div>
   );

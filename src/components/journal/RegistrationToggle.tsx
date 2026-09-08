@@ -2,6 +2,7 @@
 
 import { setRegistrationEnabledAction } from '@/actions/settings';
 import { Switch } from '@/components/ui/switch';
+import { useI18n } from '@/i18n/provider';
 import { useTransition } from 'react';
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function RegistrationToggle({ enabled }: Props) {
+  const d = useI18n();
   const [isPending, startTransition] = useTransition();
 
   function toggle() {
@@ -20,18 +22,16 @@ export function RegistrationToggle({ enabled }: Props) {
   return (
     <div className='flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4'>
       <div className='space-y-0.5'>
-        <p className='text-sm font-medium'>Allow new registrations</p>
+        <p className='text-sm font-medium'>{d.settings.registration.label}</p>
         <p className='text-xs text-muted-foreground'>
-          {enabled
-            ? 'New passkey registrations are allowed on the sign-in page. Turn this off once your device is enrolled — the sign-in page is public.'
-            : 'Registration is disabled. Only existing passkeys can sign in — except when none is registered at all, which always allows enrolling the first one.'}
+          {enabled ? d.settings.registration.enabled : d.settings.registration.disabled}
         </p>
       </div>
       <Switch
         checked={enabled}
         onCheckedChange={toggle}
         disabled={isPending}
-        aria-label='Toggle registration'
+        aria-label={d.settings.registration.toggleLabel}
       />
     </div>
   );

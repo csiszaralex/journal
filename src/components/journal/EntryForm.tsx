@@ -1236,7 +1236,7 @@ export function EntryForm({
           name='text'
           value={state.textValue}
           onChange={(e) => dispatch({ type: 'SET_TEXT', text: e.target.value })}
-          placeholder={d.entry.form.textPlaceholder}
+          placeholder={d.common.entryTextPlaceholder}
           className='min-h-35 resize-none border-muted/60 bg-muted/20 text-base leading-relaxed placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:bg-muted/40'
         />
       </div>

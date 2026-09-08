@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { deleteTagAction, updateTagAction } from '@/actions/tags';
 import { deleteEmotionAction, updateEmotionAction } from '@/actions/emotions';
+import { useI18n } from '@/i18n/provider';
 import { getContrastTextColor } from '@/lib/color';
 
 export type TagLike = {
@@ -33,6 +34,7 @@ interface TagEditRowProps {
 }
 
 export function TagEditRow({ kind, item }: TagEditRowProps) {
+  const d = useI18n();
   const router = useRouter();
   const [displayName, setDisplayName] = useState(item.display_name);
   const [name, setName] = useState(item.name);
@@ -79,7 +81,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
       } else if (result?.data && !result.data.ok) {
         setError(result.data.error);
       } else {
-        setError('Mentés sikertelen');
+        setError(d.tags.row.saveFailed);
       }
     });
   }
@@ -93,13 +95,26 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
         setConfirmOpen(false);
         router.refresh();
       } else {
-        setError(result?.serverError ?? 'Törlés sikertelen');
+        setError(result?.serverError ?? d.tags.row.deleteFailed);
         setConfirmOpen(false);
       }
     });
   }
 
-  const kindLabel = kind === 'tag' ? 'tag-et' : 'érzelmet';
+  // Each kind gets its own whole sentence. There used to be a `kindLabel` here
+  // — a Hungarian noun in the accusative, spliced into three different
+  // sentences — which no other language could have satisfied; see the note on
+  // `tags.row.delete`.
+  const del = d.tags.row.delete;
+  const deleteTitle =
+    kind === 'tag' ? del.title.tag(item.display_name) : del.title.emotion(item.display_name);
+  const inUseDescription =
+    item.usage_count > 0
+      ? kind === 'tag'
+        ? del.inUse.tag(item.usage_count)
+        : del.inUse.emotion(item.usage_count)
+      : null;
+  const unusedDescription = kind === 'tag' ? del.unused.tag : del.unused.emotion;
 
   return (
     <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
@@ -109,7 +124,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
           value={color}
           onChange={(e) => setColor(e.target.value)}
           className="h-8 w-10 cursor-pointer rounded border border-input bg-background"
-          aria-label="Color"
+          aria-label={d.tags.row.colorLabel}
         />
         {kind === 'emotion' && (
           <Input
@@ -117,7 +132,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
             onChange={(e) => setEmoji(e.target.value)}
             placeholder=""
             maxLength={10}
-            aria-label="Emoji"
+            aria-label={d.tags.row.emojiLabel}
             className="emoji h-8 w-14 text-center text-base"
           />
         )}
@@ -131,14 +146,14 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
           {displayName || '—'}
         </span>
         <div className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
-          {item.usage_count}×
+          {d.tags.row.usageCount(item.usage_count)}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Display name
+            {d.tags.row.displayNameLabel}
           </label>
           <Input
             value={displayName}
@@ -149,7 +164,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Normalized name
+            {d.tags.row.normalizedNameLabel}
           </label>
           <Input
             value={name}
@@ -163,7 +178,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
       <div className="flex items-center justify-between gap-2 pt-1">
         <div className="text-xs">
           {error && <span className="text-destructive">{error}</span>}
-          {success && <span className="text-emerald-500">Mentve</span>}
+          {success && <span className="text-emerald-500">{d.common.saved}</span>}
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -174,30 +189,29 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={isDeleting || isPending}
               onClick={() => setConfirmOpen(true)}
-              aria-label="Törlés"
+              aria-label={d.common.delete}
             >
               <Trash2Icon className="size-3.5" />
-              {isDeleting ? 'Törlés…' : 'Törlés'}
+              {isDeleting ? d.common.deleting : d.common.delete}
             </Button>
             <DialogContent showCloseButton={false}>
               <DialogHeader>
-                <DialogTitle>
-                  Törlöd a(z) &quot;{item.display_name}&quot; {kindLabel}?
-                </DialogTitle>
+                <DialogTitle>{deleteTitle}</DialogTitle>
                 <DialogDescription>
-                  {item.usage_count > 0 ? (
+                  {inUseDescription ? (
                     <>
-                      A {kindLabel} {item.usage_count} bejegyzésről eltávolításra
-                      kerül. A bejegyzések maguk <strong>nem</strong> törlődnek.
+                      {inUseDescription.before}
+                      <strong>{inUseDescription.emphasis}</strong>
+                      {inUseDescription.after}
                     </>
                   ) : (
-                    <>Ez a {kindLabel} sehol nincs használatban, biztonságosan törölhető.</>
+                    unusedDescription
                   )}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <DialogClose render={<Button variant="outline" size="sm" />}>
-                  Mégse
+                  {d.common.cancel}
                 </DialogClose>
                 <Button
                   size="sm"
@@ -205,7 +219,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
                   onClick={handleDeleteConfirmed}
                   disabled={isDeleting}
                 >
-                  {isDeleting ? 'Törlés…' : 'Törlés'}
+                  {isDeleting ? d.common.deleting : d.common.delete}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -217,7 +231,7 @@ export function TagEditRow({ kind, item }: TagEditRowProps) {
             disabled={!dirty || isPending || isDeleting || !displayName.trim() || !name.trim()}
             onClick={handleSave}
           >
-            {isPending ? 'Mentés…' : 'Mentés'}
+            {isPending ? d.common.saving : d.common.save}
           </Button>
         </div>
       </div>

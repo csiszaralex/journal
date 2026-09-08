@@ -6,9 +6,11 @@ import { auth } from "@/lib/auth";
 import { listSessionsForUser } from "@/db/queries/sessions";
 import { listPasskeysForUser } from "@/db/queries/passkeys";
 import { formatInAppTZ } from "@/lib/date";
+import { getDict } from "@/i18n/request";
 import { SessionsClient } from "@/components/journal/SessionsClient";
 
 export default async function SessionsPage() {
+  const d = await getDict();
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
   const userId = session.user.id;
@@ -20,9 +22,11 @@ export default async function SessionsPage() {
     null;
 
   // Rendered in the journal's zone, not the server's: these are the times the
-  // reader recognises as when they signed in.
-  const fmt = (d: Date | null | undefined): string | null =>
-    d ? formatInAppTZ(d, "yyyy-MM-dd HH:mm") : null;
+  // reader recognises as when they signed in. The pattern and the locale both
+  // come from the dictionary — the locale was missing, which spelled any month
+  // or weekday name in English whatever the language setting said.
+  const fmt = (at: Date | null | undefined): string | null =>
+    at ? formatInAppTZ(at, d.dates.timestamp, d.dates.locale) : null;
 
   const sessions = listSessionsForUser(userId).map((s) => ({
     sessionToken: s.sessionToken,
@@ -43,9 +47,7 @@ export default async function SessionsPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight">
-        Sessions & passkeys
-      </h1>
+      <h1 className="text-xl font-semibold tracking-tight">{d.sessions.title}</h1>
       <SessionsClient sessions={sessions} passkeys={passkeys} />
     </>
   );

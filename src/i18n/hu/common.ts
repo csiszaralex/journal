@@ -14,6 +14,11 @@ export const common: Common = {
   loading: 'Betöltés…',
   saved: 'Mentve',
   versionLabel: (n: number) => `v${n}`,
+  entryTextPlaceholder: 'Írj szabadon…',
+
+  deleteQuestion: 'Kérdés törlése',
+  deleteQuestionTitle: 'Törlöd ezt a kérdést?',
+  deleteQuestionDescription: 'A beírt válaszod elvész.',
   previous: '← Előző',
   next: 'Következő →',
   page: (n: number) => `${n}. oldal`,

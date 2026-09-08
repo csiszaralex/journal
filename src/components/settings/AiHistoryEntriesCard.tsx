@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useI18n } from '@/i18n/provider';
 import { AI_HISTORY_ENTRIES_MAX, AI_HISTORY_ENTRIES_MIN } from '@/lib/ai/history-config';
 import { useTransition } from 'react';
 
@@ -21,6 +22,7 @@ const OPTIONS = Array.from(
 );
 
 export function AiHistoryEntriesCard({ value }: Props) {
+  const d = useI18n();
   const [isPending, startTransition] = useTransition();
 
   function handleChange(next: number | null) {
@@ -33,19 +35,21 @@ export function AiHistoryEntriesCard({ value }: Props) {
   return (
     <div className='flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4'>
       <div className='space-y-0.5'>
-        <p className='text-sm font-medium'>Napló-előzmény az AI kérdésekhez</p>
+        <p className='text-sm font-medium'>{d.settings.ai.historyEntries.label}</p>
         <p className='text-xs text-muted-foreground'>
-          Hány korábbi naplóbejegyzést kapjon az AI, amikor új kérdéseket javasol.
+          {d.settings.ai.historyEntries.description}
         </p>
       </div>
       <Select value={value} onValueChange={handleChange} disabled={isPending}>
-        <SelectTrigger aria-label='Előzmény bejegyzések száma'>
-          <SelectValue>{(v: number | null) => `${v ?? value} bejegyzés`}</SelectValue>
+        <SelectTrigger aria-label={d.settings.ai.historyEntries.selectLabel}>
+          <SelectValue>
+            {(v: number | null) => d.settings.ai.historyEntries.value(v ?? value)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {OPTIONS.map((n) => (
             <SelectItem key={n} value={n}>
-              {n} bejegyzés
+              {d.settings.ai.historyEntries.value(n)}
             </SelectItem>
           ))}
         </SelectContent>

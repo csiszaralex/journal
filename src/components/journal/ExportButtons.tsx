@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DownloadIcon, LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportJsonAction, exportMarkdownAction } from "@/actions/export";
+import { useI18n } from "@/i18n/provider";
 import { todayInAppTZ } from "@/lib/date";
 
 function downloadBlob(content: string, filename: string, mime: string) {
@@ -17,6 +18,7 @@ function downloadBlob(content: string, filename: string, mime: string) {
 }
 
 export function ExportButtons() {
+  const d = useI18n();
   const [loadingJson, setLoadingJson] = useState(false);
   const [loadingMd, setLoadingMd] = useState(false);
 
@@ -58,7 +60,7 @@ export function ExportButtons() {
         ) : (
           <DownloadIcon className="size-4" />
         )}
-        Export JSON
+        {d.settings.export.json}
       </Button>
       <Button
         variant="outline"
@@ -72,7 +74,7 @@ export function ExportButtons() {
         ) : (
           <DownloadIcon className="size-4" />
         )}
-        Export Markdown
+        {d.settings.export.markdown}
       </Button>
     </div>
   );
