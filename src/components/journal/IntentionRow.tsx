@@ -26,6 +26,8 @@ import {
   deleteIntentionAction,
 } from '@/actions/intentions';
 import type { Intention } from '@/db/queries/intentions';
+import { useI18n } from '@/i18n/provider';
+import { formatISODay } from '@/lib/date';
 import { CategoryChip } from './CategoryChip';
 
 export type IntentionRowProps = {
@@ -39,6 +41,7 @@ export function IntentionRow({
   todayISO,
   categoryColors,
 }: IntentionRowProps) {
+  const d = useI18n();
   const [pending, startTransition] = useTransition();
   // The dialog lives outside the dropdown menu: picking a menu item closes the
   // menu, which would tear down a dialog nested inside it before it can open.
@@ -69,7 +72,7 @@ export function IntentionRow({
         checked={!isOpen}
         disabled={pending || !isOpen}
         onCheckedChange={onToggle}
-        aria-label="Kész"
+        aria-label={d.intentions.row.complete}
       />
       <div className="flex-1 min-w-0">
         <div
@@ -91,8 +94,10 @@ export function IntentionRow({
         <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
           {intention.due_date && (
             <span>
-              {intention.due_date}
-              {overdueDays > 0 && ` · ${overdueDays} napja lejárt`}
+              {d.intentions.row.dueLabel(
+                formatISODay(intention.due_date, d.dates.dayInput, d.dates.locale),
+                overdueDays,
+              )}
             </span>
           )}
         </div>
@@ -100,7 +105,12 @@ export function IntentionRow({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon" disabled={pending} aria-label="Műveletek" />
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={pending}
+              aria-label={d.intentions.row.actions}
+            />
           }
         >
           <MoreHorizontalIcon className="h-4 w-4" />
@@ -115,10 +125,10 @@ export function IntentionRow({
                   })
                 }
               >
-                Elejtés
+                {d.intentions.row.drop}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setConfirmOpen(true)}>
-                Törlés
+                {d.common.delete}
               </DropdownMenuItem>
             </>
           ) : (
@@ -130,10 +140,10 @@ export function IntentionRow({
                   })
                 }
               >
-                <Undo2Icon className="h-4 w-4 mr-2" /> Visszanyit
+                <Undo2Icon className="h-4 w-4 mr-2" /> {d.intentions.row.reopen}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setConfirmOpen(true)}>
-                Törlés
+                {d.common.delete}
               </DropdownMenuItem>
             </>
           )}
@@ -142,15 +152,14 @@ export function IntentionRow({
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Törlöd ezt a szándékot?</DialogTitle>
+            <DialogTitle>{d.intentions.row.delete.title}</DialogTitle>
             <DialogDescription>
-              A(z) „{intention.text}” szándék eltűnik a listákból. Az
-              alkalmazásból nem hozható vissza.
+              {d.intentions.row.delete.description(intention.text)}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" size="sm" />}>
-              Mégse
+              {d.common.cancel}
             </DialogClose>
             <Button
               size="sm"
@@ -158,7 +167,7 @@ export function IntentionRow({
               onClick={onDeleteConfirmed}
               disabled={pending}
             >
-              {pending ? 'Törlés…' : 'Törlés'}
+              {pending ? d.common.deleting : d.common.delete}
             </Button>
           </DialogFooter>
         </DialogContent>

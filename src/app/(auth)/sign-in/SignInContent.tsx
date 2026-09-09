@@ -1,32 +1,22 @@
 'use client';
 
+import { INACTIVITY_TIMEOUT_MINUTES } from '@/lib/inactivity-config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { useI18n } from '@/i18n/provider';
 import { signIn } from 'next-auth/webauthn';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-
-const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  AccessDenied: 'Access denied. This account is not allowed.',
-  Configuration: 'Server configuration error. Please try again later.',
-  Verification: 'The sign-in link has expired.',
-};
-
-function authErrorMessage(code: string): string {
-  return (
-    AUTH_ERROR_MESSAGES[code] ??
-    'Sign in failed. Your passkey may not be registered on this device.'
-  );
-}
 
 interface Props {
   registrationEnabled: boolean;
 }
 
 export function SignInContent({ registrationEnabled }: Props) {
+  const d = useI18n();
   const searchParams = useSearchParams();
   const urlError = searchParams.get('error');
   const reason = searchParams.get('reason');
@@ -35,9 +25,17 @@ export function SignInContent({ registrationEnabled }: Props) {
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const displayError = error ?? (urlError ? authErrorMessage(urlError) : null);
+  // The sentences for the codes NextAuth can redirect with live in the
+  // dictionary; this widening is what lets an arbitrary `?error=` value be
+  // looked up in them, with one fallback for everything unlisted. It has to
+  // happen in the component body — the map used to be a module constant, which
+  // could never read the dictionary hook.
+  const byCode: Record<string, string | undefined> = d.auth.errors.byCode;
+
+  const displayError =
+    error ?? (urlError ? (byCode[urlError] ?? d.auth.errors.signInFailed) : null);
   const inactivityMessage =
-    reason === 'inactivity' ? 'You were signed out after 30 minutes of inactivity.' : null;
+    reason === 'inactivity' ? d.auth.signedOutForInactivity(INACTIVITY_TIMEOUT_MINUTES) : null;
 
   async function handleAuthenticate() {
     setError(null);
@@ -45,7 +43,7 @@ export function SignInContent({ registrationEnabled }: Props) {
       await signIn('passkey', { action: 'authenticate', callbackUrl: '/' });
     } catch (e) {
       if (e instanceof Error && e.message !== 'NEXT_REDIRECT') {
-        setError('Sign in failed. Your passkey may not be registered on this device.');
+        setError(d.auth.errors.signInFailed);
       }
     }
   }
@@ -55,7 +53,7 @@ export function SignInContent({ registrationEnabled }: Props) {
     setError(null);
     const trimmed = email.trim();
     if (!trimmed) {
-      setError('Enter your email to register a passkey.');
+      setError(d.auth.errors.emailRequired);
       return;
     }
     setRegistering(true);
@@ -63,7 +61,7 @@ export function SignInContent({ registrationEnabled }: Props) {
       await signIn('passkey', { action: 'register', email: trimmed, callbackUrl: '/' });
     } catch (e) {
       if (e instanceof Error && e.message !== 'NEXT_REDIRECT') {
-        setError('Registration failed. Please try again.');
+        setError(d.auth.errors.registrationFailed);
       }
     } finally {
       setRegistering(false);
@@ -74,13 +72,14 @@ export function SignInContent({ registrationEnabled }: Props) {
     <main className='flex min-h-screen items-center justify-center bg-background px-2 md:px-4'>
       <Card className='w-full max-w-sm'>
         <CardHeader className='text-center'>
+          {/* The product's name, not a translatable string. */}
           <CardTitle className='text-2xl'>Journal</CardTitle>
-          <CardDescription>Your private space</CardDescription>
+          <CardDescription>{d.auth.tagline}</CardDescription>
         </CardHeader>
 
         <CardContent className='flex flex-col gap-4'>
           <Button onClick={handleAuthenticate} size='lg' className='w-full' autoFocus>
-            Sign in with passkey
+            {d.auth.signInWithPasskey}
           </Button>
 
           {registrationEnabled && (
@@ -88,16 +87,16 @@ export function SignInContent({ registrationEnabled }: Props) {
               <Separator />
               <form onSubmit={handleRegister} className='flex flex-col gap-3'>
                 <p className='text-xs text-muted-foreground text-center'>
-                  First time? Register a passkey
+                  {d.auth.register.invitation}
                 </p>
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='email'>Email</Label>
+                  <Label htmlFor='email'>{d.auth.register.emailLabel}</Label>
                   <Input
                     id='email'
                     type='email'
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder='your@email.com'
+                    placeholder={d.auth.register.emailPlaceholder}
                   />
                 </div>
                 <Button
@@ -107,7 +106,7 @@ export function SignInContent({ registrationEnabled }: Props) {
                   size='lg'
                   className='w-full'
                 >
-                  {registering ? 'Registering…' : 'Register passkey'}
+                  {registering ? d.auth.register.submitting : d.auth.register.submit}
                 </Button>
               </form>
             </>

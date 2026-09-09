@@ -3,11 +3,10 @@
 import { signOutInactiveAction } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n/provider';
+import { INACTIVITY_TIMEOUT_MS, INACTIVITY_WARNING_BEFORE_MS } from '@/lib/inactivity-config';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const TIMEOUT_MS = 30 * 60 * 1000;
-const WARNING_BEFORE_MS = 60 * 1000;
-const COUNTDOWN_SECONDS = WARNING_BEFORE_MS / 1000;
+const COUNTDOWN_SECONDS = INACTIVITY_WARNING_BEFORE_MS / 1000;
 
 const ACTIVITY_EVENTS = [
   'mousemove',
@@ -41,11 +40,11 @@ export function InactivityTimer() {
       countdownIntervalRef.current = setInterval(() => {
         setCountdown((prev) => prev - 1);
       }, 1000);
-    }, TIMEOUT_MS - WARNING_BEFORE_MS);
+    }, INACTIVITY_TIMEOUT_MS - INACTIVITY_WARNING_BEFORE_MS);
 
     logoutTimerRef.current = setTimeout(() => {
       signOutInactiveAction();
-    }, TIMEOUT_MS);
+    }, INACTIVITY_TIMEOUT_MS);
   }, []);
 
   // Called by activity events — resets state then restarts timers

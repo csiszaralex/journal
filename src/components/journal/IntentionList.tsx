@@ -1,8 +1,15 @@
+'use client';
+
 import type { Intention } from '@/db/queries/intentions';
+import { useI18n } from '@/i18n/provider';
 import { IntentionRow } from './IntentionRow';
 
+/** Which bucket a group is, decided by the due date alone. The heading it is
+ *  drawn under is looked up from the key, so the grouping stays language-free. */
+export type IntentionGroupKey = 'overdue' | 'today' | 'soon' | 'undated';
+
 export type IntentionGroup = {
-  label: string;
+  key: IntentionGroupKey;
   items: Intention[];
 };
 
@@ -17,20 +24,21 @@ export function IntentionList({
   groups,
   todayISO,
   categoryColors,
-  emptyText = 'Nincs megjelenítendő szándék.',
+  emptyText,
 }: IntentionListProps) {
+  const d = useI18n();
   const allEmpty = groups.every((g) => g.items.length === 0);
   if (allEmpty) {
-    return <p className='text-sm text-muted-foreground'>{emptyText}</p>;
+    return <p className='text-sm text-muted-foreground'>{emptyText ?? d.intentions.empty.list}</p>;
   }
   return (
     <div className='space-y-6'>
       {groups.map(
         (g) =>
           g.items.length > 0 && (
-            <section key={g.label}>
+            <section key={g.key}>
               <h3 className='text-xs uppercase tracking-wide text-muted-foreground mb-2'>
-                {g.label}
+                {d.intentions.groups[g.key]}
               </h3>
               <div className='divide-y'>
                 {g.items.map((it) => (
@@ -61,10 +69,10 @@ export function groupOpenIntentions(items: Intention[], todayISO: string): Inten
     else upcoming.push(it);
   }
   return [
-    { label: 'Lejárt', items: overdue },
-    { label: 'Ma', items: today },
-    { label: 'Hamarosan', items: upcoming },
-    { label: 'Dátum nélkül', items: undated },
+    { key: 'overdue', items: overdue },
+    { key: 'today', items: today },
+    { key: 'soon', items: upcoming },
+    { key: 'undated', items: undated },
   ];
 }
 

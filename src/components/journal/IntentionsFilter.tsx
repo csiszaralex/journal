@@ -1,6 +1,7 @@
 'use client';
 
 import type { Intention } from '@/db/queries/intentions';
+import { useI18n } from '@/i18n/provider';
 import { getContrastTextColor, resolveCategoryColor } from '@/lib/color';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -11,6 +12,8 @@ export type IntentionsFilterProps = {
   todayISO: string;
   categories: string[];
   categoryColors?: Record<string, string>;
+  /** Optional override of what an empty list says. Resolved in the body, not
+   *  as a default parameter: a default cannot read a hook. */
   emptyText?: string;
 };
 
@@ -19,8 +22,9 @@ export function IntentionsFilter({
   todayISO,
   categories,
   categoryColors,
-  emptyText = 'Nincs nyitott szándék.',
+  emptyText,
 }: IntentionsFilterProps) {
+  const d = useI18n();
   const [selected, setSelected] = useState<string | null>(null);
 
   const filtered = selected ? items.filter((it) => it.category === selected) : items;
@@ -39,7 +43,7 @@ export function IntentionsFilter({
                 : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
-            Mind
+            {d.intentions.filter.all}
           </button>
           {categories.map((c) => {
             const color = resolveCategoryColor(c, categoryColors);
@@ -78,7 +82,7 @@ export function IntentionsFilter({
         groups={groupOpenIntentions(filtered, todayISO)}
         todayISO={todayISO}
         categoryColors={categoryColors}
-        emptyText={emptyText}
+        emptyText={emptyText ?? d.intentions.empty.open}
       />
     </div>
   );

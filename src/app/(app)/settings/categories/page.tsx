@@ -2,10 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { CategoryColorsAdmin } from '@/components/journal/CategoryColorsAdmin';
 import { getCategoryColorMap, listAllDistinctCategories } from '@/db/queries/intentions';
+import { getDict } from '@/i18n/request';
 import { ArrowLeftIcon } from 'lucide-react';
 import Link from 'next/link';
 
-export default function CategoriesSettingsPage() {
+export default async function CategoriesSettingsPage() {
+  const d = await getDict();
   const categories = listAllDistinctCategories();
   const overrides = getCategoryColorMap();
 
@@ -17,15 +19,12 @@ export default function CategoriesSettingsPage() {
           className='inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground'
         >
           <ArrowLeftIcon className='size-3' />
-          Settings
+          {d.common.backToSettings}
         </Link>
-        <h1 className='text-xl font-semibold tracking-tight'>Kategóriák</h1>
+        <h1 className='text-xl font-semibold tracking-tight'>{d.intentions.categories.title}</h1>
       </div>
 
-      <p className='text-sm text-muted-foreground'>
-        Minden szándék-kategória automatikusan kap egy stabil színt a nevéből. Itt felülírhatod
-        bármelyiket, vagy visszaállíthatod az automatikus színre.
-      </p>
+      <p className='text-sm text-muted-foreground'>{d.intentions.categories.intro}</p>
 
       <CategoryColorsAdmin categories={categories} overrides={overrides} />
     </div>
