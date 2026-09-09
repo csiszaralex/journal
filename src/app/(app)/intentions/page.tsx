@@ -8,25 +8,30 @@ import {
   listDistinctCategories,
   listRecentlyClosed,
 } from '@/db/queries/intentions';
+import { getDict } from '@/i18n/request';
 import { todayInAppTZ } from '@/lib/date';
 
 export const dynamic = 'force-dynamic';
 
+/** How far back the "done" tab looks. Named because the empty state says it. */
+const RECENTLY_CLOSED_DAYS = 30;
+
 export default async function IntentionsPage() {
+  const d = await getDict();
   const todayISO = todayInAppTZ();
   const open = listAllOpenIntentions(todayISO);
-  const closed = listRecentlyClosed(30);
+  const closed = listRecentlyClosed(RECENTLY_CLOSED_DAYS);
   const categories = listDistinctCategories();
   const categoryColors = getCategoryColorMap();
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Szándékok</h1>
+      <h1 className="text-2xl font-semibold">{d.intentions.title}</h1>
       <IntentionForm categoryColors={categoryColors} />
       <Tabs defaultValue="open">
         <TabsList>
-          <TabsTrigger value="open">Nyitott ({open.length})</TabsTrigger>
-          <TabsTrigger value="done">Kész</TabsTrigger>
+          <TabsTrigger value="open">{d.intentions.tabs.open(open.length)}</TabsTrigger>
+          <TabsTrigger value="done">{d.intentions.tabs.done}</TabsTrigger>
         </TabsList>
         <TabsContent value="open" className="mt-4">
           <IntentionsFilter
@@ -34,13 +39,12 @@ export default async function IntentionsPage() {
             todayISO={todayISO}
             categories={categories}
             categoryColors={categoryColors}
-            emptyText="Nincs nyitott szándék."
           />
         </TabsContent>
         <TabsContent value="done" className="mt-4">
           {closed.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Az elmúlt 30 napban nem zártál le szándékot.
+              {d.intentions.empty.recentlyClosed(RECENTLY_CLOSED_DAYS)}
             </p>
           ) : (
             <div className="divide-y">

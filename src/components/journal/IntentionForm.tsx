@@ -4,7 +4,9 @@ import { createIntentionAction } from '@/actions/intentions';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useI18n } from '@/i18n/provider';
 import { getContrastTextColor, resolveCategoryColor } from '@/lib/color';
+import { formatISODay } from '@/lib/date';
 import { MAX_CATEGORY_LENGTH, normalizeCategory } from '@/lib/intentions';
 import { format } from 'date-fns';
 import { CalendarIcon, XIcon } from 'lucide-react';
@@ -12,6 +14,9 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 
 export type IntentionFormProps = {
   enableDueDate?: boolean;
+  /** Overrides the default invitation — the Today page says "for today". A
+   *  prop rather than a default parameter, because a default cannot read a
+   *  hook; the fallback is resolved in the body instead. */
   placeholder?: string;
   defaultDueDate?: string;
   categoryColors?: Record<string, string>;
@@ -19,10 +24,12 @@ export type IntentionFormProps = {
 
 export function IntentionForm({
   enableDueDate = true,
-  placeholder = 'Új szándék…',
+  placeholder,
   defaultDueDate = '',
   categoryColors,
 }: IntentionFormProps) {
+  const d = useI18n();
+  const placeholderText = placeholder ?? d.intentions.form.placeholder;
   const [category, setCategory] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [editingCat, setEditingCat] = useState(false);
@@ -149,7 +156,7 @@ export function IntentionForm({
               autoFocus
               maxLength={MAX_CATEGORY_LENGTH}
               size={1}
-              aria-label='Kategória szerkesztése'
+              aria-label={d.intentions.form.editCategory}
               className='col-start-1 row-start-1 w-full min-w-0 rounded-full bg-transparent px-2 py-0.5 text-xs font-medium outline-none'
             />
           </span>
@@ -160,7 +167,7 @@ export function IntentionForm({
               type='button'
               onClick={startEditCategory}
               disabled={pending}
-              title='Kategória szerkesztése'
+              title={d.intentions.form.editCategory}
               className='inline-flex max-w-32 shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium'
               style={{
                 backgroundColor: chipColor,
@@ -176,7 +183,7 @@ export function IntentionForm({
           value={text}
           onChange={onTextChange}
           onKeyDown={onTextKeyDown}
-          placeholder={category ? 'szöveg…' : placeholder}
+          placeholder={category ? d.intentions.form.textPlaceholder : placeholderText}
           disabled={pending}
           className='min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed'
         />
@@ -192,13 +199,18 @@ export function IntentionForm({
                 className='inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50'
               >
                 <CalendarIcon className='size-3' />
-                {dueDate || 'Dátum'}
+                {dueDate
+                  ? formatISODay(dueDate, d.dates.dayInput, d.dates.locale)
+                  : d.intentions.form.datePlaceholder}
               </PopoverTrigger>
               <PopoverContent className='w-auto p-0' align='start'>
                 <Calendar
                   mode='single'
                   selected={calendarDate}
+                  locale={d.dates.locale}
                   onSelect={(day) => {
+                    // A stored due date, not a shown one: this format is a
+                    // machine value and never changes with the language.
                     setDueDate(day ? format(day, 'yyyy-MM-dd') : '');
                     setCalendarOpen(false);
                   }}
@@ -212,7 +224,7 @@ export function IntentionForm({
                 size='icon-sm'
                 onClick={() => setDueDate('')}
                 disabled={pending}
-                aria-label='Dátum törlése'
+                aria-label={d.intentions.form.clearDate}
                 className='ml-0.5'
               >
                 <XIcon className='size-3' />
@@ -221,7 +233,7 @@ export function IntentionForm({
           </div>
         )}
         <Button type='submit' disabled={pending || !text.trim()} size='sm'>
-          Hozzáad
+          {d.intentions.form.submit}
         </Button>
       </div>
     </form>

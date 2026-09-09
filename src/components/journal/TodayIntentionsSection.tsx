@@ -1,21 +1,21 @@
 import { getCategoryColorMap, listOpenIntentionsForToday } from '@/db/queries/intentions';
+import { getDict } from '@/i18n/request';
 import { todayInAppTZ } from '@/lib/date';
 import Link from 'next/link';
 import { IntentionForm } from './IntentionForm';
 import { IntentionRow } from './IntentionRow';
 
-export function TodayIntentionsSection() {
+export async function TodayIntentionsSection() {
+  const d = await getDict();
   const todayISO = todayInAppTZ();
   const items = listOpenIntentionsForToday(todayISO);
   const categoryColors = getCategoryColorMap();
   return (
     <section className='rounded-lg border bg-muted/30 p-4 space-y-3'>
       <div className='flex items-center justify-between'>
-        <h2 className='text-sm font-medium'>
-          Nyitott szándékok mára{items.length > 0 ? ` (${items.length})` : ''}
-        </h2>
+        <h2 className='text-sm font-medium'>{d.intentions.today.heading(items.length)}</h2>
         <Link href='/intentions' className='text-xs text-muted-foreground hover:underline'>
-          összes →
+          {d.intentions.today.seeAll}
         </Link>
       </div>
       {items.length > 0 && (
@@ -32,7 +32,7 @@ export function TodayIntentionsSection() {
       )}
       <IntentionForm
         defaultDueDate={todayISO}
-        placeholder='Új szándék mára…'
+        placeholder={d.intentions.form.placeholderToday}
         categoryColors={categoryColors}
       />
     </section>

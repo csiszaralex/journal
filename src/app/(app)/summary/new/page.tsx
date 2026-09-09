@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { EntryForm } from '@/components/journal/EntryForm';
 import { getGapInfo } from '@/db/queries/entries';
 import { listTemplates } from '@/db/queries/templates';
+import { getDict } from '@/i18n/request';
 import { getDefaultSummaryPeriod } from '@/lib/summary-config';
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
@@ -11,6 +12,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function NewSummaryPage({ searchParams }: { searchParams: SearchParams }) {
   const { from, to } = await searchParams;
+  const d = await getDict();
   const { lastDailyDate } = getGapInfo();
 
   // Same rule (and the same clamp) the gap banner offers, so arriving here from
@@ -30,8 +32,8 @@ export default async function NewSummaryPage({ searchParams }: { searchParams: S
   return (
     <>
       <div>
-        <h1 className='text-xl font-semibold tracking-tight'>Összefoglaló</h1>
-        <p className='text-sm text-muted-foreground'>Egy hosszabb időszak egyben</p>
+        <h1 className='text-xl font-semibold tracking-tight'>{d.summary.newPage.title}</h1>
+        <p className='text-sm text-muted-foreground'>{d.summary.newPage.subtitle}</p>
       </div>
       <div className='rounded-xl border bg-card p-4'>
         <EntryForm
