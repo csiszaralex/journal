@@ -20,7 +20,7 @@ import type { EntryTemplate } from '@/db/queries/templates';
 import { useI18n } from '@/i18n/provider';
 import { formatISODay, todayInAppTZ } from '@/lib/date';
 import { cn } from '@/lib/utils';
-import { entryInputSchema } from '@/lib/validation';
+import { makeEntryInputSchema } from '@/lib/validation';
 import { z } from 'zod';
 import { format, addDays } from 'date-fns';
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, HistoryIcon, Sparkles } from 'lucide-react';
@@ -434,6 +434,10 @@ export function EntryForm({
   defaultPeriodStart,
 }: EntryFormProps) {
   const d = useI18n();
+  // The schema's messages are rendered verbatim under the form, so it is built
+  // from the dictionary this component already has rather than imported ready
+  // made — see the note at the top of `@/lib/validation`.
+  const entrySchema = useMemo(() => makeEntryInputSchema(d), [d]);
   const isSummary = kind === 'summary';
   const isEdit = !!entry;
   // The journal's day, not the device's: a phone in another zone must still
@@ -994,7 +998,7 @@ export function EntryForm({
       .filter((p) => p.answer.length > 0);
 
     // Client-side validation
-    const validation = entryInputSchema.safeParse(payload);
+    const validation = entrySchema.safeParse(payload);
     if (!validation.success) {
       setErrors(validation.error.issues.map((i) => i.message));
       return;

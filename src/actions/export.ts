@@ -13,6 +13,7 @@ import {
   getTemplatesForExport,
 } from "@/db/queries/export";
 import { logAudit } from "@/db/queries/audit";
+import { getDict } from "@/i18n/request";
 import { buildMarkdownExport } from "@/lib/export-markdown";
 import { authActionClient } from "@/lib/safe-action";
 
@@ -48,7 +49,7 @@ export const exportJsonAction = authActionClient.action(async () => {
 });
 
 export const exportMarkdownAction = authActionClient.action(async () => {
-  const { markdown, entryCount } = buildMarkdownExport(getAllEntriesForExport());
+  const { markdown, entryCount } = buildMarkdownExport(getAllEntriesForExport(), await getDict());
 
   logAudit("export.markdown", { entry_count: entryCount });
 

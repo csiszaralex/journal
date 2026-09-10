@@ -2,18 +2,16 @@
 
 import { logAudit } from '@/db/queries/audit';
 import { createTemplate, deleteTemplate, updateTemplate } from '@/db/queries/templates';
+import { getDict } from '@/i18n/request';
 import { requireUserId } from '@/lib/auth';
-import { templateSchema } from '@/lib/validation';
+import { makeTemplateSchema } from '@/lib/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-const updateTemplateSchema = templateSchema.extend({
-  id: z.string().min(1, 'Missing template id'),
-});
-
 export async function createTemplateAction(_: unknown, formData: FormData) {
   await requireUserId();
-  const parsed = templateSchema.safeParse({
+  const d = await getDict();
+  const parsed = makeTemplateSchema(d).safeParse({
     name: formData.get('name'),
     text: formData.get('text'),
     default_mood: formData.get('default_mood') || null,
@@ -23,7 +21,7 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
   if (!parsed.success) {
     return {
       status: 'error' as const,
-      message: parsed.error.issues[0]?.message ?? 'Invalid input',
+      message: parsed.error.issues[0]?.message ?? d.errors.validation.invalidInput,
     };
   }
 
@@ -35,6 +33,10 @@ export async function createTemplateAction(_: unknown, formData: FormData) {
 
 export async function updateTemplateAction(_: unknown, formData: FormData) {
   await requireUserId();
+  const d = await getDict();
+  const updateTemplateSchema = makeTemplateSchema(d).extend({
+    id: z.string().min(1, d.errors.validation.missingTemplateId),
+  });
   const parsed = updateTemplateSchema.safeParse({
     id: formData.get('id'),
     name: formData.get('name'),
@@ -46,7 +48,7 @@ export async function updateTemplateAction(_: unknown, formData: FormData) {
   if (!parsed.success) {
     return {
       status: 'error' as const,
-      message: parsed.error.issues[0]?.message ?? 'Invalid input',
+      message: parsed.error.issues[0]?.message ?? d.errors.validation.invalidInput,
     };
   }
 

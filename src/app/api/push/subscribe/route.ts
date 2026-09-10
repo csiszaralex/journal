@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { getDict } from "@/i18n/request";
 import { withSession } from "@/lib/api-route";
 import { limitPush } from "@/lib/rate-limit";
 import { upsertSubscription } from "@/db/queries/subscriptions";
@@ -13,7 +14,8 @@ import { pushSubscribeSchema } from "@/lib/validation";
 export const POST = withSession(async (req) => {
   const parsed = pushSubscribeSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
+    const d = await getDict();
+    return NextResponse.json({ error: d.errors.api.invalidSubscription }, { status: 400 });
   }
   const { endpoint, keys, timezone } = parsed.data;
 

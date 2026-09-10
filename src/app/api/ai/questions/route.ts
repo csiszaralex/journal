@@ -6,8 +6,9 @@ import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryEntries, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
+import { getDict } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
-import { limitAi, TOO_FAST } from '@/lib/rate-limit';
+import { limitAi } from '@/lib/rate-limit';
 import { todayInAppTZ } from '@/lib/date';
 import { SUMMARY_HISTORY_ENTRIES } from '@/lib/summary-config';
 import { format, subDays } from 'date-fns';
@@ -181,6 +182,7 @@ function buildProfileContext(
 }
 
 export const POST = withSession(async (req) => {
+  const d = await getDict();
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -189,11 +191,11 @@ export const POST = withSession(async (req) => {
   }
   const parsed = requestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextResponse.json({ error: d.errors.api.invalidRequestBody }, { status: 400 });
   }
   const mode = parsed.data.mode ?? 'daily';
   if (mode === 'summary' && !parsed.data.periodStart) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextResponse.json({ error: d.errors.api.invalidRequestBody }, { status: 400 });
   }
   const { todayText, existingQuestions } = parsed.data;
   const count = parsed.data.count ?? 3;
@@ -320,7 +322,7 @@ export const POST = withSession(async (req) => {
     if (!toolUse) {
       console.error('[ai/questions] no tool_use block in response');
       logAudit('ai.questions', { model: QUESTIONS_MODEL, mode, success: false, error: 'no_tool_use' });
-      return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
+      return NextResponse.json({ error: d.errors.api.aiBadResponse }, { status: 502 });
     }
 
     const validated = toolResponseSchema.safeParse(toolUse.input);
@@ -332,7 +334,7 @@ export const POST = withSession(async (req) => {
         success: false,
         error: 'validation_failed',
       });
-      return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
+      return NextResponse.json({ error: d.errors.api.aiBadResponse }, { status: 502 });
     }
 
     logAudit('ai.questions', {
@@ -347,7 +349,7 @@ export const POST = withSession(async (req) => {
   } catch (err) {
     console.error('[ai/questions]', err);
     logAudit('ai.questions', { model: QUESTIONS_MODEL, mode, success: false, error: 'exception' });
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: d.errors.api.internalError }, { status: 500 });
   }
-}, { limit: limitAi, limitMessage: TOO_FAST });
+}, { limit: limitAi, limitMessage: (d) => d.errors.api.tooFast });
 

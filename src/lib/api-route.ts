@@ -6,6 +6,8 @@
 // helpers, which would drag the whole NextAuth config into anything that only
 // wanted to count requests.
 
+import type { Dictionary } from '@/i18n/dictionary';
+import { getDict } from '@/i18n/request';
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import type { RateLimitRejection, RateLimitResult } from '@/lib/rate-limit';
@@ -15,15 +17,18 @@ import type { RateLimitRejection, RateLimitResult } from '@/lib/rate-limit';
  *
  * Takes the rejection rather than a bare number so it cannot be called on a
  * request that was actually allowed: producing one means the caller narrowed.
- * The message is a parameter because the AI routes answer in Hungarian and the
- * client shows that text to the user verbatim.
+ * The message stays a parameter because the AI routes say something else, and
+ * the client shows whichever text arrives to the user verbatim.
+ *
+ * Async only for the default: reading the language is a request-scoped await,
+ * and it happens on the refusal path, never on the one that was allowed.
  */
-export function tooManyRequests(
+export async function tooManyRequests(
   rejection: RateLimitRejection,
-  message = 'Too many requests',
-): NextResponse {
+  message?: string,
+): Promise<NextResponse> {
   return NextResponse.json(
-    { error: message },
+    { error: message ?? (await getDict()).errors.api.tooManyRequests },
     { status: 429, headers: { 'Retry-After': String(rejection.retryAfter) } },
   );
 }
@@ -33,8 +38,15 @@ type SessionHandler = (req: NextRequest, ctx: { userId: string }) => Promise<Res
 type WithSessionOptions = {
   /** The throttle for this route, keyed by the signed-in user's id. */
   limit?: (key: string) => RateLimitResult;
-  /** Overrides the 429 body — used where the message is shown to the user. */
-  limitMessage?: string;
+  /**
+   * Overrides the 429 body — used where the message is shown to the user.
+   *
+   * A selector rather than a string, because `withSession` is called once at
+   * module load and the language is decided per request: a route names the key
+   * it wants (`(d) => d.errors.api.tooFast`) and the dictionary is only read if
+   * the throttle actually fires.
+   */
+  limitMessage?: (d: Dictionary) => string;
 };
 
 /**
@@ -57,13 +69,17 @@ export function withSession(
   return async (req) => {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const d = await getDict();
+      return NextResponse.json({ error: d.errors.api.unauthorized }, { status: 401 });
     }
     const userId = session.user.id;
 
     if (options.limit) {
       const limited = options.limit(userId);
-      if (!limited.ok) return tooManyRequests(limited, options.limitMessage);
+      if (!limited.ok) {
+        const message = options.limitMessage?.(await getDict());
+        return tooManyRequests(limited, message);
+      }
     }
 
     return handler(req, { userId });
