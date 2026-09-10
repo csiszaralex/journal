@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { logAudit } from '@/db/queries/audit';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
+import { getDict } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
-import { limitAi, TOO_FAST } from '@/lib/rate-limit';
+import { limitAi } from '@/lib/rate-limit';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -27,6 +28,7 @@ Return your questions ONLY via the submit_questions tool. No free text.`;
 
 
 export const POST = withSession(async (req) => {
+  const d = await getDict();
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -35,7 +37,7 @@ export const POST = withSession(async (req) => {
   }
   const parsed = requestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextResponse.json({ error: d.errors.api.invalidRequestBody }, { status: 400 });
   }
   const { existingQuestions = [] } = parsed.data;
 
@@ -93,7 +95,7 @@ export const POST = withSession(async (req) => {
         success: false,
         error: 'no_tool_use',
       });
-      return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
+      return NextResponse.json({ error: d.errors.api.aiBadResponse }, { status: 502 });
     }
 
     const validated = toolResponseSchema.safeParse(toolUse.input);
@@ -104,7 +106,7 @@ export const POST = withSession(async (req) => {
         success: false,
         error: 'validation_failed',
       });
-      return NextResponse.json({ error: 'AI hibás választ adott' }, { status: 502 });
+      return NextResponse.json({ error: d.errors.api.aiBadResponse }, { status: 502 });
     }
 
     logAudit('ai.profile-questions', {
@@ -121,7 +123,7 @@ export const POST = withSession(async (req) => {
       success: false,
       error: 'exception',
     });
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: d.errors.api.internalError }, { status: 500 });
   }
-}, { limit: limitAi, limitMessage: TOO_FAST });
+}, { limit: limitAi, limitMessage: (d) => d.errors.api.tooFast });
 

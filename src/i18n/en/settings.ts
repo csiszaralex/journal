@@ -180,9 +180,15 @@ export const settings = {
 
   /** The two download buttons. The format names are not translated; the verb
    *  is, and where it falls around the format name is the language's call. */
+  /** The export feature's words. The first two are the buttons on this page;
+   *  the third is written into the downloaded Markdown rather than rendered
+   *  anywhere, which is why it is the only string here nobody reads on screen.
+   *  The `##` before it and the YAML keys above it are Markdown syntax and
+   *  field names, so they stay untranslated. */
   export: {
     json: 'Export JSON',
     markdown: 'Export Markdown',
+    reflectionsHeading: 'Reflections',
   },
 };
 

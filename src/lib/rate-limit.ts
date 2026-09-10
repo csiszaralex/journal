@@ -122,12 +122,12 @@ export function limitAi(userId: string): RateLimitResult {
   return rateLimit(`ai:${userId}`, { limit: 1, windowMs: 5_000 });
 }
 
-/**
- * What a throttled AI route says. Unlike the other 429s this one reaches the
- * user: the client shows `error` verbatim in a toast, so it is Hungarian, and
- * it lives here so the three routes cannot drift apart.
- */
-export const TOO_FAST = 'Túl gyors, várj egy kicsit';
+// What a throttled AI route says used to live here, as a Hungarian constant.
+// It is now `errors.api.tooFast` in the dictionary, which the three routes hand
+// to `withSession` as their `limitMessage`. This module stays free of the
+// dictionary and of anything framework-shaped on purpose: it is pure policy,
+// exercised on its own, and the cron worker's bundle must not grow a copy of
+// both languages to count requests.
 
 /** Only for tests: forget every bucket. */
 export function resetRateLimits(): void {

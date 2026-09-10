@@ -106,5 +106,6 @@ export const settings: Settings = {
   export: {
     json: 'Exportálás JSON-ba',
     markdown: 'Exportálás Markdownba',
+    reflectionsHeading: 'Reflexiók',
   },
 };

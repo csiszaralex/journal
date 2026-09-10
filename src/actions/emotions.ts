@@ -8,6 +8,7 @@ import {
   suggestEmotions,
   updateEmotion,
 } from '@/db/queries/emotions';
+import { getDict } from '@/i18n/request';
 import { HEX_COLOR_REGEX } from '@/lib/color';
 import { authActionClient } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
@@ -42,9 +43,10 @@ export const updateEmotionAction = authActionClient
       return { ok: true };
     } catch (err) {
       if (err instanceof EmotionNameConflictError) {
+        const d = await getDict();
         return {
           ok: false,
-          error: `Ez a név már létezik mint "${err.existingDisplayName}"`,
+          error: d.errors.action.nameConflict.emotion(err.existingDisplayName),
         };
       }
       throw err;

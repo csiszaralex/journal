@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getDict } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
 import { limitPush } from '@/lib/rate-limit';
 import { dismissNotificationsForDate } from '@/lib/push';
@@ -12,7 +13,10 @@ const schema = z.object({
 
 export const POST = withSession(async (req) => {
   const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  if (!parsed.success) {
+    const d = await getDict();
+    return NextResponse.json({ error: d.errors.api.invalidDate }, { status: 400 });
+  }
 
   await dismissNotificationsForDate(parsed.data.date);
   return NextResponse.json({ ok: true });
