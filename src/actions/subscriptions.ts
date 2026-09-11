@@ -6,6 +6,7 @@ import {
   removeSubscription,
   updateSubscription,
 } from '@/db/queries/subscriptions';
+import { getDict, getLocale } from '@/i18n/request';
 import { pickDailyPrompt, sendPush } from '@/lib/push';
 import { authActionClient } from '@/lib/safe-action';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -57,7 +58,7 @@ export const sendTestNotificationAction = authActionClient
     const result = await sendPush(sub, {
       type: 'daily',
       title: 'Journal',
-      body: 'Test notification — everything is working!',
+      body: (await getDict()).push.test,
     });
     if (result.status === 'sent') {
       logAudit('push.test.success', { subscription_id: parsedInput.id });
@@ -89,7 +90,10 @@ export const sendScheduledPreviewAction = authActionClient
       return { ok: false, reason: 'not-found' };
     }
     const todayStr = formatInTimeZone(new Date(), sub.timezone, 'yyyy-MM-dd');
-    const body = pickDailyPrompt(todayStr);
+    // The preview is sent from a request, so unlike the worker's own send it
+    // can negotiate the language rather than falling back to the setting.
+    const d = await getDict();
+    const body = pickDailyPrompt(todayStr, await getLocale()) ?? d.push.noPrompts;
     const result = await sendPush(sub, { type: 'daily', title: 'Journal', body, date: todayStr });
     if (result.status === 'sent') {
       logAudit('push.preview.success', { subscription_id: parsedInput.id, date: todayStr });

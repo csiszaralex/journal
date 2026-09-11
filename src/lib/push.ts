@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { disableSubscription, listSubscriptions } from "@/db/queries/subscriptions";
 import { env } from "@/env";
+import type { Locale } from "@/i18n/locales";
 import promptsData from "../../data/prompts.json";
 
 let vapidConfigured = false;
@@ -59,17 +60,31 @@ export async function dismissNotificationsForDate(date: string): Promise<void> {
   );
 }
 
-const prompts: string[] = Array.isArray(promptsData) ? (promptsData as string[]) : [];
+const prompts = promptsData as Record<Locale, readonly string[]>;
 
-export function getPromptCount(): number {
-  return prompts.length;
+export function getPromptCount(locale: Locale): number {
+  return prompts[locale]?.length ?? 0;
 }
 
-export function pickDailyPrompt(date: string): string {
-  if (prompts.length === 0) return "Time to write in your journal.";
+/**
+ * The prompt for a given day, or null when there is nothing to pick from.
+ *
+ * The index is hashed from the date alone, never from the language, and the two
+ * lists in `data/prompts.json` are the same length and index-aligned. So a day
+ * asks the same question whichever language is set — switching languages
+ * translates the evening's prompt rather than replacing it with an unrelated
+ * one, and re-reading an old notification still makes sense against the entry
+ * it produced.
+ *
+ * Returns null rather than a fallback sentence so the copy stays in the
+ * dictionary with the rest of it; both callers substitute `push.noPrompts`.
+ */
+export function pickDailyPrompt(date: string, locale: Locale): string | null {
+  const pool = prompts[locale] ?? [];
+  if (pool.length === 0) return null;
   let hash = 0;
   for (let i = 0; i < date.length; i++) {
     hash = (hash * 31 + date.charCodeAt(i)) >>> 0;
   }
-  return prompts[hash % prompts.length];
+  return pool[hash % pool.length];
 }
