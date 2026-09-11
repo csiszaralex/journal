@@ -9,6 +9,8 @@ import {
   recordNotificationSent,
 } from "../db/queries/subscriptions";
 import { sendPush, pickDailyPrompt, getPromptCount } from "../lib/push";
+import { dictionaryFor } from "@/i18n/dictionary";
+import { storedLocale } from "@/i18n/stored";
 import { countOpenIntentionsForToday } from "@/db/queries/intentions";
 import { env } from "../env";
 
@@ -75,11 +77,13 @@ async function tick() {
         continue;
       }
 
-      const promptBody = pickDailyPrompt(todayStr);
+      // No request to negotiate a language from, so this follows the stored
+      // setting and falls back to the default — see the note in i18n/en/push.ts.
+      const locale = storedLocale();
+      const d = dictionaryFor(locale);
+      const promptBody = pickDailyPrompt(todayStr, locale) ?? d.push.noPrompts;
       const openCount = countOpenIntentionsForToday(todayStr);
-      const body = openCount > 0
-        ? `${promptBody} (${openCount} nyitott szándék mára)`
-        : promptBody;
+      const body = d.push.daily(promptBody, openCount);
       try {
         const result = await sendPush(sub, { type: "daily", title: "Journal", body, date: todayStr });
         if (result.status === "sent") {
@@ -110,7 +114,8 @@ console.log(JSON.stringify({
   dbPath: DB_PATH,
   vapidSubject: maskSubject(env.VAPID_SUBJECT),
   vapidPublicKeyPrefix: env.VAPID_PUBLIC_KEY.slice(0, 8),
-  prompts: getPromptCount(),
+  locale: storedLocale(),
+  prompts: getPromptCount(storedLocale()),
   subscriptions: listSubscriptions().length,
 }));
 
