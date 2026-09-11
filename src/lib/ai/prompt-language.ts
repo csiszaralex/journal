@@ -56,14 +56,27 @@ export type PromptLanguage = {
      * Few-shot questions for rule 1, which is about *specificity*: each one
      * names a person, a plan or a deadline the entries mentioned. They are
      * quoted and joined by the route.
+     *
+     * They must also satisfy rule 2 — open-ended, no yes/no. An example is a
+     * stronger signal to a model than a rule it contradicts, so a yes/no
+     * example here quietly repeals rule 2 however firmly it is worded. These
+     * were yes/no-shaped in both languages until the two were reconciled.
      */
     goodExamples: readonly string[];
     /** The generic filler rule 1 forbids — the counter-examples to the above. */
     badExamples: readonly string[];
     /** The `## Task` line closing the user message. */
     taskLine: (count: number) => string;
-    /** The `submit_questions` tool description. */
-    toolDescription: (count: number) => string;
+    /**
+     * The `submit_questions` tool description.
+     *
+     * It deliberately does not state how many questions to submit, though the
+     * sentence it replaced did. The count is already enforced twice — by
+     * `minItems`/`maxItems` on the tool's own schema, and by the task line in
+     * the user message — while tools are the first thing in the cached prefix,
+     * so naming it here made that prefix a different one for every count.
+     */
+    toolDescription: string;
   };
   profileQuestions: {
     /** The `OUTPUT LANGUAGE:` directive of the profile system prompt. */
@@ -92,6 +105,13 @@ export type PromptLanguage = {
      * "worrying"), so the English one converts those.
      */
     vocabularyRules: string;
+    /**
+     * The catch-alls rule 5 warns against, already quoted and joined. They are
+     * example *outputs*, so they have to be in the language being asked for —
+     * telling a model to avoid "happy" while demanding Hungarian names nothing
+     * it could actually return.
+     */
+    genericExamples: string;
   };
 };
 
@@ -101,9 +121,9 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       outputRule:
         'OUTPUT LANGUAGE: All questions must be written in ENGLISH. Address the user directly as "you", in the casual register a friend would use — never the register of a form or an interviewer.',
       goodExamples: [
-        'Did you manage to talk to Anna today about the thing you were putting off yesterday?',
-        'Did you make it to your workout today, or did it slip again?',
-        'Did you get any closer to the Friday deadline today?',
+        'What came of the conversation with Anna you were putting off yesterday?',
+        'What happened with the workout you skipped yesterday?',
+        "What moved on the Friday deadline today, and what didn't?",
       ],
       badExamples: [
         'How are you feeling today?',
@@ -113,8 +133,7 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       ],
       taskLine: (count) =>
         `Generate exactly ${count} new question${count === 1 ? '' : 's'} in English, following all the rules in the system prompt.`,
-      toolDescription: (count) =>
-        `Submit exactly ${count} reflective question${count === 1 ? '' : 's'} in English.`,
+      toolDescription: 'Submit the reflective questions in English.',
     },
     profileQuestions: {
       outputRule:
@@ -128,6 +147,7 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       vocabularyRules: `   - Good English nouns: "joy", "anxiety", "gratitude", "disappointment", "calm", "pride".
    - Good English adjectives: "tired", "restless", "content", "lonely", "tense", "grateful".
    - NEVER return a verb or a gerund. Convert it to its feeling form: "worrying" → "worry", "dreading" → "dread", "resenting" → "resentment", "hoping" → "hope", "raging" → "anger", "grieving" → "grief". Where an adjective has a natural noun form, prefer the noun: "anxious" → "anxiety", "disappointed" → "disappointment", "proud" → "pride".`,
+      genericExamples: '"happy" or "sad"',
     },
   },
   hu: {
@@ -135,9 +155,9 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       outputRule:
         'OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/familiar (tegező) form. The questions themselves must be Hungarian even though these instructions are in English.',
       goodExamples: [
-        'Sikerült ma beszélned Annával arról a témáról, amit tegnap halogattál?',
-        'Eljutottál ma az edzésre, vagy megint kimaradt?',
-        'A pénteki határidőhöz közelebb kerültél valamit?',
+        'Mi lett azzal a beszélgetéssel Annával, amit tegnap halogattál?',
+        'Mi lett ma az edzéssel, amit tegnap kihagytál?',
+        'Mi haladt ma a pénteki határidővel, és mi nem?',
       ],
       badExamples: [
         'Hogy érzed magad ma?',
@@ -147,8 +167,7 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       ],
       taskLine: (count) =>
         `Generate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`,
-      toolDescription: (count) =>
-        `Submit exactly ${count} reflective question${count === 1 ? '' : 's'} in Hungarian.`,
+      toolDescription: 'Submit the reflective questions in Hungarian.',
     },
     profileQuestions: {
       outputRule:
@@ -163,6 +182,7 @@ export const PROMPT_LANGUAGE: Record<Locale, PromptLanguage> = {
       vocabularyRules: `   - Good Hungarian nouns: "öröm", "szorongás", "hála", "csalódottság", "nyugalom", "büszkeség".
    - Good Hungarian adjectives: "fáradt", "ideges", "elégedett", "magányos", "feszült", "hálás".
    - NEVER return a verb. Convert any verb to its feeling form: "aggódik" → "aggodalom", "fél" → "félelem", "örül" → "öröm", "dühöng" → "düh", "csalódik" → "csalódottság", "remél" → "remény".`,
+      genericExamples: '"boldog" vagy "szomorú"',
     },
   },
 };
