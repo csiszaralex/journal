@@ -1,4 +1,3 @@
-import { ai } from './ai';
 import { auditLog } from './audit-log';
 import { auth } from './auth';
 import { calendar } from './calendar';
@@ -28,7 +27,6 @@ import { tags } from './tags';
  * `pnpm typecheck` is therefore the whole parity guarantee.
  */
 export const en = {
-  ai,
   auditLog,
   auth,
   calendar,

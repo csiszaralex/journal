@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { logAudit } from '@/db/queries/audit';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { getDict } from '@/i18n/request';
+import { PROMPT_LANGUAGE, type PromptLanguage } from '@/lib/ai/prompt-language';
+import type { Locale } from '@/i18n/locales';
+import { getDict, getLocale } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
 import { limitAi } from '@/lib/rate-limit';
 import { NextResponse } from 'next/server';
@@ -12,7 +14,13 @@ const requestSchema = z.object({
   existingQuestions: z.array(z.string().min(1).max(500)).max(20).optional(),
 });
 
-const SYSTEM_PROMPT = `You are a helper for a personal daily journal app. The user wants to build a personal context profile so the AI can ask more relevant journal questions in the future.
+/**
+ * The system prompt in one language. The instructions stay English in both —
+ * they are prompt engineering, not copy anyone reads; only the language the
+ * model must answer in follows the locale. See `@/lib/ai/prompt-language`.
+ */
+function buildSystemPrompt(lang: PromptLanguage): string {
+  return `You are a helper for a personal daily journal app. The user wants to build a personal context profile so the AI can ask more relevant journal questions in the future.
 
 Your job: generate open-ended questions about the user's life circumstances that, when answered, would help personalize future journal questions. Focus on: occupation/work, family situation, hobbies/interests, home/location, recurring habits or routines.
 
@@ -22,13 +30,29 @@ Hard rules:
 3. Questions must be open-ended (not yes/no).
 4. Generate between 3 and 5 questions.
 
-OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/familiar (tegező) form.
+${lang.profileQuestions.outputRule}
 
 Return your questions ONLY via the submit_questions tool. No free text.`;
+}
+
+/**
+ * Both languages, built once at module load rather than per request: the block
+ * goes out under `cache_control`, and a cached prefix is a byte match. Each
+ * language is its own prefix and so its own cache entry, which costs nothing
+ * in practice — a request is served in one language.
+ */
+const SYSTEM_PROMPT: Record<Locale, string> = {
+  en: buildSystemPrompt(PROMPT_LANGUAGE.en),
+  hu: buildSystemPrompt(PROMPT_LANGUAGE.hu),
+};
 
 
 export const POST = withSession(async (req) => {
   const d = await getDict();
+  // The language the model must answer in, resolved once for the whole
+  // request: the same setting that decides the interface language.
+  const locale = await getLocale();
+  const lang = PROMPT_LANGUAGE[locale];
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -46,7 +70,7 @@ export const POST = withSession(async (req) => {
     existingQuestions.length > 0 ? existingQuestions.map((q) => `- ${q}`).join('\n') : '(none yet)',
     '',
     '## Task',
-    "Generate 3 to 5 new questions in Hungarian about this person's life circumstances.",
+    lang.profileQuestions.taskLine,
   ].join('\n');
 
   const toolResponseSchema = z.object({
@@ -61,14 +85,14 @@ export const POST = withSession(async (req) => {
       system: [
         {
           type: 'text',
-          text: SYSTEM_PROMPT,
+          text: SYSTEM_PROMPT[locale],
           cache_control: { type: 'ephemeral' },
         },
       ],
       tools: [
         {
           name: 'submit_questions',
-          description: 'Submit 3 to 5 life-circumstance questions in Hungarian.',
+          description: lang.profileQuestions.toolDescription,
           input_schema: {
             type: 'object' as const,
             properties: {

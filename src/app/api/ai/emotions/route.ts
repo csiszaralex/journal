@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 import { logAudit } from '@/db/queries/audit';
 import { getPopularEmotions } from '@/db/queries/emotions';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { getDict } from '@/i18n/request';
+import { PROMPT_LANGUAGE, type PromptLanguage } from '@/lib/ai/prompt-language';
+import type { Locale } from '@/i18n/locales';
+import { getDict, getLocale } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
 import { limitAi } from '@/lib/rate-limit';
 import { NextResponse } from 'next/server';
@@ -14,7 +16,19 @@ const requestSchema = z.object({
   entryContent: z.string().max(4000).optional(),
 });
 
-const SYSTEM_PROMPT = `You are an assistant for a daily reflective journal. The user is writing a journal entry and wants suggestions for emotions that match their current state.
+/**
+ * The system prompt in one language.
+ *
+ * The instructions stay English in both — they are prompt engineering, not
+ * copy anyone reads. What follows the locale is the vocabulary guidance under
+ * rule 3, which is about the grammar of the language the emotion words are
+ * written in, and the output-language rule, which stays *soft* here: unlike
+ * the two question routes, this one asks the model to match whatever language
+ * the user is actually writing in, and the app's language only decides which
+ * way to fall when the entry does not say. See `@/lib/ai/prompt-language`.
+ */
+function buildSystemPrompt(lang: PromptLanguage): string {
+  return `You are an assistant for a daily reflective journal. The user is writing a journal entry and wants suggestions for emotions that match their current state.
 
 You receive:
 - The top 50 most-used emotions in the journal (for reference, not as a constraint)
@@ -27,20 +41,33 @@ Rules:
 1. You MAY suggest emotions from the existing list, or entirely new emotions not on the list.
 2. Never suggest an emotion the user has already selected for this entry.
 3. Each suggestion MUST name a feeling or emotional state, expressed as a NOUN or an ADJECTIVE — never a verb. Match the grammatical form of the existing emotions list above.
-   - Good Hungarian nouns: "öröm", "szorongás", "hála", "csalódottság", "nyugalom", "büszkeség".
-   - Good Hungarian adjectives: "fáradt", "ideges", "elégedett", "magányos", "feszült", "hálás".
-   - NEVER return a verb. Convert any verb to its feeling form: "aggódik" → "aggodalom", "fél" → "félelem", "örül" → "öröm", "dühöng" → "düh", "csalódik" → "csalódottság", "remél" → "remény".
+${lang.emotions.vocabularyRules}
 4. Keep emotion names short: 1-3 words maximum, lowercase.
 5. Suggest emotions that are specific and meaningful, not generic catch-alls like "happy" or "sad" unless contextually appropriate.
 6. If the entry content is empty, base suggestions on the current emotions already selected.
 
-OUTPUT LANGUAGE: Emotion names must match the language the user is writing in (detected from entry content or existing emotions). If the journal is in Hungarian, return Hungarian emotion words. If English, return English. Default to Hungarian if uncertain.
+${lang.emotions.outputRule}
 
 Return your suggestions ONLY via the \`submit_emotions\` tool. Do not produce any free text.`;
+}
+
+/**
+ * Both languages, built once at module load rather than per request: the block
+ * goes out under `cache_control`, and a cached prefix is a byte match. Each
+ * language is its own prefix and so its own cache entry, which costs nothing
+ * in practice — a request is served in one language.
+ */
+const SYSTEM_PROMPT: Record<Locale, string> = {
+  en: buildSystemPrompt(PROMPT_LANGUAGE.en),
+  hu: buildSystemPrompt(PROMPT_LANGUAGE.hu),
+};
 
 
 export const POST = withSession(async (req) => {
   const d = await getDict();
+  // The language the model falls back to when the entry itself does not say
+  // which one it is in, resolved once for the whole request.
+  const locale = await getLocale();
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -81,7 +108,7 @@ export const POST = withSession(async (req) => {
       system: [
         {
           type: 'text',
-          text: SYSTEM_PROMPT,
+          text: SYSTEM_PROMPT[locale],
           cache_control: { type: 'ephemeral' },
         },
       ],
