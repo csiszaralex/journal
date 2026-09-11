@@ -43,7 +43,7 @@ Rules:
 3. Each suggestion MUST name a feeling or emotional state, expressed as a NOUN or an ADJECTIVE — never a verb. Match the grammatical form of the existing emotions list above.
 ${lang.emotions.vocabularyRules}
 4. Keep emotion names short: 1-3 words maximum, lowercase.
-5. Suggest emotions that are specific and meaningful, not generic catch-alls like "happy" or "sad" unless contextually appropriate.
+5. Suggest emotions that are specific and meaningful, not generic catch-alls like ${lang.emotions.genericExamples} unless contextually appropriate.
 6. If the entry content is empty, base suggestions on the current emotions already selected.
 
 ${lang.emotions.outputRule}

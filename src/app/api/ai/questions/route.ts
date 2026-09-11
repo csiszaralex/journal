@@ -78,6 +78,14 @@ Return your questions ONLY via the \`submit_questions\` tool. Do not produce any
  * Each language is its own prefix and so its own cache entry, which costs
  * nothing in practice — a request is served in one language, and a given
  * install almost always stays in one.
+ *
+ * Worth knowing before reasoning about any of this: nothing is cached today.
+ * The model's minimum cacheable prefix is 1024 tokens and all three of these
+ * prompts are well under it (this one, the longest, is around 540), so the
+ * `cache_control` below is accepted, writes nothing, and reports zero created
+ * tokens rather than an error. It is kept because it costs nothing and becomes
+ * correct the moment the prompt grows past the minimum — but do not read a
+ * cache hit into it as things stand.
  */
 const SYSTEM_PROMPT: Record<Locale, string> = {
   en: buildSystemPrompt(PROMPT_LANGUAGE.en),
@@ -338,7 +346,7 @@ export const POST = withSession(async (req) => {
       tools: [
         {
           name: 'submit_questions',
-          description: lang.questions.toolDescription(count),
+          description: lang.questions.toolDescription,
           input_schema: {
             type: 'object' as const,
             properties: {
