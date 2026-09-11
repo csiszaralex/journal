@@ -1,7 +1,8 @@
 import webpush from "web-push";
+import { getStoredLocale } from "@/db/queries/settings";
 import { disableSubscription, listSubscriptions } from "@/db/queries/subscriptions";
 import { env } from "@/env";
-import type { Locale } from "@/i18n/locales";
+import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/locales";
 import promptsData from "../../data/prompts.json";
 
 let vapidConfigured = false;
@@ -64,6 +65,28 @@ const prompts = promptsData as Record<Locale, readonly string[]>;
 
 export function getPromptCount(locale: Locale): number {
   return prompts[locale]?.length ?? 0;
+}
+
+/**
+ * The language a notification to one device should be written in.
+ *
+ * The app-level setting wins whenever there is one. It is an explicit choice,
+ * and a device that subscribed before that choice must not keep being notified
+ * in the language it happened to negotiate months earlier.
+ *
+ * The device's own recorded preference covers the case the setting cannot: an
+ * install where nobody has chosen yet. That is the whole reason the column
+ * exists — the cron worker has no request to read `Accept-Language` from, so
+ * without it a Hungarian browser that never touched the setting would get
+ * English notifications forever.
+ *
+ * The constant is the last resort, for rows written before the column existed.
+ */
+export function localeForSubscription(subscriptionLocale: string | null): Locale {
+  const chosen = getStoredLocale();
+  if (chosen) return chosen;
+  if (subscriptionLocale !== null && isLocale(subscriptionLocale)) return subscriptionLocale;
+  return DEFAULT_LOCALE;
 }
 
 /**

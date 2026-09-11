@@ -6,8 +6,8 @@ import {
   removeSubscription,
   updateSubscription,
 } from '@/db/queries/subscriptions';
-import { getDict, getLocale } from '@/i18n/request';
-import { pickDailyPrompt, sendPush } from '@/lib/push';
+import { dictionaryFor } from '@/i18n/dictionary';
+import { localeForSubscription, pickDailyPrompt, sendPush } from '@/lib/push';
 import { authActionClient } from '@/lib/safe-action';
 import { formatInTimeZone } from 'date-fns-tz';
 import { revalidatePath } from 'next/cache';
@@ -55,10 +55,13 @@ export const sendTestNotificationAction = authActionClient
       logAudit('push.test.fail', { subscription_id: parsedInput.id, reason: 'not-found' });
       return { ok: false, reason: 'not-found' };
     }
+    // Addressed to one device, so it speaks that device's language rather than
+    // the one this browser happens to be using — the point of the button is to
+    // show what will actually arrive there.
     const result = await sendPush(sub, {
       type: 'daily',
       title: 'Journal',
-      body: (await getDict()).push.test,
+      body: dictionaryFor(localeForSubscription(sub.locale)).push.test,
     });
     if (result.status === 'sent') {
       logAudit('push.test.success', { subscription_id: parsedInput.id });
@@ -90,10 +93,11 @@ export const sendScheduledPreviewAction = authActionClient
       return { ok: false, reason: 'not-found' };
     }
     const todayStr = formatInTimeZone(new Date(), sub.timezone, 'yyyy-MM-dd');
-    // The preview is sent from a request, so unlike the worker's own send it
-    // can negotiate the language rather than falling back to the setting.
-    const d = await getDict();
-    const body = pickDailyPrompt(todayStr, await getLocale()) ?? d.push.noPrompts;
+    // Resolved exactly as the worker resolves it, so the preview is the message
+    // the schedule would have sent rather than an approximation of it.
+    const locale = localeForSubscription(sub.locale);
+    const d = dictionaryFor(locale);
+    const body = pickDailyPrompt(todayStr, locale) ?? d.push.noPrompts;
     const result = await sendPush(sub, { type: 'daily', title: 'Journal', body, date: todayStr });
     if (result.status === 'sent') {
       logAudit('push.preview.success', { subscription_id: parsedInput.id, date: todayStr });

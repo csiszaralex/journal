@@ -137,6 +137,12 @@ export const pushSubscriptions = sqliteTable("push_subscriptions", {
   auth: text("auth").notNull(),
   device_label: text("device_label").notNull().default("Unknown device"),
   user_agent: text("user_agent"),
+  // The language this device asked for when it subscribed. Nullable, and
+  // deliberately without a default: null means nobody recorded one, which is
+  // true of every row that predates the column, and is a different fact from
+  // "this device asked for English". Only consulted while the app-level locale
+  // setting is unset — see localeForSubscription in src/lib/push.ts.
+  locale: text("locale"),
   timezone: text("timezone").notNull().default("Europe/Budapest"),
   notify_hour: integer("notify_hour").notNull().default(21),
   notify_minute: integer("notify_minute").notNull().default(0),

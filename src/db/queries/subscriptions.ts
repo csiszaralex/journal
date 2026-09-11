@@ -9,6 +9,7 @@ export type CreateSubscriptionInput = {
   auth: string;
   device_label?: string;
   user_agent?: string;
+  locale?: string;
   timezone?: string;
   notify_hour?: number;
   notify_minute?: number;
@@ -24,8 +25,16 @@ export function upsertSubscription(input: CreateSubscriptionInput) {
     .get();
 
   if (existing) {
+    // Re-subscribing refreshes the language too: the same device coming back
+    // after its browser or its owner changed language should be notified in the
+    // one it asks for now, not the one it asked for the first time.
     db.update(pushSubscriptions)
-      .set({ p256dh: input.p256dh, auth: input.auth, last_seen_at: now })
+      .set({
+        p256dh: input.p256dh,
+        auth: input.auth,
+        locale: input.locale ?? existing.locale,
+        last_seen_at: now,
+      })
       .where(eq(pushSubscriptions.id, existing.id))
       .run();
     return existing.id;
@@ -40,6 +49,7 @@ export function upsertSubscription(input: CreateSubscriptionInput) {
       auth: input.auth,
       device_label: input.device_label ?? "Unknown device",
       user_agent: input.user_agent ?? null,
+      locale: input.locale ?? null,
       timezone: input.timezone ?? "Europe/Budapest",
       notify_hour: input.notify_hour ?? 21,
       notify_minute: input.notify_minute ?? 0,

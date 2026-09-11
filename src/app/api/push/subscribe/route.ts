@@ -6,6 +6,7 @@ import { withSession } from "@/lib/api-route";
 import { limitPush } from "@/lib/rate-limit";
 import { upsertSubscription } from "@/db/queries/subscriptions";
 import { logAudit } from "@/db/queries/audit";
+import { pickLocale } from "@/i18n/locales";
 import { friendlyNameFromUA } from "@/lib/user-agent";
 import { pushSubscribeSchema } from "@/lib/validation";
 
@@ -22,16 +23,23 @@ export const POST = withSession(async (req) => {
   const userAgent = req.headers.get("user-agent") ?? undefined;
   const deviceLabel = friendlyNameFromUA(userAgent);
 
+  // What this device asks for, not what the app is currently set to. The two
+  // are separate facts: the setting is consulted first when a notification is
+  // composed, and this is only the fallback for an install that has never
+  // chosen — which is exactly the case the cron worker cannot negotiate.
+  const locale = pickLocale(req.headers.get("accept-language"));
+
   const id = upsertSubscription({
     endpoint,
     p256dh: keys.p256dh,
     auth: keys.auth,
     device_label: deviceLabel,
     user_agent: userAgent,
+    locale,
     timezone: timezone ?? "Europe/Budapest",
   });
 
-  logAudit("push.subscribe", { subscription_id: id, device_label: deviceLabel });
+  logAudit("push.subscribe", { subscription_id: id, device_label: deviceLabel, locale });
 
   return NextResponse.json({ id });
 }, { limit: limitPush });
