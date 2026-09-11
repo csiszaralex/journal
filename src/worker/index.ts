@@ -8,7 +8,7 @@ import {
   hasNotificationBeenSent,
   recordNotificationSent,
 } from "../db/queries/subscriptions";
-import { sendPush, pickDailyPrompt, getPromptCount } from "../lib/push";
+import { sendPush, pickDailyPrompt, getPromptCount, localeForSubscription } from "../lib/push";
 import { dictionaryFor } from "@/i18n/dictionary";
 import { storedLocale } from "@/i18n/stored";
 import { countOpenIntentionsForToday } from "@/db/queries/intentions";
@@ -77,9 +77,10 @@ async function tick() {
         continue;
       }
 
-      // No request to negotiate a language from, so this follows the stored
-      // setting and falls back to the default — see the note in i18n/en/push.ts.
-      const locale = storedLocale();
+      // No request to negotiate a language from, so this falls back to what the
+      // device asked for when it subscribed — the app-level setting still wins
+      // wherever one has been chosen. See localeForSubscription.
+      const locale = localeForSubscription(sub.locale);
       const d = dictionaryFor(locale);
       const promptBody = pickDailyPrompt(todayStr, locale) ?? d.push.noPrompts;
       const openCount = countOpenIntentionsForToday(todayStr);
