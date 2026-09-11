@@ -1,5 +1,4 @@
 import type { Dictionary } from '../en';
-import { ai } from './ai';
 import { auditLog } from './audit-log';
 import { auth } from './auth';
 import { calendar } from './calendar';
@@ -22,7 +21,6 @@ import { summary } from './summary';
 import { tags } from './tags';
 
 export const hu: Dictionary = {
-  ai,
   auditLog,
   auth,
   calendar,

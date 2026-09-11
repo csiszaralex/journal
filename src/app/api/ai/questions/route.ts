@@ -6,7 +6,9 @@ import { listIntentionsForPeriod } from '@/db/queries/intentions';
 import { getProfileBio, listProfileQa } from '@/db/queries/profile';
 import { getAiHistoryEntries, getSummaryGapDays } from '@/db/queries/settings';
 import { getAnthropicClient, QUESTIONS_MODEL } from '@/lib/ai/anthropic';
-import { getDict } from '@/i18n/request';
+import { PROMPT_LANGUAGE, type PromptLanguage } from '@/lib/ai/prompt-language';
+import type { Locale } from '@/i18n/locales';
+import { getDict, getLocale } from '@/i18n/request';
 import { withSession } from '@/lib/api-route';
 import { limitAi } from '@/lib/rate-limit';
 import { todayInAppTZ } from '@/lib/date';
@@ -30,7 +32,22 @@ const requestSchema = z.object({
     .optional(),
 });
 
-const SYSTEM_PROMPT = `You are an assistant for a daily reflective journal. The user is currently writing today's entry and wants follow-up questions that help them describe today more accurately and notice things they might otherwise gloss over.
+/** The few-shot examples as rule 1 renders them: `"…", "…", "…"`. */
+function quoted(examples: readonly string[]): string {
+  return examples.map((q) => `"${q}"`).join(', ');
+}
+
+/**
+ * The system prompt in one language.
+ *
+ * The instructions stay English in both languages on purpose — they are prompt
+ * engineering, not copy anyone reads. What is interpolated is the language the
+ * model must answer in and the few-shot questions, which have to be written in
+ * that same language or they demonstrate the wrong thing. See
+ * `@/lib/ai/prompt-language`.
+ */
+function buildSystemPrompt(lang: PromptLanguage): string {
+  return `You are an assistant for a daily reflective journal. The user is currently writing today's entry and wants follow-up questions that help them describe today more accurately and notice things they might otherwise gloss over.
 
 You receive:
 - The past few days of journal entries with their tags (topic labels) and emotions (how the user felt)
@@ -40,16 +57,32 @@ You receive:
 Your job: generate N open-ended questions that pull on specific threads from the past entries.
 
 Hard rules — these are strictly enforced:
-1. Each question must reference a SPECIFIC concrete detail from the past entries: a plan that was mentioned, a worry that was expressed, a person or activity named, a recurring tag/theme. Generic catch-all questions are forbidden. Examples of BAD questions (do not produce these or anything like them): "How are you feeling today?", "What did you accomplish?", "What's on your mind?", "What was the best part of your day?". Examples of GOOD questions: "Sikerült ma beszélned Annával arról a témáról, amit tegnap halogattál?", "Eljutottál ma az edzésre, vagy megint kimaradt?", "A pénteki határidőhöz közelebb kerültél valamit?"
+1. Each question must reference a SPECIFIC concrete detail from the past entries: a plan that was mentioned, a worry that was expressed, a person or activity named, a recurring tag/theme. Generic catch-all questions are forbidden. Examples of BAD questions (do not produce these or anything like them): ${quoted(lang.questions.badExamples)}. Examples of GOOD questions: ${quoted(lang.questions.goodExamples)}
 2. Open-ended only. No yes/no questions, no questions answerable with a single word.
 3. Maximum 1 sentence per question. Conversational, not formal.
 4. Do not ask about content the user has already written for today.
 5. If existing questions are provided, your new questions must explore SUBSTANTIVELY different topics or angles. No paraphrasing of the existing ones.
 6. If two past days mention the same thread (e.g. a recurring worry, an unfinished task) or share an emotional thread (e.g. recurring frustration, sustained tiredness), prefer asking about the continuation/resolution of it.
 
-OUTPUT LANGUAGE: All questions must be written in HUNGARIAN, using the informal/familiar (tegező) form. The questions themselves must be Hungarian even though these instructions are in English.
+${lang.questions.outputRule}
 
 Return your questions ONLY via the \`submit_questions\` tool. Do not produce any free text.`;
+}
+
+/**
+ * Both languages, built once at module load rather than per request.
+ *
+ * The block goes out under `cache_control`, and a cached prefix is a byte
+ * match: rebuilding the string per request would be fine as long as it is
+ * identical, but building it once makes that impossible to get wrong later.
+ * Each language is its own prefix and so its own cache entry, which costs
+ * nothing in practice — a request is served in one language, and a given
+ * install almost always stays in one.
+ */
+const SYSTEM_PROMPT: Record<Locale, string> = {
+  en: buildSystemPrompt(PROMPT_LANGUAGE.en),
+  hu: buildSystemPrompt(PROMPT_LANGUAGE.hu),
+};
 
 
 function daysBetween(fromISO: string, toISO: string): number {
@@ -103,6 +136,7 @@ function buildUserMessage(
     periodEnd: string;
     intentions: { text: string; status: string; due_date: string | null }[];
   } | null,
+  lang: PromptLanguage,
 ): string {
   const priorSection =
     priorDays.length === 0
@@ -160,7 +194,7 @@ function buildUserMessage(
       }`
     : '';
 
-  return `## Today: ${referenceDate}\n\n## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}${gapSection}${noHistorySection}${summarySection}\n\n## Task\nGenerate exactly ${count} new question${count === 1 ? '' : 's'} in Hungarian, following all the rules in the system prompt.`;
+  return `## Today: ${referenceDate}\n\n## Previous days:\n\n${priorSection}\n\n## Today's draft (not yet saved):\n${todaySection}${existingSection}${gapSection}${noHistorySection}${summarySection}\n\n## Task\n${lang.questions.taskLine(count)}`;
 }
 
 function buildProfileContext(
@@ -183,6 +217,10 @@ function buildProfileContext(
 
 export const POST = withSession(async (req) => {
   const d = await getDict();
+  // The language the model must answer in, resolved once for the whole
+  // request: the same setting that decides the interface language.
+  const locale = await getLocale();
+  const lang = PROMPT_LANGUAGE[locale];
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -281,6 +319,7 @@ export const POST = withSession(async (req) => {
     count,
     gapThreshold,
     summaryContext,
+    lang,
   );
   const userMessage = profileContext ? `${profileContext}\n\n${baseUserMessage}` : baseUserMessage;
 
@@ -292,14 +331,14 @@ export const POST = withSession(async (req) => {
       system: [
         {
           type: 'text',
-          text: SYSTEM_PROMPT,
+          text: SYSTEM_PROMPT[locale],
           cache_control: { type: 'ephemeral' },
         },
       ],
       tools: [
         {
           name: 'submit_questions',
-          description: `Submit exactly ${count} reflective question${count === 1 ? '' : 's'} in Hungarian.`,
+          description: lang.questions.toolDescription(count),
           input_schema: {
             type: 'object' as const,
             properties: {
